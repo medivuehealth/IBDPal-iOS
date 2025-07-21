@@ -1,0 +1,47 @@
+{
+  "expo": {
+    "name": "IBDPal",
+    "slug": "ibdpal",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.medivuehealth.ibdpal",
+      "buildNumber": "31",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSAppTransportSecurity": {
+          "NSAllowsArbitraryLoads": true,
+          "NSExceptionDomains": {
+            "192.168.1.138": {
+              "NSExceptionAllowsInsecureHTTPLoads": true,
+              "NSExceptionMinimumTLSVersion": "1.0"
+            }
+          }
+        }
+      }
+    },
+    "android": {
+      "package": "com.medivuehealth.ibdpal"
+    },
+    "web": {
+    },
+    "extra": {
+      "eas": {
+        "projectId": "17438823-25b9-432b-81a0-65fa895ae15b"
+      }
+    },
+    "plugins": [
+      "expo-secure-store"
+    ]
+  }
+} 
