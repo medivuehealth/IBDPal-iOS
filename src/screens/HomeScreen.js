@@ -56,7 +56,7 @@ const HomeScreen = ({ navigation, route }) => {
   const loadLast7DaysStats = async () => {
     try {
       setLoading(true);
-      console.log('📊 Loading last 7 days stats for user:', userData?.username);
+      console.log('🏠 [HomeScreen] Loading last 7 days stats for user:', userData?.username);
       
       // Fetch all entries
       const response = await fetch(`${API_BASE_URL}/journal/entries/${userData?.username}`);
@@ -72,9 +72,10 @@ const HomeScreen = ({ navigation, route }) => {
         const todayStr = today.toISOString().split('T')[0];
         const sevenDaysAgoStr = sevenDaysAgo.toISOString().split('T')[0];
         
-        console.log('Date range:', sevenDaysAgoStr, 'to', todayStr);
-        console.log('Current user ID:', userData?.username);
-        console.log('All entries:', entries);
+        console.log('🏠 [HomeScreen] Date range:', sevenDaysAgoStr, 'to', todayStr);
+        console.log('🏠 [HomeScreen] Current user ID:', userData?.username);
+        console.log('🏠 [HomeScreen] All entries count:', entries?.length || 0);
+        console.log('🏠 [HomeScreen] Sample entry:', entries?.[0]);
         
         // Filter entries for last 7 days
         const last7DaysEntries = entries.filter(entry => {
@@ -94,7 +95,8 @@ const HomeScreen = ({ navigation, route }) => {
           return false;
         });
         
-        console.log('Last 7 days entries:', last7DaysEntries);
+        console.log('🏠 [HomeScreen] Last 7 days entries count:', last7DaysEntries.length);
+        console.log('🏠 [HomeScreen] Last 7 days entries:', last7DaysEntries);
         
         // Group entries by date for analysis
         const entriesByDate = {};
@@ -144,19 +146,24 @@ const HomeScreen = ({ navigation, route }) => {
           }
         });
         
-        setLast7DaysStats({
+        const stats = {
           logEntries: totalEntries,
           mealsLogged: mealsLogged,
           symptoms: hasSymptoms ? 'Reported' : 'None',
           averageEntries: averageEntries,
           mostActiveDay: mostActiveDay
-        });
+        };
+        
+        console.log('🏠 [HomeScreen] Calculated stats:', stats);
+        setLast7DaysStats(stats);
 
         // Generate reminders based on last 7 days data
         generateReminders(last7DaysEntries);
+      } else {
+        console.error('🏠 [HomeScreen] Error fetching entries:', response.status);
       }
     } catch (error) {
-      console.error('Error loading last 7 days stats:', error);
+      console.error('🏠 [HomeScreen] Error loading last 7 days stats:', error);
     } finally {
       setLoading(false);
     }
