@@ -2,8 +2,13 @@ import SwiftUI
 
 struct MoreView: View {
     let userData: UserData?
+    let onSignOut: () -> Void
     
     @State private var showingLogoutAlert = false
+    @State private var isSigningOut = false
+    
+    // Updated API URL to match your backend
+    private let apiBaseURL = AppConfig.apiBaseURL
     
     var body: some View {
         NavigationView {
@@ -32,7 +37,7 @@ struct MoreView: View {
                 
                 // My Diagnosis Section
                 Section("My Diagnosis") {
-                    NavigationLink(destination: Text("Diagnosis Screen")) {
+                    NavigationLink(destination: MyDiagnosisView(userData: userData)) {
                         MoreRow(icon: "stethoscope", title: "My Diagnosis", subtitle: "View your IBD diagnosis")
                     }
                 }
@@ -72,9 +77,18 @@ struct MoreView: View {
                     Button(action: {
                         showingLogoutAlert = true
                     }) {
-                        MoreRow(icon: "rectangle.portrait.and.arrow.right", title: "Sign Out", subtitle: "Sign out of your account")
-                            .foregroundColor(.red)
+                        HStack {
+                            MoreRow(icon: "rectangle.portrait.and.arrow.right", title: "Sign Out", subtitle: "Sign out of your account")
+                                .foregroundColor(.red)
+                            
+                            if isSigningOut {
+                                Spacer()
+                                ProgressView()
+                                    .scaleEffect(0.8)
+                            }
+                        }
                     }
+                    .disabled(isSigningOut)
                 }
             }
             .navigationTitle("More")
@@ -82,12 +96,62 @@ struct MoreView: View {
             .alert("Sign Out", isPresented: $showingLogoutAlert) {
                 Button("Cancel", role: .cancel) { }
                 Button("Sign Out", role: .destructive) {
-                    // Handle sign out
+                    handleSignOut()
                 }
             } message: {
                 Text("Are you sure you want to sign out?")
             }
         }
+    }
+    
+    private func handleSignOut() {
+        guard let userData = userData else {
+            // If no user data, just sign out locally
+            onSignOut()
+            return
+        }
+        
+        isSigningOut = true
+        print("🔐 [MoreView] Starting sign out process...")
+        
+        // Call server logout endpoint
+        guard let url = URL(string: "\(apiBaseURL)\(AppConfig.Endpoints.logout)") else {
+            print("❌ [MoreView] Invalid logout URL")
+            isSigningOut = false
+            return
+        }
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("Bearer \(userData.token)", forHTTPHeaderField: "Authorization")
+        request.timeoutInterval = 30.0
+        
+        NetworkManager.shared.dataTask(with: request) { data, response, error in
+            DispatchQueue.main.async {
+                isSigningOut = false
+                
+                if let error = error {
+                    print("❌ [MoreView] Logout network error: \(error)")
+                    // Even if server logout fails, sign out locally
+                    onSignOut()
+                    return
+                }
+                
+                if let httpResponse = response as? HTTPURLResponse {
+                    print("📥 [MoreView] Logout HTTP Status: \(httpResponse.statusCode)")
+                    
+                    if httpResponse.statusCode == 200 {
+                        print("✅ [MoreView] Server logout successful")
+                    } else {
+                        print("⚠️ [MoreView] Server logout returned status: \(httpResponse.statusCode)")
+                    }
+                }
+                
+                // Always sign out locally regardless of server response
+                onSignOut()
+            }
+        }.resume()
     }
 }
 
@@ -124,5 +188,7 @@ struct MoreRow: View {
 }
 
 #Preview {
-    MoreView(userData: UserData(id: "1", email: "test@example.com", name: "Test User", token: "token"))
+    MoreView(userData: UserData(id: "1", email: "test@example.com", name: "Test User", token: "token"), onSignOut: {
+        print("Sign out called from preview")
+    })
 } 
