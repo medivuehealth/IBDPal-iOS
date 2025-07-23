@@ -1,4 +1,5 @@
 import SwiftUI
+import WebKit
 
 struct SearchView: View {
     let userData: UserData?
@@ -6,14 +7,14 @@ struct SearchView: View {
     @State private var searchText = ""
     @State private var isLoading = false
     @State private var searchResults: [DatabaseFoodItem] = []
-    @State private var selectedCategory = "All"
     @State private var selectedDiscoverCategory: DiscoverCategory = .nutrition
     @State private var articles: [Article] = []
     @State private var calculatedNutrition: SearchCalculatedNutrition?
     @State private var showingNutritionResults = false
+    @State private var showingArticleViewer = false
+    @State private var selectedArticle: Article?
     
-    private let categories = ["All", "Fruits", "Vegetables", "Proteins", "Grains", "Dairy", "Breakfast", "Legumes", "Nuts", "Beverages"]
-    private let discoverCategories: [DiscoverCategory] = [.nutrition, .medication, .lifestyle, .research, .community]
+    private let discoverCategories: [DiscoverCategory] = [.nutrition, .medication, .lifestyle, .research, .community, .blogs]
     
     var body: some View {
         NavigationView {
@@ -40,27 +41,6 @@ struct SearchView: View {
                                     showingNutritionResults = false
                                 }
                                 .foregroundColor(.red)
-                            }
-                        }
-                        
-                        // Category Filter
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: 12) {
-                                ForEach(categories, id: \.self) { category in
-                                    Button(action: {
-                                        selectedCategory = category
-                                        filterResults()
-                                    }) {
-                                        Text(category)
-                                            .font(.caption)
-                                            .fontWeight(.medium)
-                                            .padding(.horizontal, 12)
-                                            .padding(.vertical, 6)
-                                            .background(selectedCategory == category ? Color.blue : Color.gray.opacity(0.2))
-                                            .foregroundColor(selectedCategory == category ? .white : .primary)
-                                            .cornerRadius(16)
-                                    }
-                                }
                             }
                         }
                         
@@ -132,56 +112,109 @@ struct SearchView: View {
                     }
                     .padding(.horizontal)
                     
-                    // Discover Section
+                    // Learn & Discover & Connect Section
                     VStack(alignment: .leading, spacing: 16) {
-                        Text("Learn & Discover")
+                        Text("Learn & Discover & Connect")
                             .font(.title2)
                             .fontWeight(.bold)
                             .foregroundColor(.ibdPrimaryText)
                         
-                        // Category Picker
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: 12) {
-                                ForEach(discoverCategories, id: \.self) { category in
-                                    Button(action: {
+                        // Category Cards (similar to Daily Log layout)
+                        LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 2), spacing: 16) {
+                            ForEach(discoverCategories, id: \.self) { category in
+                                DiscoverCategoryCard(
+                                    category: category,
+                                    isSelected: selectedDiscoverCategory == category,
+                                    action: {
                                         selectedDiscoverCategory = category
                                         loadArticles(for: category)
-                                    }) {
-                                        Text(category.displayName)
-                                            .font(.subheadline)
-                                            .fontWeight(.medium)
-                                            .padding(.horizontal, 16)
-                                            .padding(.vertical, 8)
-                                            .background(selectedDiscoverCategory == category ? Color.ibdPrimary : Color.ibdSurfaceBackground)
-                                            .foregroundColor(selectedDiscoverCategory == category ? .white : .ibdPrimaryText)
-                                            .cornerRadius(20)
                                     }
-                                }
+                                )
                             }
                         }
                         
                         // Articles Section
-                        if isLoading {
-                            ProgressView("Loading articles...")
+                        VStack(alignment: .leading, spacing: 12) {
+                            HStack {
+                                Text("\(selectedDiscoverCategory.displayName) Articles")
+                                    .font(.headline)
+                                    .fontWeight(.semibold)
+                                    .foregroundColor(.ibdPrimaryText)
+                                
+                                Spacer()
+                                
+                                if isLoading {
+                                    ProgressView()
+                                        .scaleEffect(0.8)
+                                }
+                            }
+                            
+                            if isLoading {
+                                VStack(spacing: 16) {
+                                    ProgressView("Loading articles...")
+                                        .frame(maxWidth: .infinity)
+                                        .padding()
+                                }
+                            } else if articles.isEmpty {
+                                VStack(spacing: 16) {
+                                    Image(systemName: "doc.text")
+                                        .font(.system(size: 50))
+                                        .foregroundColor(.gray)
+                                    
+                                    Text("No articles found")
+                                        .font(.headline)
+                                        .foregroundColor(.ibdSecondaryText)
+                                    
+                                    Text("Try selecting a different category or check back later.")
+                                        .font(.subheadline)
+                                        .foregroundColor(.ibdSecondaryText)
+                                        .multilineTextAlignment(.center)
+                                }
                                 .frame(maxWidth: .infinity)
                                 .padding()
-                        } else if articles.isEmpty {
-                            VStack(spacing: 16) {
-                                Text("No articles found")
-                                    .font(.headline)
-                                    .foregroundColor(.ibdSecondaryText)
-                                
-                                Text("Try selecting a different category or check back later.")
-                                    .font(.subheadline)
-                                    .foregroundColor(.ibdSecondaryText)
-                                    .multilineTextAlignment(.center)
-                            }
-                            .frame(maxWidth: .infinity)
-                            .padding()
-                        } else {
-                            LazyVStack(spacing: 16) {
-                                ForEach(articles) { article in
-                                    ArticleCard(article: article)
+                            } else {
+                                if selectedDiscoverCategory == .blogs {
+                                    VStack(spacing: 16) {
+                                        Text("Share Your Story")
+                                            .font(.headline)
+                                            .fontWeight(.semibold)
+                                            .foregroundColor(.ibdPrimaryText)
+                                        
+                                        Text("Connect with the IBD community by sharing your experiences and reading others' stories.")
+                                            .font(.subheadline)
+                                            .foregroundColor(.ibdSecondaryText)
+                                            .multilineTextAlignment(.center)
+                                        
+                                        NavigationLink(destination: BlogView(userData: userData)) {
+                                            HStack {
+                                                Image(systemName: "square.and.pencil")
+                                                    .font(.title2)
+                                                    .foregroundColor(.white)
+                                                
+                                                Text("Go to Stories")
+                                                    .font(.headline)
+                                                    .fontWeight(.semibold)
+                                                    .foregroundColor(.white)
+                                            }
+                                            .frame(maxWidth: .infinity)
+                                            .padding()
+                                            .background(Color.ibdPrimary)
+                                            .cornerRadius(12)
+                                        }
+                                        .buttonStyle(PlainButtonStyle())
+                                    }
+                                    .padding()
+                                    .background(Color.ibdSurfaceBackground)
+                                    .cornerRadius(12)
+                                } else {
+                                    LazyVStack(spacing: 16) {
+                                        ForEach(articles) { article in
+                                            ArticleCard(article: article) {
+                                                selectedArticle = article
+                                                showingArticleViewer = true
+                                            }
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -199,6 +232,11 @@ struct SearchView: View {
             .onAppear {
                 print("SearchView appeared, loading articles...")
                 loadArticles(for: selectedDiscoverCategory)
+            }
+            .sheet(isPresented: $showingArticleViewer) {
+                if let article = selectedArticle {
+                    ArticleViewerView(article: article)
+                }
             }
         }
     }
@@ -296,24 +334,13 @@ struct SearchView: View {
         }
     }
     
-    private func filterResults() {
-        if selectedCategory == "All" {
-            performSearch()
-        } else {
-            let foodDatabase = FoodDatabase.shared
-            searchResults = foodDatabase.allFoods.filter { food in
-                food.category == selectedCategory
-            }
-        }
-    }
-    
     private func loadArticles(for category: DiscoverCategory) {
         isLoading = true
         print("Loading articles for category: \(category.displayName)")
         
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
             articles = getArticles(for: category)
-            print("Loaded \(articles.count) articles")
+            print("Loaded \(articles.count) articles for \(category.displayName)")
             isLoading = false
         }
     }
@@ -322,33 +349,101 @@ struct SearchView: View {
         switch category {
         case .nutrition:
             return [
-                Article(id: "1", title: "Anti-Inflammatory Diet for IBD", excerpt: "Learn about foods that can help reduce inflammation and manage IBD symptoms.", category: .nutrition, readTime: "5 min read", imageName: "leaf.fill"),
-                Article(id: "2", title: "Foods to Avoid During Flares", excerpt: "Discover which foods might trigger symptoms and should be avoided during active periods.", category: .nutrition, readTime: "4 min read", imageName: "exclamationmark.triangle.fill"),
-                Article(id: "3", title: "Hydration Tips for IBD Patients", excerpt: "Stay properly hydrated with these essential tips for managing IBD.", category: .nutrition, readTime: "3 min read", imageName: "drop.fill")
+                Article(id: "1", title: "Anti-Inflammatory Diet for IBD", excerpt: "Learn about foods that can help reduce inflammation and manage IBD symptoms.", category: .nutrition, readTime: "5 min read", imageName: "leaf.fill", url: "https://www.mayoclinic.org/diseases-conditions/inflammatory-bowel-disease/symptoms-causes/syc-20353315"),
+                Article(id: "2", title: "Foods to Avoid During Flares", excerpt: "Discover which foods might trigger symptoms and should be avoided during active periods.", category: .nutrition, readTime: "4 min read", imageName: "exclamationmark.triangle.fill", url: "https://www.mayoclinic.org/diseases-conditions/inflammatory-bowel-disease/symptoms-causes/syc-20353315"),
+                Article(id: "3", title: "Hydration Tips for IBD Patients", excerpt: "Stay properly hydrated with these essential tips for managing IBD.", category: .nutrition, readTime: "3 min read", imageName: "drop.fill", url: "https://www.mayoclinic.org/diseases-conditions/dehydration/symptoms-causes/syc-20354086"),
+                Article(id: "4", title: "Fiber and IBD: What You Need to Know", excerpt: "Understanding how fiber affects IBD and how to incorporate it safely.", category: .nutrition, readTime: "6 min read", imageName: "leaf.circle.fill", url: "https://www.mayoclinic.org/healthy-lifestyle/nutrition-and-healthy-eating/in-depth/fiber/art-20043983"),
+                Article(id: "5", title: "Low FODMAP Diet for IBS", excerpt: "A comprehensive guide to the low FODMAP diet for managing IBS symptoms.", category: .nutrition, readTime: "7 min read", imageName: "chart.bar.fill", url: "https://www.mayoclinic.org/diseases-conditions/inflammatory-bowel-disease/symptoms-causes/syc-20353315"),
+                Article(id: "6", title: "Crohn's Disease Diet Plan", excerpt: "Specific dietary recommendations for managing Crohn's disease symptoms.", category: .nutrition, readTime: "8 min read", imageName: "fork.knife", url: "https://www.mayoclinic.org/diseases-conditions/crohns-disease/symptoms-causes/syc-20353317"),
+                Article(id: "7", title: "Ulcerative Colitis Nutrition Guide", excerpt: "Nutritional strategies for managing ulcerative colitis and promoting healing.", category: .nutrition, readTime: "6 min read", imageName: "heart.fill", url: "https://www.mayoclinic.org/diseases-conditions/ulcerative-colitis/symptoms-causes/syc-20353326"),
+                Article(id: "8", title: "Probiotics for IBD Management", excerpt: "How probiotics can help support gut health in IBD patients.", category: .nutrition, readTime: "5 min read", imageName: "bacteria", url: "https://www.mayoclinic.org/healthy-lifestyle/consumer-health/expert-answers/probiotics/faq-20058065")
             ]
         case .medication:
             return [
-                Article(id: "4", title: "Understanding IBD Medications", excerpt: "A comprehensive guide to the different types of medications used to treat IBD.", category: .medication, readTime: "7 min read", imageName: "pills.fill"),
-                Article(id: "5", title: "Medication Adherence Tips", excerpt: "Strategies to help you stay on track with your medication schedule.", category: .medication, readTime: "4 min read", imageName: "clock.fill")
+                Article(id: "9", title: "Understanding IBD Medications", excerpt: "A comprehensive guide to the different types of medications used to treat IBD.", category: .medication, readTime: "7 min read", imageName: "pills.fill", url: "https://www.mayoclinic.org/diseases-conditions/inflammatory-bowel-disease/diagnosis-treatment/drc-20353320"),
+                Article(id: "10", title: "Medication Adherence Tips", excerpt: "Strategies to help you stay on track with your medication schedule.", category: .medication, readTime: "4 min read", imageName: "clock.fill", url: "https://www.mayoclinic.org/diseases-conditions/inflammatory-bowel-disease/diagnosis-treatment/drc-20353320"),
+                Article(id: "11", title: "Biologic Therapies for IBD", excerpt: "Learn about biologic medications and their role in treating inflammatory bowel disease.", category: .medication, readTime: "8 min read", imageName: "syringe.fill", url: "https://www.mayoclinic.org/diseases-conditions/inflammatory-bowel-disease/diagnosis-treatment/drc-20353320"),
+                Article(id: "12", title: "Side Effects Management", excerpt: "How to manage common medication side effects in IBD treatment.", category: .medication, readTime: "6 min read", imageName: "exclamationmark.triangle", url: "https://www.mayoclinic.org/diseases-conditions/inflammatory-bowel-disease/diagnosis-treatment/drc-20353320"),
+                Article(id: "13", title: "Alternative Therapies", excerpt: "Complementary and alternative approaches to IBD management.", category: .medication, readTime: "5 min read", imageName: "leaf.arrow.circlepath", url: "https://www.mayoclinic.org/diseases-conditions/inflammatory-bowel-disease/diagnosis-treatment/drc-20353320")
             ]
         case .lifestyle:
             return [
-                Article(id: "6", title: "Exercise and IBD", excerpt: "Safe and effective exercise routines for people living with IBD.", category: .lifestyle, readTime: "6 min read", imageName: "figure.walk"),
-                Article(id: "7", title: "Stress Management Techniques", excerpt: "Learn how to manage stress, which can significantly impact IBD symptoms.", category: .lifestyle, readTime: "5 min read", imageName: "brain.head.profile")
+                Article(id: "14", title: "Exercise and IBD", excerpt: "Safe and effective exercise routines for people living with IBD.", category: .lifestyle, readTime: "6 min read", imageName: "figure.walk", url: "https://www.mayoclinic.org/diseases-conditions/inflammatory-bowel-disease/symptoms-causes/syc-20353315"),
+                Article(id: "15", title: "Stress Management Techniques", excerpt: "Learn how to manage stress, which can significantly impact IBD symptoms.", category: .lifestyle, readTime: "5 min read", imageName: "brain.head.profile", url: "https://www.mayoclinic.org/healthy-lifestyle/stress-management/in-depth/stress/art-20046037"),
+                Article(id: "16", title: "Sleep and IBD", excerpt: "How to improve your sleep quality when living with inflammatory bowel disease.", category: .lifestyle, readTime: "4 min read", imageName: "bed.double.fill", url: "https://www.mayoclinic.org/healthy-lifestyle/adult-health/in-depth/sleep/art-20048379"),
+                Article(id: "17", title: "Travel Tips for IBD Patients", excerpt: "Essential advice for traveling safely and comfortably with IBD.", category: .lifestyle, readTime: "7 min read", imageName: "airplane", url: "https://www.mayoclinic.org/diseases-conditions/inflammatory-bowel-disease/symptoms-causes/syc-20353315"),
+                Article(id: "18", title: "Work and IBD", excerpt: "Managing IBD symptoms while maintaining a successful career.", category: .lifestyle, readTime: "6 min read", imageName: "briefcase.fill", url: "https://www.mayoclinic.org/diseases-conditions/inflammatory-bowel-disease/symptoms-causes/syc-20353315"),
+                Article(id: "19", title: "Mental Health Support", excerpt: "Resources and strategies for maintaining mental health with IBD.", category: .lifestyle, readTime: "5 min read", imageName: "heart.circle.fill", url: "https://www.mayoclinic.org/healthy-lifestyle/stress-management/in-depth/stress/art-20046037")
             ]
         case .research:
             return [
-                Article(id: "8", title: "Latest IBD Research Updates", excerpt: "Stay informed about the newest developments in IBD treatment and research.", category: .research, readTime: "8 min read", imageName: "microscope.fill")
+                Article(id: "20", title: "Latest IBD Research Updates", excerpt: "Stay informed about the newest developments in IBD treatment and research.", category: .research, readTime: "8 min read", imageName: "microscope.fill", url: "https://www.mayoclinic.org/diseases-conditions/inflammatory-bowel-disease/diagnosis-treatment/drc-20353320"),
+                Article(id: "21", title: "Clinical Trials for IBD", excerpt: "Information about current clinical trials and how to participate.", category: .research, readTime: "6 min read", imageName: "clipboard.fill", url: "https://clinicaltrials.gov/ct2/results?cond=Inflammatory+Bowel+Disease"),
+                Article(id: "22", title: "New Treatment Options", excerpt: "Emerging therapies and treatment approaches for IBD patients.", category: .research, readTime: "7 min read", imageName: "staroflife.fill", url: "https://www.mayoclinic.org/diseases-conditions/inflammatory-bowel-disease/diagnosis-treatment/drc-20353320"),
+                Article(id: "23", title: "Genetic Research in IBD", excerpt: "Understanding the genetic factors that contribute to IBD development.", category: .research, readTime: "6 min read", imageName: "dna", url: "https://www.mayoclinic.org/diseases-conditions/inflammatory-bowel-disease/diagnosis-treatment/drc-20353320"),
+                Article(id: "24", title: "Microbiome Research", excerpt: "Latest findings on the gut microbiome and its role in IBD.", category: .research, readTime: "7 min read", imageName: "bacteria.fill", url: "https://www.mayoclinic.org/diseases-conditions/inflammatory-bowel-disease/diagnosis-treatment/drc-20353320")
             ]
         case .community:
             return [
-                Article(id: "9", title: "Connecting with the IBD Community", excerpt: "Find support groups and connect with others who understand your journey.", category: .community, readTime: "4 min read", imageName: "person.3.fill")
+                Article(id: "25", title: "Connecting with the IBD Community", excerpt: "Find support groups and connect with others who understand your journey.", category: .community, readTime: "4 min read", imageName: "person.3.fill", url: "https://www.mayoclinic.org/diseases-conditions/inflammatory-bowel-disease/symptoms-causes/syc-20353315"),
+                Article(id: "26", title: "Online Support Groups", excerpt: "Virtual communities and forums for IBD patients and caregivers.", category: .community, readTime: "3 min read", imageName: "network", url: "https://www.mayoclinic.org/diseases-conditions/inflammatory-bowel-disease/symptoms-causes/syc-20353315"),
+                Article(id: "27", title: "Patient Stories and Experiences", excerpt: "Read inspiring stories from others living with IBD.", category: .community, readTime: "5 min read", imageName: "book.fill", url: "https://www.mayoclinic.org/diseases-conditions/inflammatory-bowel-disease/symptoms-causes/syc-20353315"),
+                Article(id: "28", title: "Caregiver Support Resources", excerpt: "Resources and support for family members and caregivers of IBD patients.", category: .community, readTime: "6 min read", imageName: "heart.fill", url: "https://www.mayoclinic.org/diseases-conditions/inflammatory-bowel-disease/symptoms-causes/syc-20353315"),
+                Article(id: "29", title: "Advocacy and Awareness", excerpt: "How to get involved in IBD advocacy and raise awareness.", category: .community, readTime: "4 min read", imageName: "megaphone.fill", url: "https://www.mayoclinic.org/diseases-conditions/inflammatory-bowel-disease/symptoms-causes/syc-20353315")
+            ]
+        case .blogs:
+            return [
+                Article(id: "30", title: "Living Well with IBD", excerpt: "Personal stories and tips for managing life with inflammatory bowel disease.", category: .blogs, readTime: "5 min read", imageName: "square.and.pencil", url: "https://www.mayoclinic.org/diseases-conditions/inflammatory-bowel-disease/symptoms-causes/syc-20353315"),
+                Article(id: "31", title: "My Journey to Remission", excerpt: "Personal story of achieving remission through diet and lifestyle changes.", category: .blogs, readTime: "8 min read", imageName: "person.crop.circle.fill", url: "https://www.mayoclinic.org/diseases-conditions/inflammatory-bowel-disease/symptoms-causes/syc-20353315"),
+                Article(id: "32", title: "Living with Crohn's: A Teen's Perspective", excerpt: "A young person's experience managing Crohn's disease in high school.", category: .blogs, readTime: "6 min read", imageName: "graduationcap.fill", url: "https://www.mayoclinic.org/diseases-conditions/inflammatory-bowel-disease/symptoms-causes/syc-20353315"),
+                Article(id: "33", title: "Finding Strength Through Community", excerpt: "How connecting with other IBD patients changed my outlook on life.", category: .blogs, readTime: "5 min read", imageName: "person.2.fill", url: "https://www.mayoclinic.org/diseases-conditions/inflammatory-bowel-disease/symptoms-causes/syc-20353315"),
+                Article(id: "34", title: "Diet Success Stories", excerpt: "Real stories from people who found relief through dietary changes.", category: .blogs, readTime: "7 min read", imageName: "leaf.arrow.circlepath", url: "https://www.mayoclinic.org/diseases-conditions/inflammatory-bowel-disease/symptoms-causes/syc-20353315"),
+                Article(id: "35", title: "Mental Health and IBD", excerpt: "Personal experiences with managing mental health alongside IBD.", category: .blogs, readTime: "6 min read", imageName: "brain.head.profile", url: "https://www.mayoclinic.org/diseases-conditions/inflammatory-bowel-disease/symptoms-causes/syc-20353315")
             ]
         }
     }
 }
 
 // MARK: - Supporting Views
+
+struct DiscoverCategoryCard: View {
+    let category: DiscoverCategory
+    let isSelected: Bool
+    let action: () -> Void
+    
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 8) { // Reduced spacing
+                HStack {
+                    Image(systemName: category.icon)
+                        .font(.system(size: 24)) // Smaller icon
+                        .foregroundColor(category.color)
+                    Spacer()
+                    if isSelected {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.system(size: 16)) // Smaller checkmark
+                            .foregroundColor(.green)
+                    }
+                }
+                Text(category.displayName)
+                    .font(.subheadline) // Smaller font
+                    .fontWeight(.semibold)
+                    .foregroundColor(.ibdPrimaryText)
+                    .multilineTextAlignment(.center)
+            }
+            .frame(maxWidth: .infinity)
+            .frame(height: 60) // Reduced height
+            .padding(8) // Less padding
+            .background(Color.ibdSurfaceBackground)
+            .cornerRadius(12) // Slightly smaller radius
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(isSelected ? Color.green : category.color.opacity(0.3), lineWidth: isSelected ? 2 : 1)
+            )
+        }
+        .buttonStyle(PlainButtonStyle())
+    }
+}
 
 struct SearchFoodRow: View {
     let food: DatabaseFoodItem
@@ -430,40 +525,44 @@ struct NutritionResultCard: View {
 
 struct ArticleCard: View {
     let article: Article
+    let onTap: () -> Void
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Image(systemName: article.imageName)
-                    .font(.title2)
-                    .foregroundColor(.ibdPrimary)
-                
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(article.title)
-                        .font(.headline)
-                        .fontWeight(.semibold)
-                        .foregroundColor(.ibdPrimaryText)
+        Button(action: onTap) {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    Image(systemName: article.imageName)
+                        .font(.title2)
+                        .foregroundColor(.ibdPrimary)
                     
-                    Text(article.readTime)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(article.title)
+                            .font(.headline)
+                            .fontWeight(.semibold)
+                            .foregroundColor(.ibdPrimaryText)
+                        
+                        Text(article.readTime)
+                            .font(.caption)
+                            .foregroundColor(.ibdSecondaryText)
+                    }
+                    
+                    Spacer()
+                    
+                    Image(systemName: "arrow.up.right.square")
                         .font(.caption)
                         .foregroundColor(.ibdSecondaryText)
                 }
                 
-                Spacer()
-                
-                Image(systemName: "chevron.right")
-                    .font(.caption)
+                Text(article.excerpt)
+                    .font(.subheadline)
                     .foregroundColor(.ibdSecondaryText)
+                    .lineLimit(3)
             }
-            
-            Text(article.excerpt)
-                .font(.subheadline)
-                .foregroundColor(.ibdSecondaryText)
-                .lineLimit(3)
+            .padding()
+            .background(Color.ibdSurfaceBackground)
+            .cornerRadius(12)
         }
-        .padding()
-        .background(Color.ibdSurfaceBackground)
-        .cornerRadius(12)
+        .buttonStyle(PlainButtonStyle())
     }
 }
 
@@ -532,6 +631,7 @@ enum DiscoverCategory: String, CaseIterable {
     case lifestyle = "lifestyle"
     case research = "research"
     case community = "community"
+    case blogs = "blogs"
     
     var displayName: String {
         switch self {
@@ -540,6 +640,29 @@ enum DiscoverCategory: String, CaseIterable {
         case .lifestyle: return "Lifestyle"
         case .research: return "Research"
         case .community: return "Community"
+        case .blogs: return "Blogs"
+        }
+    }
+    
+    var icon: String {
+        switch self {
+        case .nutrition: return "leaf.fill"
+        case .medication: return "pills.fill"
+        case .lifestyle: return "figure.walk"
+        case .research: return "microscope.fill"
+        case .community: return "person.3.fill"
+        case .blogs: return "square.and.pencil"
+        }
+    }
+    
+    var color: Color {
+        switch self {
+        case .nutrition: return .green
+        case .medication: return .blue
+        case .lifestyle: return .orange
+        case .research: return .purple
+        case .community: return .red
+        case .blogs: return .indigo
         }
     }
 }
@@ -551,6 +674,286 @@ struct Article: Identifiable {
     let category: DiscoverCategory
     let readTime: String
     let imageName: String
+    let url: String
+}
+
+// MARK: - Article Viewer
+
+struct ArticleViewerView: View {
+    let article: Article
+    @Environment(\.dismiss) private var dismiss
+    @State private var isLoading = true
+    @State private var errorMessage: String?
+    @State private var retryKey = UUID()
+    
+    var body: some View {
+        NavigationView {
+            VStack(spacing: 0) {
+                // Article Header
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack {
+                        Image(systemName: article.imageName)
+                            .font(.title2)
+                            .foregroundColor(.ibdPrimary)
+                        
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(article.title)
+                                .font(.headline)
+                                .fontWeight(.semibold)
+                                .foregroundColor(.ibdPrimaryText)
+                            
+                            Text(article.readTime)
+                                .font(.caption)
+                                .foregroundColor(.ibdSecondaryText)
+                        }
+                        
+                        Spacer()
+                    }
+                    
+                    Text(article.excerpt)
+                        .font(.subheadline)
+                        .foregroundColor(.ibdSecondaryText)
+                        .lineLimit(3)
+                }
+                .padding()
+                .background(Color.ibdSurfaceBackground)
+                
+                // Content Area
+                if let url = URL(string: article.url) {
+                    ZStack {
+                        WebView(url: url, isLoading: $isLoading, errorMessage: $errorMessage, retryKey: retryKey)
+                        
+                        if isLoading {
+                            VStack(spacing: 12) {
+                                ProgressView("Loading article...")
+                                    .scaleEffect(1.2)
+                                Text("Please wait while we load the content")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .background(Color.ibdBackground.opacity(0.95))
+                            .transition(.opacity)
+                        }
+                        
+                        if let currentErrorMessage = errorMessage {
+                            VStack(spacing: 16) {
+                                Image(systemName: "exclamationmark.triangle")
+                                    .font(.system(size: 50))
+                                    .foregroundColor(.orange)
+                                
+                                Text("Unable to load article")
+                                    .font(.headline)
+                                    .fontWeight(.semibold)
+                                    .foregroundColor(.ibdPrimaryText)
+                                
+                                Text(currentErrorMessage)
+                                    .font(.subheadline)
+                                    .foregroundColor(.ibdSecondaryText)
+                                    .multilineTextAlignment(.center)
+                                    .padding(.horizontal)
+                                
+                                HStack(spacing: 12) {
+                                    Button("Try Again") {
+                                        // Reset states and force WebView reload
+                                        errorMessage = nil
+                                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                                            isLoading = true
+                                            retryKey = UUID()
+                                        }
+                                    }
+                                    .foregroundColor(.ibdPrimary)
+                                    .padding(.horizontal, 20)
+                                    .padding(.vertical, 10)
+                                    .background(Color.ibdPrimary.opacity(0.1))
+                                    .cornerRadius(8)
+                                    
+                                    Button("Open in Browser") {
+                                        UIApplication.shared.open(url)
+                                        dismiss()
+                                    }
+                                    .foregroundColor(.white)
+                                    .padding(.horizontal, 20)
+                                    .padding(.vertical, 10)
+                                    .background(Color.ibdPrimary)
+                                    .cornerRadius(8)
+                                }
+                            }
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .background(Color.ibdBackground.opacity(0.95))
+                            .transition(.opacity)
+                        }
+                    }
+                    .animation(.easeInOut(duration: 0.3), value: isLoading)
+                    .animation(.easeInOut(duration: 0.3), value: errorMessage)
+                } else {
+                    VStack(spacing: 16) {
+                        Image(systemName: "exclamationmark.triangle")
+                            .font(.system(size: 50))
+                            .foregroundColor(.orange)
+                        
+                        Text("Invalid Article URL")
+                            .font(.headline)
+                            .fontWeight(.semibold)
+                            .foregroundColor(.ibdPrimaryText)
+                        
+                        Text("This article has an invalid or missing URL. Please try a different article or contact support.")
+                            .font(.subheadline)
+                            .foregroundColor(.ibdSecondaryText)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(Color.ibdBackground)
+                }
+            }
+            .navigationTitle("Article")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("Close") {
+                        dismiss()
+                    }
+                }
+                
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    if let url = URL(string: article.url) {
+                        Button("Open in Browser") {
+                            UIApplication.shared.open(url)
+                        }
+                        .foregroundColor(.ibdPrimary)
+                    }
+                }
+            }
+        }
+    }
+}
+
+// MARK: - WebView
+
+struct WebView: UIViewRepresentable {
+    let url: URL
+    @Binding var isLoading: Bool
+    @Binding var errorMessage: String?
+    let retryKey: UUID
+    
+    func makeUIView(context: Context) -> WKWebView {
+        let configuration = WKWebViewConfiguration()
+        configuration.allowsInlineMediaPlayback = true
+        configuration.mediaTypesRequiringUserActionForPlayback = []
+        
+        let webView = WKWebView(frame: .zero, configuration: configuration)
+        webView.navigationDelegate = context.coordinator
+        webView.allowsBackForwardNavigationGestures = true
+        webView.scrollView.bounces = false
+        
+        return webView
+    }
+    
+    func updateUIView(_ webView: WKWebView, context: Context) {
+        // Only load if we don't have a URL or if we're retrying
+        if webView.url == nil || webView.url != url {
+            var request = URLRequest(url: url)
+            request.timeoutInterval = 30.0
+            
+            // Add user agent to avoid some blocking
+            request.setValue("Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.0 Mobile/15E148 Safari/604.1", forHTTPHeaderField: "User-Agent")
+            
+            webView.load(request)
+        }
+    }
+    
+    func makeCoordinator() -> Coordinator {
+        Coordinator(self)
+    }
+    
+    class Coordinator: NSObject, WKNavigationDelegate {
+        let parent: WebView
+        
+        init(_ parent: WebView) {
+            self.parent = parent
+        }
+        
+        func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
+            DispatchQueue.main.async {
+                self.parent.isLoading = true
+                self.parent.errorMessage = nil
+            }
+        }
+        
+        func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+            DispatchQueue.main.async {
+                self.parent.isLoading = false
+            }
+        }
+        
+        func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
+            DispatchQueue.main.async {
+                self.parent.isLoading = false
+                let nsError = error as NSError
+                // Don't show error for cancelled requests (user initiated retry)
+                if nsError.code != NSURLErrorCancelled {
+                    self.parent.errorMessage = self.getUserFriendlyErrorMessage(error)
+                    print("🔴 WebView navigation failed: \(error.localizedDescription)")
+                }
+            }
+        }
+        
+        func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
+            DispatchQueue.main.async {
+                self.parent.isLoading = false
+                let nsError = error as NSError
+                // Don't show error for cancelled requests (user initiated retry)
+                if nsError.code != NSURLErrorCancelled {
+                    self.parent.errorMessage = self.getUserFriendlyErrorMessage(error)
+                    print("🔴 WebView provisional navigation failed: \(error.localizedDescription)")
+                }
+            }
+        }
+        
+        func webView(_ webView: WKWebView, didReceive challenge: URLAuthenticationChallenge, completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void) {
+            // Handle SSL challenges more gracefully
+            if challenge.protectionSpace.authenticationMethod == NSURLAuthenticationMethodServerTrust {
+                if let serverTrust = challenge.protectionSpace.serverTrust {
+                    let credential = URLCredential(trust: serverTrust)
+                    completionHandler(.useCredential, credential)
+                    return
+                }
+            }
+            completionHandler(.performDefaultHandling, nil)
+        }
+        
+
+        
+
+        
+        private func getUserFriendlyErrorMessage(_ error: Error) -> String {
+            let nsError = error as NSError
+            
+            switch nsError.code {
+            case NSURLErrorNotConnectedToInternet:
+                return "No internet connection. Please check your network settings and try again."
+            case NSURLErrorTimedOut:
+                return "The article took too long to load. Please try again or open in browser."
+            case NSURLErrorCannotFindHost:
+                return "The article URL is not available. Please try a different article or open in browser."
+            case NSURLErrorCannotConnectToHost:
+                return "Cannot connect to the article website. It might be temporarily unavailable."
+            case NSURLErrorSecureConnectionFailed:
+                return "Secure connection failed. The website's security certificate might be invalid."
+            case NSURLErrorServerCertificateUntrusted:
+                return "The website's security certificate is not trusted."
+            case NSURLErrorCancelled:
+                return "Article loading was cancelled. Please try again."
+            case NSURLErrorCannotConnectToHost:
+                return "Cannot connect to the article website. It might be temporarily unavailable."
+            case NSURLErrorBadServerResponse:
+                return "The article server returned an error. Please try again later."
+            default:
+                return "Unable to load the article content. Please try opening it in your browser instead."
+            }
+        }
+    }
 }
 
 #Preview {
