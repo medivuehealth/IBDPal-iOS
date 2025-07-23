@@ -685,6 +685,7 @@ struct ArticleViewerView: View {
     @State private var isLoading = true
     @State private var errorMessage: String?
     @State private var retryKey = UUID()
+    @State private var webViewReady = false
     
     var body: some View {
         NavigationView {
@@ -722,8 +723,14 @@ struct ArticleViewerView: View {
                 if let url = URL(string: article.url) {
                     ZStack {
                         WebView(url: url, isLoading: $isLoading, errorMessage: $errorMessage, retryKey: retryKey)
+                            .onAppear {
+                                // Ensure WebView is ready when view appears
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                                    webViewReady = true
+                                }
+                            }
                         
-                        if isLoading {
+                        if isLoading || !webViewReady {
                             VStack(spacing: 12) {
                                 ProgressView("Loading article...")
                                     .scaleEffect(1.2)
@@ -847,18 +854,35 @@ struct WebView: UIViewRepresentable {
         webView.allowsBackForwardNavigationGestures = true
         webView.scrollView.bounces = false
         
+        // Pre-warm the WebView by loading a simple HTML page
+        let prewarmHTML = """
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <style>
+                body { margin: 0; padding: 0; background: white; }
+            </style>
+        </head>
+        <body></body>
+        </html>
+        """
+        webView.loadHTMLString(prewarmHTML, baseURL: nil)
+        
         return webView
     }
     
     func updateUIView(_ webView: WKWebView, context: Context) {
-        // Only load if we don't have a URL or if we're retrying
-        if webView.url == nil || webView.url != url {
-            var request = URLRequest(url: url)
-            request.timeoutInterval = 30.0
-            
-            // Add user agent to avoid some blocking
-            request.setValue("Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.0 Mobile/15E148 Safari/604.1", forHTTPHeaderField: "User-Agent")
-            
+        // Always load the URL when updateUIView is called
+        // This ensures the WebView loads content even on first selection
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 30.0
+        
+        // Add user agent to avoid some blocking
+        request.setValue("Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.0 Mobile/15E148 Safari/604.1", forHTTPHeaderField: "User-Agent")
+        
+        // Add a small delay to ensure WebView is ready, especially for first load
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
             webView.load(request)
         }
     }
