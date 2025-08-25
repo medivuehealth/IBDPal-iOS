@@ -6,12 +6,13 @@ require('dotenv').config({ path: path.join(__dirname, 'config.env') });
 console.log('🚀 Starting Email Verification Database Migration...');
 
 const runMigration = async () => {
+  // Use DATABASE_URL if available, otherwise fall back to individual variables
+  const connectionString = process.env.DATABASE_URL || 
+    `postgresql://${process.env.DB_USER}:${process.env.DB_PASSWORD}@${process.env.DB_HOST}:${process.env.DB_PORT}/medivue`;
+  
   const client = new Client({
-    host: process.env.DB_HOST,
-    port: process.env.DB_PORT,
-    database: 'medivue',
-    user: process.env.DB_USER,
-    password: process.env.DB_PASSWORD,
+    connectionString: connectionString,
+    ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
   });
 
   try {
@@ -19,7 +20,7 @@ const runMigration = async () => {
     console.log('✅ Connected to database');
 
     // Read the migration file
-    const migrationPath = path.join(__dirname, 'database', 'migration_add_email_verification.sql');
+    const migrationPath = path.join(__dirname, 'database', 'migration_add_email_verification_simple.sql');
     const migrationSQL = fs.readFileSync(migrationPath, 'utf8');
 
     console.log('📝 Executing email verification migration...');

@@ -2,12 +2,33 @@
 -- This migration adds fields needed for email verification functionality
 
 -- Add email verification fields to users table
-ALTER TABLE users 
-ADD COLUMN IF NOT EXISTS email_verified BOOLEAN DEFAULT FALSE,
-ADD COLUMN IF NOT EXISTS verification_code VARCHAR(6),
-ADD COLUMN IF NOT EXISTS verification_code_expires TIMESTAMP,
-ADD COLUMN IF NOT EXISTS verification_attempts INTEGER DEFAULT 0,
-ADD COLUMN IF NOT EXISTS last_verification_attempt TIMESTAMP;
+DO $$ 
+BEGIN
+    -- Add email_verified column if it doesn't exist
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'email_verified') THEN
+        ALTER TABLE users ADD COLUMN email_verified BOOLEAN DEFAULT FALSE;
+    END IF;
+    
+    -- Add verification_code column if it doesn't exist
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'verification_code') THEN
+        ALTER TABLE users ADD COLUMN verification_code VARCHAR(6);
+    END IF;
+    
+    -- Add verification_code_expires column if it doesn't exist
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'verification_code_expires') THEN
+        ALTER TABLE users ADD COLUMN verification_code_expires TIMESTAMP;
+    END IF;
+    
+    -- Add verification_attempts column if it doesn't exist
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'verification_attempts') THEN
+        ALTER TABLE users ADD COLUMN verification_attempts INTEGER DEFAULT 0;
+    END IF;
+    
+    -- Add last_verification_attempt column if it doesn't exist
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'last_verification_attempt') THEN
+        ALTER TABLE users ADD COLUMN last_verification_attempt TIMESTAMP;
+    END IF;
+END $$;
 
 -- Create index for faster verification code lookups
 CREATE INDEX IF NOT EXISTS idx_users_verification_code ON users(verification_code) WHERE verification_code IS NOT NULL;
@@ -55,10 +76,5 @@ UPDATE users
 SET email_verified = TRUE 
 WHERE email_verified IS NULL;
 
--- Log the migration
-INSERT INTO migration_log (migration_name, applied_at, description) 
-VALUES (
-    'migration_add_email_verification', 
-    CURRENT_TIMESTAMP, 
-    'Added email verification fields: email_verified, verification_code, verification_code_expires, verification_attempts, last_verification_attempt'
-) ON CONFLICT (migration_name) DO NOTHING; 
+-- Migration completed successfully
+-- Note: Migration logging removed to avoid dependency on migration_log table 
