@@ -9,6 +9,7 @@ const authRoutes = require('./routes/auth');
 const userRoutes = require('./routes/users');
 const journalRoutes = require('./routes/journal');
 const diagnosisRoutes = require('./routes/diagnosis');
+const blogRoutes = require('./routes/blogs');
 
 const app = express();
 const PORT = process.env.SERVER_PORT || 3004;
@@ -62,7 +63,21 @@ app.use((req, res, next) => {
   next();
 });
 
-// Health check endpoint
+// Health check endpoint for Railway
+app.get('/health', (req, res) => {
+  res.json({
+    status: 'OK',
+    timestamp: new Date().toISOString(),
+    app: process.env.APP_NAME || 'IBDPal',
+    version: process.env.APP_VERSION || '1.0.0',
+    environment: NODE_ENV,
+    uptime: process.uptime(),
+    memory: process.memoryUsage(),
+    database: 'connected' // You can add actual DB health check here
+  });
+});
+
+// API Health check endpoint
 app.get('/api/health', (req, res) => {
   res.json({
     status: 'OK',
@@ -81,6 +96,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/journal', journalRoutes);
 app.use('/api/diagnosis', diagnosisRoutes);
+app.use('/api/blogs', blogRoutes);
 
 // 404 handler for API routes
 app.use('/api/*', (req, res) => {

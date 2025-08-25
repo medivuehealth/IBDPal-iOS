@@ -76,7 +76,11 @@ router.post('/register', validateRegistration, async (req, res) => {
     const saltRounds = parseInt(process.env.BCRYPT_ROUNDS) || 12;
     const passwordHash = await bcrypt.hash(password, saltRounds);
 
-    // Create user with minimal required fields
+    // Generate verification code
+    const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
+    const verificationExpires = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes from now
+
+    // Create user with email verification
     const newUser = await db.query(
       `INSERT INTO users (
         user_id, 
@@ -86,7 +90,10 @@ router.post('/register', validateRegistration, async (req, res) => {
         last_name,
         username,
         pseudonymized_id,
-        account_status
+        account_status,
+        email_verified,
+        verification_code,
+        verification_code_expires
       )
        VALUES (
         gen_random_uuid()::text, 
@@ -96,43 +103,38 @@ router.post('/register', validateRegistration, async (req, res) => {
         $4,
         $1,
         generate_pseudonymized_id(),
-        'active'
+        'pending_verification',
+        FALSE,
+        $5,
+        $6
       )
        RETURNING user_id, email, first_name, last_name, pseudonymized_id, created_at`,
-      [email, passwordHash, firstName, lastName]
+      [email, passwordHash, firstName, lastName, verificationCode, verificationExpires]
     );
 
     const user = newUser.rows[0];
 
-    // Generate JWT token
-    const token = jwt.sign(
-      { 
-        userId: user.user_id, 
-        email: user.email 
-      },
-      process.env.JWT_SECRET,
-      { 
-        expiresIn: process.env.JWT_EXPIRES_IN || '7d' 
-      }
-    );
+    // TODO: Send verification email here
+    // For now, we'll just log the verification code
+    console.log(`📧 Verification code for ${email}: ${verificationCode}`);
 
-    // Log successful registration
+    // Log registration attempt
     await db.query(
       `INSERT INTO login_history (user_id, success, ip_address, user_agent)
        VALUES ($1, $2, $3, $4)`,
-      [user.user_id, true, req.ip, req.get('User-Agent')]
+      [user.user_id, false, req.ip, req.get('User-Agent')]
     );
 
     res.status(201).json({
-      message: 'User registered successfully',
+      message: 'User registered successfully. Please check your email for verification code.',
+      requiresVerification: true,
       user: {
         id: user.user_id,
         email: user.email,
         firstName: user.first_name,
         lastName: user.last_name,
         createdAt: user.created_at
-      },
-      token
+      }
     });
 
   } catch (error) {
@@ -219,6 +221,186 @@ router.post('/register', validateRegistration, async (req, res) => {
   }
 });
 
+// Email verification endpoints
+router.post('/verify-email', async (req, res) => {
+  try {
+    const { email, verificationCode, userData } = req.body;
+
+    if (!email || !verificationCode) {
+      return res.status(400).json({
+        error: 'Missing required fields',
+        message: 'Email and verification code are required'
+      });
+    }
+
+    // Find user by email and verification code
+    const userResult = await db.query(
+      `SELECT * FROM users 
+       WHERE email = $1 
+       AND verification_code = $2 
+       AND email_verified = FALSE
+       AND verification_code_expires > CURRENT_TIMESTAMP`,
+      [email, verificationCode]
+    );
+
+    if (userResult.rows.length === 0) {
+      // Check if user exists but code is wrong or expired
+      const userExists = await db.query(
+        'SELECT user_id, verification_attempts FROM users WHERE email = $1 AND email_verified = FALSE',
+        [email]
+      );
+
+      if (userExists.rows.length > 0) {
+        const user = userExists.rows[0];
+        const newAttempts = (user.verification_attempts || 0) + 1;
+
+        // Update verification attempts
+        await db.query(
+          `UPDATE users 
+           SET verification_attempts = $1, last_verification_attempt = CURRENT_TIMESTAMP 
+           WHERE user_id = $2`,
+          [newAttempts, user.user_id]
+        );
+
+        // Lock account after 5 failed attempts
+        if (newAttempts >= 5) {
+          await db.query(
+            `UPDATE users SET account_locked = TRUE WHERE user_id = $1`,
+            [user.user_id]
+          );
+          return res.status(423).json({
+            error: 'Account locked',
+            message: 'Too many failed verification attempts. Account has been locked.'
+          });
+        }
+      }
+
+      return res.status(400).json({
+        error: 'Invalid verification code',
+        message: 'The verification code is invalid or has expired. Please request a new code.'
+      });
+    }
+
+    const user = userResult.rows[0];
+
+    // Mark email as verified and clear verification data
+    await db.query(
+      `UPDATE users 
+       SET email_verified = TRUE, 
+           verification_code = NULL, 
+           verification_code_expires = NULL,
+           verification_attempts = 0,
+           account_status = 'active'
+       WHERE user_id = $1`,
+      [user.user_id]
+    );
+
+    // Generate JWT token
+    const token = jwt.sign(
+      { 
+        userId: user.user_id, 
+        email: user.email 
+      },
+      process.env.JWT_SECRET,
+      { 
+        expiresIn: process.env.JWT_EXPIRES_IN || '7d' 
+      }
+    );
+
+    // Log successful verification
+    await db.query(
+      `INSERT INTO login_history (user_id, success, ip_address, user_agent)
+       VALUES ($1, $2, $3, $4)`,
+      [user.user_id, true, req.ip, req.get('User-Agent')]
+    );
+
+    res.json({
+      message: 'Email verified successfully',
+      user: {
+        id: user.user_id,
+        email: user.email,
+        firstName: user.first_name,
+        lastName: user.last_name,
+        createdAt: user.created_at
+      },
+      token
+    });
+
+  } catch (error) {
+    console.error('Email verification error:', error);
+    res.status(500).json({
+      error: 'Verification failed',
+      message: 'Unable to verify email. Please try again.'
+    });
+  }
+});
+
+// Resend verification code
+router.post('/resend-verification', async (req, res) => {
+  try {
+    const { email, userData } = req.body;
+
+    if (!email) {
+      return res.status(400).json({
+        error: 'Missing email',
+        message: 'Email is required'
+      });
+    }
+
+    // Find user by email
+    const userResult = await db.query(
+      'SELECT * FROM users WHERE email = $1 AND email_verified = FALSE',
+      [email]
+    );
+
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({
+        error: 'User not found',
+        message: 'No unverified user found with this email address'
+      });
+    }
+
+    const user = userResult.rows[0];
+
+    // Check if account is locked
+    if (user.account_locked) {
+      return res.status(423).json({
+        error: 'Account locked',
+        message: 'Account is locked due to too many failed attempts'
+      });
+    }
+
+    // Generate new verification code
+    const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
+    const verificationExpires = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
+
+    // Update user with new verification code
+    await db.query(
+      `UPDATE users 
+       SET verification_code = $1, 
+           verification_code_expires = $2,
+           verification_attempts = 0
+       WHERE user_id = $3`,
+      [verificationCode, verificationExpires, user.user_id]
+    );
+
+    // TODO: Send verification email here
+    console.log(`📧 New verification code for ${email}: ${verificationCode}`);
+
+    res.json({
+      message: 'Verification code sent successfully',
+      email: email
+    });
+
+  } catch (error) {
+    console.error('Resend verification error:', error);
+    res.status(500).json({
+      error: 'Failed to resend code',
+      message: 'Unable to send verification code. Please try again.'
+    });
+  }
+});
+
 // Login user
 router.post('/login', validateLogin, formatValidationErrors, async (req, res) => {
   try {
@@ -241,6 +423,15 @@ router.post('/login', validateLogin, formatValidationErrors, async (req, res) =>
     }
 
     const user = userResult.rows[0];
+
+    // Check if email is verified
+    if (!user.email_verified) {
+      return res.status(401).json({
+        error: 'Email not verified',
+        message: 'Please verify your email address before logging in. Check your email for the verification code.',
+        requiresVerification: true
+      });
+    }
 
     // Check if account is locked
     if (user.account_locked) {
