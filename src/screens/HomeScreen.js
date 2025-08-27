@@ -20,6 +20,10 @@ const HomeScreen = ({ navigation, route }) => {
   const [diagnosisCompleted, setDiagnosisCompleted] = useState(false);
   const [loadingDiagnosis, setLoadingDiagnosis] = useState(true);
 
+  // Add a simple test log
+  console.log('HOMESCREEN LOADED - THIS SHOULD BE VISIBLE');
+  console.log('User data:', userData?.username);
+
   // Load user data on component mount
   useEffect(() => {
     if (userData?.username) {
@@ -31,7 +35,7 @@ const HomeScreen = ({ navigation, route }) => {
   const checkDiagnosisStatus = async () => {
     try {
       setLoadingDiagnosis(true);
-      console.log('🏥 Checking diagnosis status for user:', userData?.username);
+      console.log('Checking diagnosis status for user:', userData?.username);
       const response = await fetch(`${API_BASE_URL}/diagnosis/${userData?.username}`);
       
       if (response.ok) {
@@ -56,7 +60,7 @@ const HomeScreen = ({ navigation, route }) => {
   const loadLast7DaysStats = async () => {
     try {
       setLoading(true);
-      console.log('🏠 [HomeScreen] Loading last 7 days stats for user:', userData?.username);
+      console.log('HomeScreen: Loading last 7 days stats for user:', userData?.username);
       
       // Fetch all entries
       const response = await fetch(`${API_BASE_URL}/journal/entries/${userData?.username}`);
@@ -72,10 +76,10 @@ const HomeScreen = ({ navigation, route }) => {
         const todayStr = today.toISOString().split('T')[0];
         const sevenDaysAgoStr = sevenDaysAgo.toISOString().split('T')[0];
         
-        console.log('🏠 [HomeScreen] Date range:', sevenDaysAgoStr, 'to', todayStr);
-        console.log('🏠 [HomeScreen] Current user ID:', userData?.username);
-        console.log('🏠 [HomeScreen] All entries count:', entries?.length || 0);
-        console.log('🏠 [HomeScreen] Sample entry:', entries?.[0]);
+        console.log('HomeScreen: Date range:', sevenDaysAgoStr, 'to', todayStr);
+        console.log('HomeScreen: Current user ID:', userData?.username);
+        console.log('HomeScreen: All entries count:', entries?.length || 0);
+        console.log('HomeScreen: Sample entry:', entries?.[0]);
         
         // Filter entries for last 7 days
         const last7DaysEntries = entries.filter(entry => {
@@ -95,8 +99,8 @@ const HomeScreen = ({ navigation, route }) => {
           return false;
         });
         
-        console.log('🏠 [HomeScreen] Last 7 days entries count:', last7DaysEntries.length);
-        console.log('🏠 [HomeScreen] Last 7 days entries:', last7DaysEntries);
+        console.log('HomeScreen: Last 7 days entries count:', last7DaysEntries.length);
+        console.log('HomeScreen: Last 7 days entries:', last7DaysEntries);
         
         // Group entries by date for analysis
         const entriesByDate = {};
@@ -154,7 +158,7 @@ const HomeScreen = ({ navigation, route }) => {
           mostActiveDay: mostActiveDay
         };
         
-        console.log('🏠 [HomeScreen] Calculated stats:', stats);
+        console.log('HomeScreen: Calculated stats:', stats);
         setLast7DaysStats(stats);
 
         // Generate reminders based on last 7 days data

@@ -5,10 +5,7 @@ struct HomeView: View {
     let userData: UserData?
     
     @State private var isLoading = true
-    @State private var last7DaysStats = Last7DaysStats()
     @State private var reminders: [Reminder] = []
-    @State private var diagnosisCompleted = false
-    @State private var loadingDiagnosis = true
     @State private var nutritionAnalysis = NutritionAnalysis()
     @State private var flareRiskData = FlareRiskData()
     @State private var loadingNutrition = true
@@ -34,30 +31,6 @@ struct HomeView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal)
                     
-                    // Diagnosis Status Card
-                    if loadingDiagnosis {
-                        ProgressView("Checking diagnosis status...")
-                            .frame(maxWidth: .infinity)
-                            .padding()
-                            .background(Color.ibdSurfaceBackground)
-                            .cornerRadius(12)
-                            .padding(.horizontal)
-                    } else if !diagnosisCompleted {
-                        DiagnosisCard()
-                    }
-                    
-                    // Last 7 Days Stats
-                    if isLoading {
-                        ProgressView("Loading your stats...")
-                            .frame(maxWidth: .infinity)
-                            .padding()
-                            .background(Color.ibdSurfaceBackground)
-                            .cornerRadius(12)
-                            .padding(.horizontal)
-                    } else {
-                        Last7DaysStatsCard(stats: last7DaysStats)
-                    }
-                    
                     // Nutrition Deficiencies Analysis
                     if loadingNutrition {
                         ProgressView("Analyzing nutrition data...")
@@ -68,6 +41,11 @@ struct HomeView: View {
                             .padding(.horizontal)
                     } else {
                         NutritionDeficienciesCard(analysis: nutritionAnalysis)
+                    }
+                    
+                    // Dietician Recommendations
+                    if !loadingNutrition {
+                        DieticianRecommendationsCard(analysis: nutritionAnalysis)
                     }
                     
                     // Flare Risk Indicator
@@ -93,70 +71,29 @@ struct HomeView: View {
             .navigationTitle("IBDPal")
             .navigationBarTitleDisplayMode(.large)
             .onAppear {
+                print("🏠 [HomeView] View appeared - THIS SHOULD BE VISIBLE IN XCODE")
+                print("🏠 [HomeView] User data: \(userData?.email ?? "nil")")
                 loadData()
             }
         }
     }
     
     private func loadData() {
-        loadLast7DaysStats()
-        checkDiagnosisStatus()
         loadNutritionAnalysis()
         loadFlareRiskData()
     }
     
-    private func checkDiagnosisStatus() {
-        guard let userData = userData else { return }
-        
-        loadingDiagnosis = true
-        
-        guard let url = URL(string: "\(apiBaseURL)/diagnosis/\(userData.id)") else { return }
-        
-        URLSession.shared.dataTask(with: url) { data, response, error in
-            DispatchQueue.main.async {
-                loadingDiagnosis = false
-                
-                if let httpResponse = response as? HTTPURLResponse {
-                    if httpResponse.statusCode == 200 {
-                        diagnosisCompleted = true
-                    } else if httpResponse.statusCode == 404 {
-                        diagnosisCompleted = false
-                    }
-                }
-            }
-        }.resume()
-    }
+
     
-    private func loadLast7DaysStats() {
-        guard let userData = userData else { return }
-        
-        isLoading = true
-        
-        guard let url = URL(string: "\(apiBaseURL)/journal/entries/\(userData.id)") else { return }
-        
-        URLSession.shared.dataTask(with: url) { data, response, error in
-            DispatchQueue.main.async {
-                isLoading = false
-                
-                guard let data = data else { return }
-                
-                do {
-                    if let entries = try JSONSerialization.jsonObject(with: data) as? [[String: Any]] {
-                        let stats = calculateStats(from: entries)
-                        last7DaysStats = stats
-                        reminders = generateReminders(from: entries)
-                    }
-                } catch {
-                    print("Error parsing entries: \(error)")
-                }
-            }
-        }.resume()
-    }
+
     
     private func loadNutritionAnalysis() {
         guard let userData = userData else { return }
         
         loadingNutrition = true
+        print("🥗 [HomeView] Starting nutrition analysis for user: \(userData.email)")
+        print("🥗 [HomeView] User ID: \(userData.id)")
+        print("🥗 [HomeView] API URL: \(apiBaseURL)/journal/nutrition/analysis/\(userData.id)")
         
         guard let url = URL(string: "\(apiBaseURL)/journal/nutrition/analysis/\(userData.id)") else { return }
         
@@ -164,14 +101,41 @@ struct HomeView: View {
             DispatchQueue.main.async {
                 loadingNutrition = false
                 
-                guard let data = data else { return }
+                if let error = error {
+                    print("🥗 [HomeView] Nutrition analysis error: \(error)")
+                    return
+                }
+                
+                if let httpResponse = response as? HTTPURLResponse {
+                    print("🥗 [HomeView] Nutrition analysis response status: \(httpResponse.statusCode)")
+                }
+                
+                guard let data = data else { 
+                    print("🥗 [HomeView] No data received from nutrition analysis")
+                    return 
+                }
                 
                 do {
                     if let analysis = try JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                        print("🥗 [HomeView] Nutrition analysis received: \(analysis)")
+                        
+                        // Log the specific values we're looking for
+                        if let calories = analysis["avg_calories"] {
+                            print("🥗 [HomeView] Raw calories value: \(calories) (type: \(type(of: calories)))")
+                        }
+                        if let protein = analysis["avg_protein"] {
+                            print("🥗 [HomeView] Raw protein value: \(protein) (type: \(type(of: protein)))")
+                        }
+                        if let fiber = analysis["avg_fiber"] {
+                            print("🥗 [HomeView] Raw fiber value: \(fiber) (type: \(type(of: fiber)))")
+                        }
+                        
                         nutritionAnalysis = NutritionAnalysis.from(dictionary: analysis)
+                        print("🥗 [HomeView] Nutrition analysis parsed successfully")
+                        print("🥗 [HomeView] Final values - Calories: \(nutritionAnalysis.avgCalories), Protein: \(nutritionAnalysis.avgProtein), Fiber: \(nutritionAnalysis.avgFiber)")
                     }
                 } catch {
-                    print("Error parsing nutrition analysis: \(error)")
+                    print("🥗 [HomeView] Error parsing nutrition analysis: \(error)")
                 }
             }
         }.resume()
@@ -201,45 +165,7 @@ struct HomeView: View {
         }.resume()
     }
     
-    private func calculateStats(from entries: [[String: Any]]) -> Last7DaysStats {
-        let calendar = Calendar.current
-        let today = Date()
-        let sevenDaysAgo = calendar.date(byAdding: .day, value: -7, to: today) ?? today
-        
-        let dateFormatter = DateFormatter()
-        dateFormatter.dateFormat = "yyyy-MM-dd"
-        
-        let last7DaysEntries = entries.filter { entry in
-            guard let entryDateString = entry["entry_date"] as? String else { return false }
-            guard let entryDate = dateFormatter.date(from: entryDateString.components(separatedBy: "T").first ?? "") else { return false }
-            return entryDate >= sevenDaysAgo && entryDate <= today
-        }
-        
-        let totalEntries = last7DaysEntries.count
-        let mealsLogged = last7DaysEntries.filter { entry in
-            let calories = entry["calories"] as? Double ?? 0
-            let protein = entry["protein"] as? Double ?? 0
-            let carbs = entry["carbs"] as? Double ?? 0
-            return calories > 0 || protein > 0 || carbs > 0
-        }.count
-        
-        let hasSymptoms = last7DaysEntries.contains { entry in
-            let painSeverity = entry["pain_severity"] as? Int ?? 0
-            let bowelFrequency = entry["bowel_frequency"] as? Int ?? 0
-            let bloodPresent = entry["blood_present"] as? Bool ?? false
-            return painSeverity > 0 || bowelFrequency > 0 || bloodPresent
-        }
-        
-        let averageEntries = totalEntries > 0 ? Double(totalEntries) / 7.0 : 0
-        
-        return Last7DaysStats(
-            logEntries: totalEntries,
-            mealsLogged: mealsLogged,
-            symptoms: hasSymptoms ? "Reported" : "None",
-            averageEntries: averageEntries,
-            mostActiveDay: "This week"
-        )
-    }
+
     
     private func generateReminders(from entries: [[String: Any]]) -> [Reminder] {
         var reminders: [Reminder] = []
@@ -262,15 +188,15 @@ struct HomeView: View {
 
 // MARK: - Data Models
 
-struct Last7DaysStats {
-    var logEntries: Int = 0
-    var mealsLogged: Int = 0
-    var symptoms: String = "None"
-    var averageEntries: Double = 0
-    var mostActiveDay: String = "None"
-}
+
 
 struct NutritionAnalysis {
+    var avgCalories: Double = 0
+    var avgProtein: Double = 0
+    var avgCarbs: Double = 0
+    var avgFiber: Double = 0
+    var avgFat: Double = 0
+    var daysWithMeals: Int = 0
     var deficiencies: [NutritionDeficiency] = []
     var recommendations: [String] = []
     var overallScore: Int = 0
@@ -278,6 +204,45 @@ struct NutritionAnalysis {
     
     static func from(dictionary: [String: Any]) -> NutritionAnalysis {
         var analysis = NutritionAnalysis()
+        
+        // Parse average nutrition values - handle both string and double values
+        if let caloriesString = dictionary["avg_calories"] as? String {
+            analysis.avgCalories = Double(caloriesString) ?? 0
+        } else {
+            analysis.avgCalories = dictionary["avg_calories"] as? Double ?? 0
+        }
+        
+        if let proteinString = dictionary["avg_protein"] as? String {
+            analysis.avgProtein = Double(proteinString) ?? 0
+        } else {
+            analysis.avgProtein = dictionary["avg_protein"] as? Double ?? 0
+        }
+        
+        if let carbsString = dictionary["avg_carbs"] as? String {
+            analysis.avgCarbs = Double(carbsString) ?? 0
+        } else {
+            analysis.avgCarbs = dictionary["avg_carbs"] as? Double ?? 0
+        }
+        
+        if let fiberString = dictionary["avg_fiber"] as? String {
+            analysis.avgFiber = Double(fiberString) ?? 0
+        } else {
+            analysis.avgFiber = dictionary["avg_fiber"] as? Double ?? 0
+        }
+        
+        if let fatString = dictionary["avg_fat"] as? String {
+            analysis.avgFat = Double(fatString) ?? 0
+        } else {
+            analysis.avgFat = dictionary["avg_fat"] as? Double ?? 0
+        }
+        
+        if let daysString = dictionary["days_with_meals"] as? String {
+            analysis.daysWithMeals = Int(daysString) ?? 0
+        } else {
+            analysis.daysWithMeals = dictionary["days_with_meals"] as? Int ?? 0
+        }
+        
+        print("🥗 [NutritionAnalysis] Parsed values - Calories: \(analysis.avgCalories), Protein: \(analysis.avgProtein), Fiber: \(analysis.avgFiber)")
         
         if let deficienciesData = dictionary["deficiencies"] as? [[String: Any]] {
             analysis.deficiencies = deficienciesData.compactMap { NutritionDeficiency.from(dictionary: $0) }
@@ -316,12 +281,26 @@ struct NutritionDeficiency: Identifiable {
     
     static func from(dictionary: [String: Any]) -> NutritionDeficiency? {
         guard let nutrient = dictionary["nutrient"] as? String,
-              let currentLevel = dictionary["current_level"] as? Double,
-              let recommendedLevel = dictionary["recommended_level"] as? Double,
               let severityString = dictionary["severity"] as? String,
               let impact = dictionary["impact"] as? String,
               let foodSources = dictionary["food_sources"] as? [String] else {
             return nil
+        }
+        
+        // Parse current_level - handle both string and double
+        let currentLevel: Double
+        if let currentLevelString = dictionary["current_level"] as? String {
+            currentLevel = Double(currentLevelString) ?? 0
+        } else {
+            currentLevel = dictionary["current_level"] as? Double ?? 0
+        }
+        
+        // Parse recommended_level - handle both string and double
+        let recommendedLevel: Double
+        if let recommendedLevelString = dictionary["recommended_level"] as? String {
+            recommendedLevel = Double(recommendedLevelString) ?? 0
+        } else {
+            recommendedLevel = dictionary["recommended_level"] as? Double ?? 0
         }
         
         let severity = DeficiencySeverity(rawValue: severityString) ?? .moderate
@@ -488,89 +467,9 @@ enum ReminderPriority {
 
 // MARK: - View Components
 
-struct DiagnosisCard: View {
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Image(systemName: "stethoscope")
-                    .foregroundColor(.ibdSecondary)
-                Text("Complete Your Diagnosis")
-                    .font(.headline)
-                    .fontWeight(.semibold)
-                    .foregroundColor(.ibdPrimaryText)
-            }
-            
-            Text("Start your IBD care journey by completing a comprehensive diagnosis assessment.")
-                .font(.subheadline)
-                .foregroundColor(.ibdSecondaryText)
-            
-            Button("Start Diagnosis") {
-                // Navigate to diagnosis
-            }
-            .buttonStyle(.borderedProminent)
-            .tint(.ibdPrimary)
-        }
-        .padding()
-        .background(Color.ibdSecondary.opacity(0.1))
-        .cornerRadius(12)
-        .padding(.horizontal)
-    }
-}
 
-struct Last7DaysStatsCard: View {
-    let stats: Last7DaysStats
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("Last 7 Days Summary")
-                .font(.headline)
-                .fontWeight(.semibold)
-                .foregroundColor(.ibdPrimaryText)
-            
-            LazyVGrid(columns: [
-                GridItem(.flexible()),
-                GridItem(.flexible())
-            ], spacing: 16) {
-                StatItem(title: "Log Entries", value: "\(stats.logEntries)", icon: "list.bullet", color: .ibdInfo)
-                StatItem(title: "Meals Logged", value: "\(stats.mealsLogged)", icon: "fork.knife", color: .ibdNutritionColor)
-                StatItem(title: "Symptoms", value: stats.symptoms, icon: "heart.fill", color: .ibdPainColor)
-                StatItem(title: "Avg/Day", value: String(format: "%.1f", stats.averageEntries), icon: "chart.bar", color: .ibdAccent)
-            }
-        }
-        .padding()
-        .background(Color.ibdSurfaceBackground)
-        .cornerRadius(12)
-        .padding(.horizontal)
-    }
-}
 
-struct StatItem: View {
-    let title: String
-    let value: String
-    let icon: String
-    let color: Color
-    
-    var body: some View {
-        VStack(spacing: 8) {
-            Image(systemName: icon)
-                .font(.title2)
-                .foregroundColor(color)
-            
-            Text(value)
-                .font(.title2)
-                .fontWeight(.bold)
-                .foregroundColor(.ibdPrimaryText)
-            
-            Text(title)
-                .font(.caption)
-                .foregroundColor(.ibdSecondaryText)
-        }
-        .frame(maxWidth: .infinity)
-        .padding()
-        .background(Color.ibdCardBackground)
-        .cornerRadius(8)
-    }
-}
+
 
 struct NutritionDeficienciesCard: View {
     let analysis: NutritionAnalysis
@@ -591,6 +490,40 @@ struct NutritionDeficienciesCard: View {
                     .font(.caption)
                     .fontWeight(.medium)
                     .foregroundColor(analysis.overallScore >= 70 ? .green : analysis.overallScore >= 50 ? .orange : .red)
+            }
+            
+            // Nutrition Summary Section
+            if analysis.daysWithMeals > 0 {
+                VStack(spacing: 12) {
+                    Text("7-Day Average")
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.ibdPrimaryText)
+                    
+                    HStack(spacing: 20) {
+                        NutritionValueCard(
+                            title: "Calories",
+                            value: "\(Int(analysis.avgCalories))",
+                            unit: "kcal",
+                            color: .orange
+                        )
+                        
+                        NutritionValueCard(
+                            title: "Protein",
+                            value: "\(Int(analysis.avgProtein))",
+                            unit: "g",
+                            color: .blue
+                        )
+                        
+                        NutritionValueCard(
+                            title: "Fiber",
+                            value: "\(Int(analysis.avgFiber))",
+                            unit: "g",
+                            color: .green
+                        )
+                    }
+                }
+                .padding(.vertical, 8)
             }
             
             if analysis.deficiencies.isEmpty {
@@ -653,6 +586,35 @@ struct NutritionDeficienciesCard: View {
         .background(Color.ibdSurfaceBackground)
         .cornerRadius(12)
         .padding(.horizontal)
+    }
+}
+
+struct NutritionValueCard: View {
+    let title: String
+    let value: String
+    let unit: String
+    let color: Color
+    
+    var body: some View {
+        VStack(spacing: 4) {
+            Text(title)
+                .font(.caption)
+                .fontWeight(.medium)
+                .foregroundColor(.ibdSecondaryText)
+            
+            Text(value)
+                .font(.title3)
+                .fontWeight(.bold)
+                .foregroundColor(color)
+            
+            Text(unit)
+                .font(.caption2)
+                .foregroundColor(.ibdSecondaryText)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 8)
+        .background(color.opacity(0.1))
+        .cornerRadius(8)
     }
 }
 
@@ -828,6 +790,204 @@ struct ReminderCard: View {
         .background(Color.ibdSurfaceBackground)
         .cornerRadius(12)
         .padding(.horizontal)
+    }
+}
+
+// MARK: - Dietician Recommendations Card
+struct DieticianRecommendationsCard: View {
+    let analysis: NutritionAnalysis
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack {
+                Image(systemName: "lightbulb.fill")
+                    .foregroundColor(.ibdAccent)
+                Text("Dietician Recommendations")
+                    .font(.headline)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.ibdPrimaryText)
+                Spacer()
+            }
+            
+            // Immediate Actions
+            if !analysis.recommendations.isEmpty {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Immediate Actions")
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                        .foregroundColor(.ibdPrimaryText)
+                    
+                    ForEach(analysis.recommendations.prefix(3), id: \.self) { recommendation in
+                        HStack(alignment: .top, spacing: 8) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .font(.caption)
+                                .foregroundColor(.ibdWarning)
+                                .padding(.top, 2)
+                            
+                            Text(recommendation)
+                                .font(.caption)
+                                .foregroundColor(.ibdSecondaryText)
+                                .multilineTextAlignment(.leading)
+                        }
+                    }
+                }
+            }
+            
+            // Weekly Goals
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Weekly Goals")
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                    .foregroundColor(.ibdPrimaryText)
+                
+                VStack(spacing: 8) {
+                    WeeklyGoalRow(
+                        title: "Protein Intake",
+                        target: "84g",
+                        current: "\(Int(analysis.avgProtein))g",
+                        progress: min(analysis.avgProtein / 84.0, 1.0)
+                    )
+                    
+                    WeeklyGoalRow(
+                        title: "Fiber Intake",
+                        target: "25g",
+                        current: "\(Int(analysis.avgFiber))g",
+                        progress: min(analysis.avgFiber / 25.0, 1.0)
+                    )
+                    
+                    WeeklyGoalRow(
+                        title: "Calorie Balance",
+                        target: "2000 kcal",
+                        current: "\(Int(analysis.avgCalories)) kcal",
+                        progress: min(analysis.avgCalories / 2000.0, 1.0)
+                    )
+                }
+            }
+            
+            // Food Suggestions
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Recommended Foods")
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                    .foregroundColor(.ibdPrimaryText)
+                
+                LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 2), spacing: 8) {
+                    FoodSuggestionItem(name: "Salmon", benefit: "Omega-3", color: .blue)
+                    FoodSuggestionItem(name: "Quinoa", benefit: "Protein", color: .green)
+                    FoodSuggestionItem(name: "Spinach", benefit: "Iron", color: .green)
+                    FoodSuggestionItem(name: "Greek Yogurt", benefit: "Probiotics", color: .purple)
+                }
+            }
+            
+            // Meal Timing
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Meal Timing")
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                    .foregroundColor(.ibdPrimaryText)
+                
+                HStack(spacing: 16) {
+                    MealTimingItem(time: "8:00 AM", meal: "Breakfast", status: .completed)
+                    MealTimingItem(time: "12:00 PM", meal: "Lunch", status: .pending)
+                    MealTimingItem(time: "6:00 PM", meal: "Dinner", status: .pending)
+                }
+            }
+        }
+        .padding()
+        .background(Color.ibdSurfaceBackground)
+        .cornerRadius(12)
+        .padding(.horizontal)
+    }
+}
+
+// MARK: - Supporting Components for Dietician Recommendations
+struct WeeklyGoalRow: View {
+    let title: String
+    let target: String
+    let current: String
+    let progress: Double
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Text(title)
+                    .font(.caption)
+                    .fontWeight(.medium)
+                    .foregroundColor(.ibdPrimaryText)
+                
+                Spacer()
+                
+                Text("\(current) / \(target)")
+                    .font(.caption)
+                    .foregroundColor(.ibdSecondaryText)
+            }
+            
+            ProgressView(value: progress)
+                .progressViewStyle(LinearProgressViewStyle(tint: progress >= 0.8 ? .green : progress >= 0.6 ? .orange : .red))
+        }
+    }
+}
+
+struct FoodSuggestionItem: View {
+    let name: String
+    let benefit: String
+    let color: Color
+    
+    var body: some View {
+        VStack(spacing: 4) {
+            Text(name)
+                .font(.caption)
+                .fontWeight(.medium)
+                .foregroundColor(.ibdPrimaryText)
+            
+            Text(benefit)
+                .font(.caption2)
+                .foregroundColor(color)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 8)
+        .background(color.opacity(0.1))
+        .cornerRadius(8)
+    }
+}
+
+struct MealTimingItem: View {
+    let time: String
+    let meal: String
+    let status: MealStatus
+    
+    var body: some View {
+        VStack(spacing: 4) {
+            Text(time)
+                .font(.caption2)
+                .foregroundColor(.ibdSecondaryText)
+            
+            Text(meal)
+                .font(.caption)
+                .fontWeight(.medium)
+                .foregroundColor(.ibdPrimaryText)
+            
+            Circle()
+                .fill(status.color)
+                .frame(width: 8, height: 8)
+        }
+    }
+}
+
+enum MealStatus {
+    case completed
+    case pending
+    case missed
+    
+    var color: Color {
+        switch self {
+        case .completed:
+            return .green
+        case .pending:
+            return .orange
+        case .missed:
+            return .red
+        }
     }
 }
 

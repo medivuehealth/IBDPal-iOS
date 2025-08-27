@@ -47,8 +47,7 @@ class FoodDatabase: ObservableObject {
             // Breakfast Foods
             DatabaseFoodItem(name: "Eggs", category: "Breakfast", calories: 155, protein: 12.6, carbs: 1.1, fiber: 0, fat: 10.6, servingSize: "2 large eggs", region: "Global"),
             DatabaseFoodItem(name: "Oatmeal", category: "Breakfast", calories: 150, protein: 5, carbs: 27, fiber: 4, fat: 3, servingSize: "1 cup cooked", region: "Global"),
-            DatabaseFoodItem(name: "Greek Yogurt", category: "Breakfast", calories: 130, protein: 23, carbs: 9, fiber: 0, fat: 0.5, servingSize: "1 cup", region: "Global"),
-            DatabaseFoodItem(name: "Banana", category: "Fruits", calories: 105, protein: 1.3, carbs: 27, fiber: 3.1, fat: 0.4, servingSize: "1 medium", region: "Global"),
+
             DatabaseFoodItem(name: "Toast", category: "Breakfast", calories: 75, protein: 3, carbs: 14, fiber: 1, fat: 1, servingSize: "1 slice", region: "Global"),
             DatabaseFoodItem(name: "Avocado", category: "Fruits", calories: 160, protein: 2, carbs: 9, fiber: 7, fat: 15, servingSize: "1 medium", region: "Global"),
             
@@ -92,17 +91,17 @@ class FoodDatabase: ObservableObject {
             DatabaseFoodItem(name: "Baba Ganoush", category: "Dips", calories: 35, protein: 1, carbs: 3, fiber: 1, fat: 2.5, servingSize: "2 tbsp", region: "Middle East"),
             
             // African Foods
-            DatabaseFoodItem(name: "Quinoa", category: "Grains", calories: 120, protein: 4.4, carbs: 22, fiber: 2.8, fat: 1.9, servingSize: "1/2 cup cooked", region: "Africa"),
+
             DatabaseFoodItem(name: "Sweet Potato", category: "Vegetables", calories: 103, protein: 2, carbs: 24, fiber: 4, fat: 0.2, servingSize: "1 medium", region: "Africa"),
             DatabaseFoodItem(name: "Plantains", category: "Fruits", calories: 122, protein: 1.3, carbs: 32, fiber: 2.3, fat: 0.4, servingSize: "1 medium", region: "Africa"),
             
             // South American Foods
             DatabaseFoodItem(name: "Amaranth", category: "Grains", calories: 125, protein: 4.7, carbs: 23, fiber: 2.6, fat: 2, servingSize: "1/2 cup cooked", region: "South America"),
-            DatabaseFoodItem(name: "Chia Seeds", category: "Seeds", calories: 58, protein: 2, carbs: 5, fiber: 5, fat: 4.5, servingSize: "1 tbsp", region: "South America"),
+
             
             // Common Vegetables
-            DatabaseFoodItem(name: "Broccoli", category: "Vegetables", calories: 55, protein: 3.7, carbs: 11, fiber: 5, fat: 0.6, servingSize: "1 cup", region: "Global"),
-            DatabaseFoodItem(name: "Spinach", category: "Vegetables", calories: 23, protein: 2.9, carbs: 3.6, fiber: 2.2, fat: 0.4, servingSize: "1 cup", region: "Global"),
+
+
             DatabaseFoodItem(name: "Carrots", category: "Vegetables", calories: 52, protein: 1.2, carbs: 12, fiber: 3.6, fat: 0.3, servingSize: "1 cup", region: "Global"),
             DatabaseFoodItem(name: "Tomatoes", category: "Vegetables", calories: 22, protein: 1.1, carbs: 4.8, fiber: 1.2, fat: 0.2, servingSize: "1 medium", region: "Global"),
             DatabaseFoodItem(name: "Cucumber", category: "Vegetables", calories: 16, protein: 0.7, carbs: 3.6, fiber: 0.5, fat: 0.2, servingSize: "1 cup", region: "Global"),
@@ -111,7 +110,6 @@ class FoodDatabase: ObservableObject {
             DatabaseFoodItem(name: "Apple", category: "Fruits", calories: 95, protein: 0.5, carbs: 25, fiber: 4, fat: 0.3, servingSize: "1 medium", region: "Global"),
             DatabaseFoodItem(name: "Orange", category: "Fruits", calories: 62, protein: 1.2, carbs: 15, fiber: 3.1, fat: 0.2, servingSize: "1 medium", region: "Global"),
             DatabaseFoodItem(name: "Strawberries", category: "Fruits", calories: 49, protein: 1, carbs: 12, fiber: 3, fat: 0.5, servingSize: "1 cup", region: "Global"),
-            DatabaseFoodItem(name: "Blueberries", category: "Fruits", calories: 85, protein: 1.1, carbs: 21, fiber: 3.6, fat: 0.5, servingSize: "1 cup", region: "Global"),
             
             // Proteins
             DatabaseFoodItem(name: "Chicken Breast", category: "Protein", calories: 165, protein: 31, carbs: 0, fiber: 0, fat: 3.6, servingSize: "3 oz", region: "Global"),
@@ -121,7 +119,7 @@ class FoodDatabase: ObservableObject {
             DatabaseFoodItem(name: "Turkey", category: "Protein", calories: 135, protein: 25, carbs: 0, fiber: 0, fat: 3, servingSize: "3 oz", region: "Global"),
             
             // Nuts and Seeds
-            DatabaseFoodItem(name: "Almonds", category: "Nuts", calories: 164, protein: 6, carbs: 6, fiber: 3.5, fat: 14, servingSize: "1/4 cup", region: "Global"),
+
             DatabaseFoodItem(name: "Walnuts", category: "Nuts", calories: 185, protein: 4, carbs: 4, fiber: 2, fat: 18, servingSize: "1/4 cup", region: "Global"),
             DatabaseFoodItem(name: "Peanuts", category: "Nuts", calories: 207, protein: 9, carbs: 6, fiber: 3, fat: 18, servingSize: "1/4 cup", region: "Global"),
             DatabaseFoodItem(name: "Sunflower Seeds", category: "Seeds", calories: 164, protein: 6, carbs: 6, fiber: 3, fat: 14, servingSize: "1/4 cup", region: "Global"),

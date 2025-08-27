@@ -22,7 +22,10 @@ const { width } = Dimensions.get('window');
 const NutritionAnalyzer = ({ userId }) => {
   const [analysisData, setAnalysisData] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [timeRange, setTimeRange] = useState(30); // days
+  const [timeRange, setTimeRange] = useState(7); // Default to 7 days
+
+  // Add a simple test log
+  console.log('[NutritionAnalyzer] Component loaded for user:', userId);
 
   // IBD Nutrition Guidelines
   const ibdGuidelines = {
@@ -50,95 +53,98 @@ const NutritionAnalyzer = ({ userId }) => {
   const fetchNutritionData = async () => {
     setLoading(true);
     try {
-      console.log('🔍 [NutritionAnalyzer] Starting nutrition data fetch for user:', userId);
+      console.log('[NutritionAnalyzer] Starting nutrition data fetch for user:', userId);
       
       // First, try to get user ID from username
       let user_id = userId;
       if (userId && userId.includes('@')) {
         // It's an email, we need to get the user_id
-        console.log('🔍 [NutritionAnalyzer] Username is email, fetching user_id...');
+        console.log('NutritionAnalyzer: Username is email, fetching user_id...');
         try {
           const userResponse = await fetch(`${API_BASE_URL}/users/lookup/${encodeURIComponent(userId)}`);
           if (userResponse.ok) {
             const userData = await userResponse.json();
             if (userData && userData.length > 0) {
               user_id = userData[0].user_id;
-              console.log('🔍 [NutritionAnalyzer] Found user_id:', user_id);
+            } else {
+              console.warn('NutritionAnalyzer: User ID not found for email:', userId);
+              setLoading(false);
+              return;
             }
+          } else {
+            console.error('NutritionAnalyzer: Failed to lookup user ID:', userResponse.status, userResponse.statusText);
+            setLoading(false);
+            return;
           }
         } catch (error) {
-          console.error('🔍 [NutritionAnalyzer] Error fetching user_id:', error);
+          console.error('NutritionAnalyzer: Error looking up user ID:', error);
+          setLoading(false);
+          return;
         }
       }
 
-      // Use the new nutrition analysis endpoint
-      console.log('🔍 [NutritionAnalyzer] Fetching nutrition analysis from:', `${API_BASE_URL}/journal/nutrition/analysis/${user_id}`);
-      const nutritionResponse = await fetch(`${API_BASE_URL}/journal/nutrition/analysis/${user_id}`);
-      
-      console.log('🔍 [NutritionAnalyzer] Nutrition response status:', nutritionResponse.status);
-      
-      if (nutritionResponse.ok) {
-        const nutritionData = await nutritionResponse.json();
-        console.log('🔍 [NutritionAnalyzer] Raw nutrition data received:', JSON.stringify(nutritionData, null, 2));
-        
-        // Transform the data to match our component's expected format
+      if (!user_id) {
+        console.warn('NutritionAnalyzer: No user ID available for nutrition analysis.');
+        setLoading(false);
+        return;
+      }
+
+      console.log('NutritionAnalyzer: Fetching nutrition analysis for user_id:', user_id);
+      const response = await fetch(`${API_BASE_URL}/journal/nutrition/analysis/${user_id}`);
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log('NutritionAnalyzer: Raw API response:', data);
+
+        // Transform API response to match component's expected structure
         const transformedData = {
-          totalEntries: nutritionData.days_with_meals || 0,
-          flareEntries: 0, // Will be calculated separately
+          totalEntries: data.days_with_meals, // Using days_with_meals from API
+          flareEntries: data.flareEntries || 0, // Assuming flareEntries might be part of the response
           averageNutrition: {
-            calories: parseFloat(nutritionData.avg_calories) || 0,
-            protein: parseFloat(nutritionData.avg_protein) || 0,
-            carbs: parseFloat(nutritionData.avg_carbs) || 0,
-            fiber: parseFloat(nutritionData.avg_fiber) || 0,
-            fat: parseFloat(nutritionData.avg_fat) || 0
+            calories: parseFloat(data.avg_calories || 0),
+            protein: parseFloat(data.avg_protein || 0),
+            carbs: parseFloat(data.avg_carbs || 0),
+            fiber: parseFloat(data.avg_fiber || 0),
+            fat: parseFloat(data.avg_fat || 0),
           },
-          deficiencies: nutritionData.deficiencies || [],
-          recommendations: nutritionData.recommendations || [],
-          overall_score: nutritionData.overall_score || 0,
-          chartData: []
+          deficiencies: data.deficiencies || [],
+          recommendations: data.recommendations || [],
+          overall_score: data.overall_score || 0,
+          last_updated: data.last_updated,
         };
-        
-        console.log('🔍 [NutritionAnalyzer] Transformed data:', JSON.stringify(transformedData, null, 2));
-        
-        // Fetch prediction results for flare correlation
-        try {
-          const predictionsResponse = await fetch(`${API_BASE_URL}/recent-predictions?username=${userId}&limit=${timeRange}`);
-          if (predictionsResponse.ok) {
-            const predictionsData = await predictionsResponse.json();
-            transformedData.flareEntries = predictionsData.predictions?.filter(p => p.probability > 0.5).length || 0;
-          }
-        } catch (error) {
-          console.error('🔍 [NutritionAnalyzer] Error fetching predictions:', error);
-        }
-        
+        console.log('NutritionAnalyzer: Transformed data:', transformedData);
+        console.log('[NutritionAnalyzer] Successfully fetched nutrition data:', {
+          calories: transformedData.averageNutrition.calories,
+          protein: transformedData.averageNutrition.protein,
+          fiber: transformedData.averageNutrition.fiber,
+          totalEntries: transformedData.totalEntries
+        });
         setAnalysisData(transformedData);
       } else {
-        console.error('🔍 [NutritionAnalyzer] Nutrition analysis failed with status:', nutritionResponse.status);
-        const errorText = await nutritionResponse.text();
-        console.error('🔍 [NutritionAnalyzer] Error response:', errorText);
-        
-        // Fallback to old method
-        console.log('🔍 [NutritionAnalyzer] Falling back to old method...');
-        await fetchNutritionDataOld();
+        console.error('NutritionAnalyzer: Failed to fetch nutrition data:', response.status, response.statusText);
+        // Fallback to old method if new endpoint fails
+        console.log('NutritionAnalyzer: Falling back to manual calculation...');
+        await calculateNutritionFromEntries();
       }
     } catch (error) {
-      console.error('🔍 [NutritionAnalyzer] Error fetching nutrition data:', error);
-      // Fallback to old method
-      await fetchNutritionDataOld();
+      console.error('NutritionAnalyzer: Error fetching nutrition data:', error);
+      // Fallback to old method if new endpoint fails
+      console.log('NutritionAnalyzer: Falling back to manual calculation due to error...');
+      await calculateNutritionFromEntries();
     } finally {
       setLoading(false);
     }
   };
 
-  const fetchNutritionDataOld = async () => {
+  const calculateNutritionFromEntries = async () => {
     try {
-      console.log('🔍 [NutritionAnalyzer] Using fallback method...');
+      console.log('NutritionAnalyzer: Using fallback method...');
       
       // Fetch journal entries (which include meal data and nutrition info)
       const journalResponse = await fetch(`${API_BASE_URL}/journal/entries/${userId}`);
       const journalData = await journalResponse.json();
       
-      console.log('🔍 [NutritionAnalyzer] Journal data received:', journalData?.length || 0, 'entries');
+      console.log('NutritionAnalyzer: Journal data received:', journalData?.length || 0, 'entries');
       
       // Fetch prediction results
       const predictionsResponse = await fetch(`${API_BASE_URL}/recent-predictions?username=${userId}&limit=${timeRange}`);
@@ -149,15 +155,15 @@ const NutritionAnalyzer = ({ userId }) => {
       const mealLogsData = await mealLogsResponse.json();
       
       if (journalData && journalData.length > 0) {
-        console.log('🔍 [NutritionAnalyzer] Analyzing journal data with old method...');
+        console.log('NutritionAnalyzer: Analyzing journal data with old method...');
         analyzeNutritionData(journalData, predictionsData.predictions || [], mealLogsData.meal_logs || []);
       } else {
-        console.log('🔍 [NutritionAnalyzer] No journal data, creating mock data...');
+        console.log('NutritionAnalyzer: No journal data, creating mock data...');
         // Create mock data for demonstration if API fails
         createMockAnalysisData();
       }
     } catch (error) {
-      console.error('🔍 [NutritionAnalyzer] Error in fallback method:', error);
+      console.error('NutritionAnalyzer: Error in fallback method:', error);
       // Create mock data for demonstration if API fails
       createMockAnalysisData();
     }
@@ -422,7 +428,7 @@ const NutritionAnalyzer = ({ userId }) => {
   }
 
   if (!analysisData) {
-    console.log('🔍 [NutritionAnalyzer] No analysis data available');
+    console.log('NutritionAnalyzer: No analysis data available');
     return (
       <Card style={styles.card}>
         <Card.Content>
@@ -435,7 +441,7 @@ const NutritionAnalyzer = ({ userId }) => {
     );
   }
 
-  console.log('🔍 [NutritionAnalyzer] Rendering with data:', {
+  console.log('NutritionAnalyzer: Rendering with data:', {
     totalEntries: analysisData.totalEntries,
     flareEntries: analysisData.flareEntries,
     averageNutrition: analysisData.averageNutrition,

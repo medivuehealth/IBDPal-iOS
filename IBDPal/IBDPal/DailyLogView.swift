@@ -45,12 +45,17 @@ struct DailyLogView: View {
                         Spacer()
                         
                         Button(action: {
-                            selectedDate = Calendar.current.date(byAdding: .day, value: 1, to: selectedDate) ?? selectedDate
-                            loadEntries()
+                            let nextDate = Calendar.current.date(byAdding: .day, value: 1, to: selectedDate) ?? selectedDate
+                            let today = Date()
+                            if nextDate <= today {
+                                selectedDate = nextDate
+                                loadEntries()
+                            }
                         }) {
                             Image(systemName: "chevron.right")
                                 .font(.title2)
                         }
+                        .disabled(Calendar.current.isDate(selectedDate, inSameDayAs: Date()))
                     }
                     .padding(.horizontal)
                     .padding(.top)
@@ -350,17 +355,10 @@ struct EntryFormView: View {
                 }
                 
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    HStack {
-                        Button("Debug") {
-                            showingDebugLogs = true
-                        }
-                        .foregroundColor(.blue)
-                        
-                        Button("Save") {
-                            saveEntry()
-                        }
-                        .disabled(isLoading)
+                    Button("Save") {
+                        saveEntry()
                     }
+                    .disabled(isLoading)
                 }
             }
         }
@@ -708,70 +706,12 @@ struct EntryFormView: View {
     }
     
     private func calculateNutritionFromDescription(_ description: String) -> CalculatedNutrition {
-        let foodWords = description.lowercased().components(separatedBy: .whitespacesAndNewlines)
-        let detectedFoods = parseFoodItems(from: foodWords)
-        
-        if !detectedFoods.isEmpty {
-            return calculateNutrition(for: detectedFoods)
-        }
-        
-        return CalculatedNutrition(detectedFoods: [], totalCalories: 0, totalProtein: 0, totalCarbs: 0, totalFiber: 0, totalFat: 0)
+        // Use enhanced nutrition calculator for better compound food recognition
+        let enhancedCalculator = EnhancedNutritionCalculator.shared
+        return enhancedCalculator.calculateNutrition(for: description)
     }
     
-    private func parseFoodItems(from words: [String]) -> [String] {
-        var detectedFoods: [String] = []
-        
-        for word in words {
-            if word.count > 2 { // Only consider words with 3+ characters
-                let matchingFoods = FoodDatabase.shared.allFoods.filter { food in
-                    food.name.lowercased().contains(word) ||
-                    food.category.lowercased().contains(word)
-                }
-                
-                if !matchingFoods.isEmpty {
-                    detectedFoods.append(matchingFoods.first!.name)
-                }
-            }
-        }
-        
-        return Array(Set(detectedFoods)) // Remove duplicates
-    }
-    
-    private func calculateNutrition(for foods: [String]) -> CalculatedNutrition {
-        var totalCalories: Double = 0
-        var totalProtein: Double = 0
-        var totalCarbs: Double = 0
-        var totalFiber: Double = 0
-        var totalFat: Double = 0
-        
-        for foodName in foods {
-            if let food = FoodDatabase.shared.allFoods.first(where: { $0.name.lowercased() == foodName.lowercased() }) {
-                // Validate values before calculation to prevent NaN
-                let calories = food.calories.isFinite ? food.calories : 0
-                let protein = food.protein.isFinite ? food.protein : 0
-                let carbs = food.carbs.isFinite ? food.carbs : 0
-                let fiber = food.fiber.isFinite ? food.fiber : 0
-                let fat = food.fat.isFinite ? food.fat : 0
-                
-                // Teen portion size (1.5x normal serving)
-                totalCalories += calories * 1.5
-                totalProtein += protein * 1.5
-                totalCarbs += carbs * 1.5
-                totalFiber += fiber * 1.5
-                totalFat += fat * 1.5
-            }
-        }
-        
-        // Final validation to ensure no NaN values
-        return CalculatedNutrition(
-            detectedFoods: foods,
-            totalCalories: totalCalories.isFinite ? totalCalories : 0,
-            totalProtein: totalProtein.isFinite ? totalProtein : 0,
-            totalCarbs: totalCarbs.isFinite ? totalCarbs : 0,
-            totalFiber: totalFiber.isFinite ? totalFiber : 0,
-            totalFat: totalFat.isFinite ? totalFat : 0
-        )
-    }
+    // Note: Old nutrition calculation functions removed - now using EnhancedNutritionCalculator
 }
 
 struct EntryTypeCard: View {
@@ -1148,6 +1088,8 @@ struct MealsFormView: View {
     @State private var showingAutoCalculation = false
     @State private var currentFoodDescription = ""
     @State private var previousMealType = "Breakfast"
+    @State private var isLoadingText = false
+    @State private var lastSavedMealType = "Breakfast"
     
     private let mealTypes = ["Breakfast", "Lunch", "Dinner", "Snack"]
     
@@ -1170,58 +1112,44 @@ struct MealsFormView: View {
                         }
                     }
                     .pickerStyle(SegmentedPickerStyle())
-                    .onChange(of: data.mealType) { oldValue, newMealType in
-                        NetworkLogger.shared.log("🍽️ FORM: Meal type changed from '\(oldValue)' to '\(newMealType)'", level: .info, category: .journal)
-                        
-                        // Save current text to the previous meal type BEFORE switching
-                        saveCurrentTextToMealType(previousMealType)
-                        
-                        // Update previous meal type
-                        previousMealType = newMealType
-                        
-                        // Load text for the new meal type by directly accessing the stored value
-                        let newText = getStoredTextForMealType(newMealType)
-                        NetworkLogger.shared.log("🍽️ FORM: Loading text for '\(newMealType)': '\(newText)'", level: .info, category: .journal)
-                        currentFoodDescription = newText
-                        
-                        // Clear auto-calculation results for fresh calculation
-                        autoCalculatedNutrition = nil
-                        showingAutoCalculation = false
-                        
-                        // Trigger nutrition calculation for the new meal type if there's text
-                        if !newText.isEmpty {
-                            performAutoCalculation()
+                                            .onChange(of: data.mealType) { oldValue, newMealType in
+                            NetworkLogger.shared.log("🍽️ FORM: Meal type changed from '\(oldValue)' to '\(newMealType)'", level: .info, category: .journal)
+                            
+                            // Save current text to the previous meal type BEFORE switching
+                            saveCurrentTextToMealType(previousMealType)
+                            
+                            // Update previous meal type
+                            previousMealType = newMealType
+                            
+                            // Use DispatchQueue.main.async to ensure UI updates happen after state changes
+                            DispatchQueue.main.async {
+                                // Load text for the new meal type by directly accessing the stored value
+                                let newText = getStoredTextForMealType(newMealType)
+                                NetworkLogger.shared.log("🍽️ FORM: Loading text for '\(newMealType)': '\(newText)'", level: .info, category: .journal)
+                                
+                                // Set loading flag to prevent onChange from saving
+                                isLoadingText = true
+                                currentFoodDescription = newText
+                                isLoadingText = false
+                                
+                                // Clear auto-calculation results for fresh calculation
+                                autoCalculatedNutrition = nil
+                                showingAutoCalculation = false
+                                
+                                // Trigger nutrition calculation for the new meal type if there's text
+                                if !newText.isEmpty {
+                                    performAutoCalculation()
+                                }
+                            }
                         }
-                    }
+                        .onChange(of: currentFoodDescription) { oldValue, newValue in
+                            // Only save if the text actually changed and we're not loading
+                            if oldValue != newValue && !isLoadingText {
+                                saveCurrentTextToMealType(data.mealType)
+                            }
+                        }
                 }
-                .onChange(of: data.breakfastDescription) { _, _ in
-                    // Update currentFoodDescription if we're on breakfast and the data changed
-                    if data.mealType == "Breakfast" {
-                        NetworkLogger.shared.log("🍽️ FORM: Breakfast description changed to '\(data.breakfastDescription)', updating currentFoodDescription", level: .info, category: .journal)
-                        currentFoodDescription = data.breakfastDescription
-                    }
-                }
-                .onChange(of: data.lunchDescription) { _, _ in
-                    // Update currentFoodDescription if we're on lunch and the data changed
-                    if data.mealType == "Lunch" {
-                        NetworkLogger.shared.log("🍽️ FORM: Lunch description changed to '\(data.lunchDescription)', updating currentFoodDescription", level: .info, category: .journal)
-                        currentFoodDescription = data.lunchDescription
-                    }
-                }
-                .onChange(of: data.dinnerDescription) { _, _ in
-                    // Update currentFoodDescription if we're on dinner and the data changed
-                    if data.mealType == "Dinner" {
-                        NetworkLogger.shared.log("🍽️ FORM: Dinner description changed to '\(data.dinnerDescription)', updating currentFoodDescription", level: .info, category: .journal)
-                        currentFoodDescription = data.dinnerDescription
-                    }
-                }
-                .onChange(of: data.snackDescription) { _, _ in
-                    // Update currentFoodDescription if we're on snack and the data changed
-                    if data.mealType == "Snack" {
-                        NetworkLogger.shared.log("🍽️ FORM: Snack description changed to '\(data.snackDescription)', updating currentFoodDescription", level: .info, category: .journal)
-                        currentFoodDescription = data.snackDescription
-                    }
-                }
+
                 
                 // Food Description
                 VStack(alignment: .leading, spacing: 8) {
@@ -1232,14 +1160,27 @@ struct MealsFormView: View {
                         .textFieldStyle(RoundedBorderTextFieldStyle())
                         .lineLimit(3...6)
                         .onChange(of: currentFoodDescription) { oldValue, newValue in
-                            data.foodDescription = newValue
-                            performAutoCalculation()
+                            // Only update if we're not loading and the text actually changed
+                            if !isLoadingText && oldValue != newValue {
+                                data.foodDescription = newValue
+                                performAutoCalculation()
+                                
+                                // Save to the current meal type immediately
+                                saveCurrentTextToMealType(data.mealType)
+                            }
                         }
                         .onAppear {
                             // Initialize with the current meal type's description
                             let initialText = getStoredTextForMealType(data.mealType)
                             NetworkLogger.shared.log("🍽️ FORM: onAppear - Initializing currentFoodDescription with '\(initialText)' for meal type '\(data.mealType)'", level: .info, category: .journal)
-                            currentFoodDescription = initialText
+                            
+                            // Use DispatchQueue.main.async to ensure proper initialization
+                            DispatchQueue.main.async {
+                                // Set initial text without triggering onChange
+                                isLoadingText = true
+                                currentFoodDescription = initialText
+                                isLoadingText = false
+                            }
                         }
 
                     
@@ -1448,70 +1389,15 @@ struct MealsFormView: View {
             return
         }
         
-        // Parse food items from description
-        let foodWords = currentFoodDescription.lowercased().components(separatedBy: .whitespacesAndNewlines)
-        let detectedFoods = parseFoodItems(from: foodWords)
-        
-        if !detectedFoods.isEmpty {
-            autoCalculatedNutrition = calculateNutrition(for: detectedFoods)
-            showingAutoCalculation = true
-        }
+        // Use enhanced nutrition calculator for better compound food recognition
+        let enhancedCalculator = EnhancedNutritionCalculator.shared
+        autoCalculatedNutrition = enhancedCalculator.calculateNutrition(for: currentFoodDescription)
+        showingAutoCalculation = true
     }
     
-    private func parseFoodItems(from words: [String]) -> [String] {
-        var detectedFoods: [String] = []
-        
-        for word in words {
-            if word.count > 2 { // Only consider words with 3+ characters
-                let matchingFoods = FoodDatabase.shared.allFoods.filter { food in
-                    food.name.lowercased().contains(word) ||
-                    food.category.lowercased().contains(word)
-                }
-                
-                if !matchingFoods.isEmpty {
-                    detectedFoods.append(matchingFoods.first!.name)
-                }
-            }
-        }
-        
-        return Array(Set(detectedFoods)) // Remove duplicates
-    }
+    // Note: Old nutrition calculation functions removed - now using EnhancedNutritionCalculator
     
-    private func calculateNutrition(for foods: [String]) -> CalculatedNutrition {
-        var totalCalories: Double = 0
-        var totalProtein: Double = 0
-        var totalCarbs: Double = 0
-        var totalFiber: Double = 0
-        var totalFat: Double = 0
-        
-        for foodName in foods {
-            if let food = FoodDatabase.shared.allFoods.first(where: { $0.name.lowercased() == foodName.lowercased() }) {
-                // Validate values before calculation to prevent NaN
-                let calories = food.calories.isFinite ? food.calories : 0
-                let protein = food.protein.isFinite ? food.protein : 0
-                let carbs = food.carbs.isFinite ? food.carbs : 0
-                let fiber = food.fiber.isFinite ? food.fiber : 0
-                let fat = food.fat.isFinite ? food.fat : 0
-                
-                // Teen portion size (1.5x normal serving)
-                totalCalories += calories * 1.5
-                totalProtein += protein * 1.5
-                totalCarbs += carbs * 1.5
-                totalFiber += fiber * 1.5
-                totalFat += fat * 1.5
-            }
-        }
-        
-        // Final validation to ensure no NaN values
-        return CalculatedNutrition(
-            detectedFoods: foods,
-            totalCalories: totalCalories.isFinite ? totalCalories : 0,
-            totalProtein: totalProtein.isFinite ? totalProtein : 0,
-            totalCarbs: totalCarbs.isFinite ? totalCarbs : 0,
-            totalFiber: totalFiber.isFinite ? totalFiber : 0,
-            totalFat: totalFat.isFinite ? totalFat : 0
-        )
-    }
+    // Note: Enhanced nutrition calculation now handled directly by EnhancedNutritionCalculator
     
     private func applyAutoCalculatedNutrition(_ nutrition: CalculatedNutrition) {
         // Update the nutrition for the current meal type
@@ -1551,6 +1437,8 @@ struct MealsFormView: View {
 
     
     private func saveCurrentTextToMealType(_ mealType: String) {
+        NetworkLogger.shared.log("🍽️ SAVE: Saving text '\(currentFoodDescription)' to meal type '\(mealType)'", level: .info, category: .journal)
+        
         switch mealType {
         case "Breakfast": 
             data.breakfastDescription = currentFoodDescription
@@ -1563,6 +1451,9 @@ struct MealsFormView: View {
         default: 
             break
         }
+        
+        lastSavedMealType = mealType
+        NetworkLogger.shared.log("🍽️ SAVE: Successfully saved to '\(mealType)', lastSavedMealType is now '\(lastSavedMealType)'", level: .info, category: .journal)
     }
     
     private func clearCurrentMealNutrition() {
@@ -2563,7 +2454,7 @@ struct DatePickerView: View {
     var body: some View {
         NavigationView {
             VStack {
-                DatePicker("Select Date", selection: $selectedDate, displayedComponents: .date)
+                DatePicker("Select Date", selection: $selectedDate, in: ...Date(), displayedComponents: .date)
                     .datePickerStyle(GraphicalDatePickerStyle())
                     .padding()
                 

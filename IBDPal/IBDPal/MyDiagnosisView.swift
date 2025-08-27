@@ -173,9 +173,6 @@ struct MyDiagnosisView: View {
     
     var body: some View {
         NavigationView {
-            .onAppear {
-                loadExistingDiagnosis()
-            }
             ScrollView {
                 VStack(spacing: 0) {
                     // Header
@@ -251,6 +248,9 @@ struct MyDiagnosisView: View {
                         }
                     }
                     .padding()
+                }
+                .onAppear {
+                    loadExistingDiagnosis()
                 }
             }
             .navigationTitle("My Diagnosis")

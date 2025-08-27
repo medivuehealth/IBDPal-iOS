@@ -9,6 +9,7 @@ struct AppConfig {
     struct Endpoints {
         static let login = "/auth/login"
         static let register = "/auth/register"
+        static let logout = "/auth/logout"
         static let health = "/health"
         static let users = "/users"
         static let journal = "/journal"

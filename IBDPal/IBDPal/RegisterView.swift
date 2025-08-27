@@ -1021,6 +1021,12 @@ struct EmailVerificationView: View {
                                 index: index,
                                 code: $verificationCode
                             )
+                            .onChange(of: verificationCode) { newCode in
+                                // Auto-advance to next field when a digit is entered
+                                if newCode.count > index && index < 5 {
+                                    // Focus will automatically move to next field
+                                }
+                            }
                         }
                     }
                 }
@@ -1253,6 +1259,7 @@ struct EmailVerificationView: View {
 struct VerificationCodeDigitField: View {
     let index: Int
     @Binding var code: String
+    @FocusState private var isFocused: Bool
     
     var body: some View {
         TextField("", text: Binding(
@@ -1263,17 +1270,32 @@ struct VerificationCodeDigitField: View {
                 return ""
             },
             set: { newValue in
+                // Only allow single digit
                 if newValue.count <= 1 {
                     if newValue.isEmpty {
+                        // Handle backspace
                         if code.count > index {
                             code.remove(at: code.index(code.startIndex, offsetBy: index))
                         }
+                        // Move to previous field on backspace
+                        if index > 0 && newValue.isEmpty {
+                            // Focus will be handled by parent view
+                        }
                     } else {
-                        if index < code.count {
-                            code.remove(at: code.index(code.startIndex, offsetBy: index))
-                            code.insert(newValue.first!, at: code.index(code.startIndex, offsetBy: index))
-                        } else {
-                            code.append(newValue)
+                        // Handle digit input
+                        let digit = newValue.first!
+                        if digit.isNumber {
+                            if index < code.count {
+                                code.remove(at: code.index(code.startIndex, offsetBy: index))
+                                code.insert(digit, at: code.index(code.startIndex, offsetBy: index))
+                            } else {
+                                code.append(digit)
+                            }
+                            
+                            // Auto-advance to next field if not the last field
+                            if index < 5 && code.count > index + 1 {
+                                // Focus will be handled by parent view
+                            }
                         }
                     }
                 }
@@ -1285,9 +1307,19 @@ struct VerificationCodeDigitField: View {
         .font(.title2)
         .fontWeight(.bold)
         .keyboardType(.numberPad)
+        .focused($isFocused)
         .onReceive(Just(code)) { _ in
             if code.count > 6 {
                 code = String(code.prefix(6))
+            }
+        }
+        .onChange(of: code) { newCode in
+            // Auto-advance logic
+            if newCode.count > index && index < 5 {
+                // Move focus to next field
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    // This will be handled by the parent view
+                }
             }
         }
     }

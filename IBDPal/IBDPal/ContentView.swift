@@ -13,15 +13,23 @@ struct ContentView: View {
     
     var body: some View {
         if isAuthenticated {
-            MainTabView(userData: $userData)
+            MainTabView(userData: $userData, onSignOut: handleSignOut)
         } else {
             LoginView(isAuthenticated: $isAuthenticated, userData: $userData)
         }
+    }
+    
+    private func handleSignOut() {
+        // Clear authentication state
+        isAuthenticated = false
+        userData = nil
+        print("✅ [ContentView] User signed out successfully")
     }
 }
 
 struct MainTabView: View {
     @Binding var userData: UserData?
+    let onSignOut: () -> Void
     
     var body: some View {
         TabView {
@@ -49,7 +57,7 @@ struct MainTabView: View {
                     Text("Search")
                 }
             
-            MoreView(userData: userData)
+            MoreView(userData: userData, onSignOut: onSignOut)
                 .tabItem {
                     Image(systemName: "ellipsis.circle.fill")
                     Text("More")
