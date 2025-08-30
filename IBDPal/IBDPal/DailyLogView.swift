@@ -240,7 +240,9 @@ struct DailyLogView: View {
         case .sleep:
             return (entry.sleepHours ?? 0) > 0
         case .hydration:
-            return false // No hydration field in current schema
+            return (entry.waterIntake ?? 0) > 0 ||
+                   (entry.otherFluids ?? 0) > 0 ||
+                   (entry.hydrationLevel ?? 0) > 0
         }
     }
 }
@@ -2876,7 +2878,7 @@ struct LogEntry: Identifiable, Codable {
         waterIntake = dict["water_intake"] as? Double
         otherFluids = dict["other_fluids"] as? Double
         fluidType = dict["fluid_type"] as? String
-        hydrationLevel = dict["hydration_level"] as? Int
+        hydrationLevel = dict["hydration"] as? Int  // Use "hydration" not "hydration_level"
         hasAllergens = dict["has_allergens"] as? Bool
         mealsPerDay = dict["meals_per_day"] as? Int
         menstruation = dict["menstruation"] as? String

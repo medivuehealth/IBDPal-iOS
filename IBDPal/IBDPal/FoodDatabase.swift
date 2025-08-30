@@ -47,7 +47,18 @@ class FoodDatabase: ObservableObject {
             // Breakfast Foods
             DatabaseFoodItem(name: "Eggs", category: "Breakfast", calories: 155, protein: 12.6, carbs: 1.1, fiber: 0, fat: 10.6, servingSize: "2 large eggs", region: "Global"),
             DatabaseFoodItem(name: "Oatmeal", category: "Breakfast", calories: 150, protein: 5, carbs: 27, fiber: 4, fat: 3, servingSize: "1 cup cooked", region: "Global"),
-
+            DatabaseFoodItem(name: "Pancakes", category: "Breakfast", calories: 180, protein: 4, carbs: 30, fiber: 1, fat: 6, servingSize: "2 medium pancakes", region: "Global"),
+            DatabaseFoodItem(name: "Waffles", category: "Breakfast", calories: 200, protein: 5, carbs: 32, fiber: 1, fat: 7, servingSize: "2 waffles", region: "Global"),
+            DatabaseFoodItem(name: "French Toast", category: "Breakfast", calories: 220, protein: 8, carbs: 25, fiber: 1, fat: 10, servingSize: "2 slices", region: "Global"),
+            DatabaseFoodItem(name: "Cereal", category: "Breakfast", calories: 120, protein: 3, carbs: 25, fiber: 3, fat: 1, servingSize: "1 cup", region: "Global"),
+            DatabaseFoodItem(name: "Yogurt", category: "Breakfast", calories: 150, protein: 8, carbs: 12, fiber: 0, fat: 8, servingSize: "1 cup", region: "Global"),
+            DatabaseFoodItem(name: "Smoothie", category: "Breakfast", calories: 200, protein: 5, carbs: 35, fiber: 4, fat: 2, servingSize: "1 cup", region: "Global"),
+            DatabaseFoodItem(name: "Bagel", category: "Breakfast", calories: 245, protein: 9, carbs: 48, fiber: 2, fat: 1, servingSize: "1 bagel", region: "Global"),
+            DatabaseFoodItem(name: "Muffin", category: "Breakfast", calories: 180, protein: 3, carbs: 28, fiber: 1, fat: 7, servingSize: "1 muffin", region: "Global"),
+            DatabaseFoodItem(name: "Croissant", category: "Breakfast", calories: 230, protein: 4, carbs: 25, fiber: 1, fat: 12, servingSize: "1 croissant", region: "Global"),
+            DatabaseFoodItem(name: "Bacon", category: "Breakfast", calories: 45, protein: 3, carbs: 0, fiber: 0, fat: 3.5, servingSize: "1 slice", region: "Global"),
+            DatabaseFoodItem(name: "Sausage", category: "Breakfast", calories: 85, protein: 5, carbs: 1, fiber: 0, fat: 7, servingSize: "1 link", region: "Global"),
+            DatabaseFoodItem(name: "Hash Browns", category: "Breakfast", calories: 150, protein: 2, carbs: 20, fiber: 2, fat: 7, servingSize: "1/2 cup", region: "Global"),
             DatabaseFoodItem(name: "Toast", category: "Breakfast", calories: 75, protein: 3, carbs: 14, fiber: 1, fat: 1, servingSize: "1 slice", region: "Global"),
             DatabaseFoodItem(name: "Avocado", category: "Fruits", calories: 160, protein: 2, carbs: 9, fiber: 7, fat: 15, servingSize: "1 medium", region: "Global"),
             
