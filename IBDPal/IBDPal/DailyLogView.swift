@@ -661,12 +661,14 @@ struct EntryFormView: View {
             // Populate hydration data
             DispatchQueue.main.async {
                 // Convert liters back to cups for display (1 liter = 4.22675 cups)
-                let waterIntakeLiters = entry["water_intake"] as? Double ?? 0
+                let waterIntakeLiters = parseNutritionValue(entry["water_intake"])
                 self.hydrationData.waterCups = Int(round(waterIntakeLiters * 4.22675))
-                self.hydrationData.otherFluids = entry["other_fluids"] as? Double ?? 0
+                self.hydrationData.otherFluids = parseNutritionValue(entry["other_fluids"])
                 self.hydrationData.fluidType = entry["fluid_type"] as? String ?? "Water"
-                self.hydrationData.hydrationLevel = entry["hydration_level"] as? Int ?? 5
+                self.hydrationData.hydrationLevel = entry["hydration"] as? Int ?? 5  // Use "hydration" not "hydration_level"
                 self.hydrationData.notes = ""  // Always empty for user to fill
+                
+                NetworkLogger.shared.log("💧 HYDRATION: Populated data - waterIntakeLiters: \(waterIntakeLiters), waterCups: \(self.hydrationData.waterCups), otherFluids: \(self.hydrationData.otherFluids), fluidType: \(self.hydrationData.fluidType), hydrationLevel: \(self.hydrationData.hydrationLevel)", level: .debug, category: .journal)
             }
         }
     }
