@@ -295,26 +295,20 @@ class IBDNutritionAnalyzer: ObservableObject {
         var ibdFriendlyScore = 0.0
         
         for entry in entries {
-            if let nutrition = entry.nutrition {
-                totalCalories += nutrition.calories
-                totalProtein += nutrition.protein
-                totalCarbs += nutrition.carbs
-                totalFiber += nutrition.fiber
-                totalFat += nutrition.fat
-                
-                // Add vitamins and minerals
-                for (vitamin, amount) in nutrition.vitamins {
-                    vitamins[vitamin, default: 0] += amount
-                }
-                
-                for (mineral, amount) in nutrition.minerals {
-                    minerals[mineral, default: 0] += amount
+            // Calculate nutrition from meals
+            if let meals = entry.meals {
+                for meal in meals {
+                    totalCalories += Double(meal.calories ?? 0)
+                    totalProtein += Double(meal.protein ?? 0)
+                    totalCarbs += Double(meal.carbs ?? 0)
+                    totalFiber += Double(meal.fiber ?? 0)
+                    totalFat += Double(meal.fat ?? 0)
                 }
             }
             
-            // Calculate hydration from beverages
-            if let beverages = entry.beverages {
-                hydration += beverages.totalHydration
+            // Calculate hydration from entry
+            if let entryHydration = entry.hydration {
+                hydration += Double(entryHydration)
             }
             
             // Calculate FODMAP and IBD-friendly scores
@@ -567,11 +561,11 @@ class IBDNutritionAnalyzer: ObservableObject {
         var totalFoods = 0
         
         for entry in entries {
-            if let foods = entry.foods {
-                for food in foods {
+            if let meals = entry.meals {
+                for meal in meals {
                     totalFoods += 1
-                    if isHighFODMAP(food.name) {
-                        highFODMAPFoods.append(food.name)
+                    if isHighFODMAP(meal.description) {
+                        highFODMAPFoods.append(meal.description)
                     } else {
                         complianceScore += 1
                     }
@@ -611,17 +605,17 @@ class IBDNutritionAnalyzer: ObservableObject {
         
         // Analyze each entry for risk factors
         for entry in entries {
-            if let foods = entry.foods {
-                for food in foods {
-                    let risk = assessFoodRisk(food.name)
+            if let meals = entry.meals {
+                for meal in meals {
+                    let risk = assessFoodRisk(meal.description)
                     if risk.riskLevel == .high {
                         highRiskFoods.append(risk)
                         riskScore += 0.3
                     }
                     
-                    if isTriggerFood(food.name) {
+                    if isTriggerFood(meal.description) {
                         triggerFoods.append(TriggerFood(
-                            name: food.name,
+                            name: meal.description,
                             triggerType: "Common IBD trigger",
                             symptoms: ["abdominal pain", "diarrhea", "bloating"],
                             avoidance: "Avoid during flares",
@@ -630,9 +624,9 @@ class IBDNutritionAnalyzer: ObservableObject {
                         riskScore += 0.2
                     }
                     
-                    if isInflammatory(food.name) {
+                    if isInflammatory(meal.description) {
                         inflammatoryFoods.append(InflammatoryFood(
-                            name: food.name,
+                            name: meal.description,
                             inflammatoryCompounds: ["saturated fat", "trans fat"],
                             alternatives: ["olive oil", "avocado", "nuts"],
                             preparation: "Choose grilled or baked over fried"
@@ -838,14 +832,7 @@ struct DailyData {
     let fodmapScore: Double
 }
 
-struct JournalEntry {
-    let id: String
-    let date: Date
-    let foods: [FoodItem]?
-    let beverages: BeverageData?
-    let nutrition: NutritionData?
-    let symptoms: [String]?
-}
+// JournalEntry is now defined in FlarePredictionML.swift
 
 struct FoodItem {
     let name: String

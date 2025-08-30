@@ -98,6 +98,12 @@ class FoodNLPProcessor: ObservableObject {
         "almonds": "almonds",
         "almond": "almonds",
         "peanuts": "peanuts",
+        
+        // Smoothie variations
+        "smoothie": "smoothie",
+        "fruit smoothie": "fruit smoothie",
+        "berry smoothie": "berry smoothie",
+        "green smoothie": "green smoothie",
         "peanut": "peanuts",
         "walnuts": "walnuts",
         "walnut": "walnuts",

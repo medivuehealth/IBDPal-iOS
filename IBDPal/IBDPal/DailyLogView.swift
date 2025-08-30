@@ -9,7 +9,6 @@ struct DailyLogView: View {
     @State private var entries: [LogEntry] = []
     @State private var showingEntryForm = false
     @State private var selectedEntryType: EntryType = .meals
-    @State private var showingDebugLogs = false
     
     private let apiBaseURL = AppConfig.apiBaseURL
     
@@ -119,17 +118,6 @@ struct DailyLogView: View {
             .background(Color.ibdBackground)
             .navigationTitle("Daily Log")
             .navigationBarTitleDisplayMode(.large)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Debug") {
-                        showingDebugLogs = true
-                    }
-                    .foregroundColor(.blue)
-                }
-            }
-            .sheet(isPresented: $showingDebugLogs) {
-                LogViewerView()
-            }
             .sheet(isPresented: $showingDatePicker) {
                 DatePickerView(selectedDate: $selectedDate, onDateSelected: {
                     showingDatePicker = false
@@ -316,6 +304,7 @@ struct EntryFormView: View {
     @State private var stressData = StressFormData()
     @State private var sleepData = SleepFormData()
     @State private var hydrationData = HydrationFormData()
+    @State private var dataLoaded = false
     
     init(userData: UserData?, selectedDate: Date, entryType: EntryType, onEntrySaved: @escaping () -> Void) {
         self.userData = userData
@@ -330,7 +319,7 @@ struct EntryFormView: View {
                 VStack(spacing: 20) {
                     switch entryType {
                     case .meals:
-                        MealsFormView(data: $mealsData)
+                        MealsFormView(data: $mealsData, dataLoaded: dataLoaded)
                     case .bowelHealth:
                         BowelHealthFormView(data: $bowelData)
                     case .medication:
@@ -367,6 +356,11 @@ struct EntryFormView: View {
         }
         .onAppear {
             loadExistingEntry()
+            
+            // For medication form, also load previous medication data if it's today
+            if entryType == .medication && Calendar.current.isDateInToday(selectedDate) {
+                loadPreviousMedicationData()
+            }
         }
     }
     
@@ -431,42 +425,103 @@ struct EntryFormView: View {
                 let originalDinner = self.mealsData.dinnerDescription
                 let originalSnack = self.mealsData.snackDescription
                 
-                self.mealsData.breakfastDescription = entry["breakfast"] as? String ?? ""
-                self.mealsData.lunchDescription = entry["lunch"] as? String ?? ""
-                self.mealsData.dinnerDescription = entry["dinner"] as? String ?? ""
-                self.mealsData.snackDescription = entry["snacks"] as? String ?? ""
+                // First try to parse from new structured format (meals array)
+                if let mealsArray = entry["meals"] as? [[String: Any]], !mealsArray.isEmpty {
+                    NetworkLogger.shared.log("🍽️ POPULATE: Found structured meals array with \(mealsArray.count) meals", level: .info, category: .journal)
+                    
+                    // Reset all meal data first
+                    self.mealsData.breakfastDescription = ""
+                    self.mealsData.lunchDescription = ""
+                    self.mealsData.dinnerDescription = ""
+                    self.mealsData.snackDescription = ""
+                    
+                    // Parse each meal from the structured array
+                    for mealDict in mealsArray {
+                        guard let mealType = mealDict["meal_type"] as? String,
+                              let description = mealDict["description"] as? String else {
+                            continue
+                        }
+                        
+                        NetworkLogger.shared.log("🍽️ POPULATE: Processing meal: \(mealType) - \(description)", level: .debug, category: .journal)
+                        
+                        switch mealType.lowercased() {
+                        case "breakfast":
+                            self.mealsData.breakfastDescription = description
+                            self.mealsData.breakfastCalories = mealDict["calories"] as? Double ?? 0
+                            self.mealsData.breakfastProtein = mealDict["protein"] as? Double ?? 0
+                            self.mealsData.breakfastCarbs = mealDict["carbs"] as? Double ?? 0
+                            self.mealsData.breakfastFiber = mealDict["fiber"] as? Double ?? 0
+                            self.mealsData.breakfastFat = mealDict["fat"] as? Double ?? 0
+                            
+                        case "lunch":
+                            self.mealsData.lunchDescription = description
+                            self.mealsData.lunchCalories = mealDict["calories"] as? Double ?? 0
+                            self.mealsData.lunchProtein = mealDict["protein"] as? Double ?? 0
+                            self.mealsData.lunchCarbs = mealDict["carbs"] as? Double ?? 0
+                            self.mealsData.lunchFiber = mealDict["fiber"] as? Double ?? 0
+                            self.mealsData.lunchFat = mealDict["fat"] as? Double ?? 0
+                            
+                        case "dinner":
+                            self.mealsData.dinnerDescription = description
+                            self.mealsData.dinnerCalories = mealDict["calories"] as? Double ?? 0
+                            self.mealsData.dinnerProtein = mealDict["protein"] as? Double ?? 0
+                            self.mealsData.dinnerCarbs = mealDict["carbs"] as? Double ?? 0
+                            self.mealsData.dinnerFiber = mealDict["fiber"] as? Double ?? 0
+                            self.mealsData.dinnerFat = mealDict["fat"] as? Double ?? 0
+                            
+                        case "snack":
+                            self.mealsData.snackDescription = description
+                            self.mealsData.snackCalories = mealDict["calories"] as? Double ?? 0
+                            self.mealsData.snackProtein = mealDict["protein"] as? Double ?? 0
+                            self.mealsData.snackCarbs = mealDict["carbs"] as? Double ?? 0
+                            self.mealsData.snackFiber = mealDict["fiber"] as? Double ?? 0
+                            self.mealsData.snackFat = mealDict["fat"] as? Double ?? 0
+                            
+                        default:
+                            NetworkLogger.shared.log("🍽️ POPULATE: Unknown meal type: \(mealType)", level: .warning, category: .journal)
+                        }
+                    }
+                } else {
+                    // Fallback to old flat format
+                    NetworkLogger.shared.log("🍽️ POPULATE: Using old flat format", level: .info, category: .journal)
+                    
+                    self.mealsData.breakfastDescription = entry["breakfast"] as? String ?? ""
+                    self.mealsData.lunchDescription = entry["lunch"] as? String ?? ""
+                    self.mealsData.dinnerDescription = entry["dinner"] as? String ?? ""
+                    self.mealsData.snackDescription = entry["snacks"] as? String ?? ""
+                    
+                    // Load nutrition data for each meal - handle both string and integer types
+                    self.mealsData.breakfastCalories = self.parseNutritionValue(entry["breakfast_calories"])
+                    self.mealsData.breakfastProtein = self.parseNutritionValue(entry["breakfast_protein"])
+                    self.mealsData.breakfastCarbs = self.parseNutritionValue(entry["breakfast_carbs"])
+                    self.mealsData.breakfastFiber = self.parseNutritionValue(entry["breakfast_fiber"])
+                    self.mealsData.breakfastFat = self.parseNutritionValue(entry["breakfast_fat"])
+                    
+                    self.mealsData.lunchCalories = self.parseNutritionValue(entry["lunch_calories"])
+                    self.mealsData.lunchProtein = self.parseNutritionValue(entry["lunch_protein"])
+                    self.mealsData.lunchCarbs = self.parseNutritionValue(entry["lunch_carbs"])
+                    self.mealsData.lunchFiber = self.parseNutritionValue(entry["lunch_fiber"])
+                    self.mealsData.lunchFat = self.parseNutritionValue(entry["lunch_fat"])
+                    
+                    self.mealsData.dinnerCalories = self.parseNutritionValue(entry["dinner_calories"])
+                    self.mealsData.dinnerProtein = self.parseNutritionValue(entry["dinner_protein"])
+                    self.mealsData.dinnerCarbs = self.parseNutritionValue(entry["dinner_carbs"])
+                    self.mealsData.dinnerFiber = self.parseNutritionValue(entry["dinner_fiber"])
+                    self.mealsData.dinnerFat = self.parseNutritionValue(entry["dinner_fat"])
+                    
+                    self.mealsData.snackCalories = self.parseNutritionValue(entry["snack_calories"])
+                    self.mealsData.snackProtein = self.parseNutritionValue(entry["snack_protein"])
+                    self.mealsData.snackCarbs = self.parseNutritionValue(entry["snack_carbs"])
+                    self.mealsData.snackFiber = self.parseNutritionValue(entry["snack_fiber"])
+                    self.mealsData.snackFat = self.parseNutritionValue(entry["snack_fat"])
+                }
+                
+                self.mealsData.notes = entry["notes"] as? String ?? ""
                 
                 NetworkLogger.shared.log("🍽️ POPULATE: Set breakfast='\(self.mealsData.breakfastDescription)' (was: '\(originalBreakfast)')", level: .info, category: .journal)
                 NetworkLogger.shared.log("🍽️ POPULATE: Set lunch='\(self.mealsData.lunchDescription)' (was: '\(originalLunch)')", level: .info, category: .journal)
                 NetworkLogger.shared.log("🍽️ POPULATE: Set dinner='\(self.mealsData.dinnerDescription)' (was: '\(originalDinner)')", level: .info, category: .journal)
                 NetworkLogger.shared.log("🍽️ POPULATE: Set snack='\(self.mealsData.snackDescription)' (was: '\(originalSnack)')", level: .info, category: .journal)
-                
-                // Load nutrition data for each meal - handle both string and integer types
-                self.mealsData.breakfastCalories = self.parseNutritionValue(entry["breakfast_calories"])
-                self.mealsData.breakfastProtein = self.parseNutritionValue(entry["breakfast_protein"])
-                self.mealsData.breakfastCarbs = self.parseNutritionValue(entry["breakfast_carbs"])
-                self.mealsData.breakfastFiber = self.parseNutritionValue(entry["breakfast_fiber"])
-                self.mealsData.breakfastFat = self.parseNutritionValue(entry["breakfast_fat"])
-                
-                self.mealsData.lunchCalories = self.parseNutritionValue(entry["lunch_calories"])
-                self.mealsData.lunchProtein = self.parseNutritionValue(entry["lunch_protein"])
-                self.mealsData.lunchCarbs = self.parseNutritionValue(entry["lunch_carbs"])
-                self.mealsData.lunchFiber = self.parseNutritionValue(entry["lunch_fiber"])
-                self.mealsData.lunchFat = self.parseNutritionValue(entry["lunch_fat"])
-                
-                self.mealsData.dinnerCalories = self.parseNutritionValue(entry["dinner_calories"])
-                self.mealsData.dinnerProtein = self.parseNutritionValue(entry["dinner_protein"])
-                self.mealsData.dinnerCarbs = self.parseNutritionValue(entry["dinner_carbs"])
-                self.mealsData.dinnerFiber = self.parseNutritionValue(entry["dinner_fiber"])
-                self.mealsData.dinnerFat = self.parseNutritionValue(entry["dinner_fat"])
-                
-                self.mealsData.snackCalories = self.parseNutritionValue(entry["snack_calories"])
-                self.mealsData.snackProtein = self.parseNutritionValue(entry["snack_protein"])
-                self.mealsData.snackCarbs = self.parseNutritionValue(entry["snack_carbs"])
-                self.mealsData.snackFiber = self.parseNutritionValue(entry["snack_fiber"])
-                self.mealsData.snackFat = self.parseNutritionValue(entry["snack_fat"])
-                
-                self.mealsData.notes = entry["notes"] as? String ?? ""
                 
                 NetworkLogger.shared.log("🍽️ POPULATE: Final meals data - breakfast='\(self.mealsData.breakfastDescription)', lunch='\(self.mealsData.lunchDescription)', dinner='\(self.mealsData.dinnerDescription)', snack='\(self.mealsData.snackDescription)'", level: .info, category: .journal)
                 NetworkLogger.shared.log("🍽️ POPULATE: Total calories=\(self.mealsData.totalCalories)", level: .info, category: .journal)
@@ -475,6 +530,9 @@ struct EntryFormView: View {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                     self.calculateNutritionForAllMeals()
                 }
+                
+                // Mark data as loaded
+                self.dataLoaded = true
             }
             
         case .bowelHealth:
@@ -494,38 +552,121 @@ struct EntryFormView: View {
         case .medication:
             // Populate medication data
             DispatchQueue.main.async {
-                self.medicationData.taken = entry["medication_taken"] as? Bool ?? false
                 self.medicationData.medicationType = entry["medication_type"] as? String ?? "None"
-                self.medicationData.dosageLevel = entry["dosage_level"] as? String ?? "0"
+                
+                // Parse dosage_level to separate dosage and frequency
+                if let dosageLevel = entry["dosage_level"] as? String {
+                    let (dosage, frequency) = MedicationFormData.fromDosageLevel(dosageLevel)
+                    self.medicationData.dosage = dosage
+                    self.medicationData.frequency = frequency
+                    NetworkLogger.shared.log("💊 MEDICATION: Parsed dosage_level '\(dosageLevel)' to dosage='\(dosage)', frequency='\(frequency)'", level: .debug, category: .journal)
+                } else {
+                    self.medicationData.dosage = "0"
+                    self.medicationData.frequency = "daily"
+                }
+                
                 self.medicationData.notes = entry["notes"] as? String ?? ""
+                
+                // Load last taken date
+                NetworkLogger.shared.log("💊 MEDICATION: Raw last_taken_date from database: \(entry["last_taken_date"] ?? "nil")", level: .debug, category: .journal)
+                NetworkLogger.shared.log("💊 MEDICATION: Type of last_taken_date: \(type(of: entry["last_taken_date"]))", level: .debug, category: .journal)
+                
+                if let lastTakenDateString = entry["last_taken_date"] as? String {
+                    NetworkLogger.shared.log("💊 MEDICATION: Parsing last_taken_date string: '\(lastTakenDateString)'", level: .debug, category: .journal)
+                    
+                    var lastTakenDate: Date?
+                    
+                    // Try multiple date formats
+                    let dateFormats = [
+                        "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'",  // 2025-08-18T00:00:00.000Z
+                        "yyyy-MM-dd'T'HH:mm:ss'Z'",      // 2025-08-18T00:00:00Z
+                        "yyyy-MM-dd'T'HH:mm:ss",         // 2025-08-18T00:00:00
+                        "yyyy-MM-dd"                     // 2025-08-18
+                    ]
+                    
+                    // For dates like "2025-08-18T00:00:00.000Z", extract just the date part "2025-08-18"
+                    if lastTakenDateString.contains("T") {
+                        let dateOnlyString = String(lastTakenDateString.prefix(10)) // Take first 10 characters: "2025-08-18"
+                        NetworkLogger.shared.log("💊 MEDICATION: Extracted date part: '\(dateOnlyString)' from '\(lastTakenDateString)'", level: .debug, category: .journal)
+                        
+                        let dateFormatter = DateFormatter()
+                        dateFormatter.dateFormat = "yyyy-MM-dd"
+                        dateFormatter.timeZone = TimeZone.current // Use local timezone for display
+                        
+                        if let parsedDate = dateFormatter.date(from: dateOnlyString) {
+                            lastTakenDate = parsedDate
+                            NetworkLogger.shared.log("💊 MEDICATION: Successfully parsed date part: '\(dateOnlyString)' -> \(parsedDate)", level: .debug, category: .journal)
+                        }
+                    } else {
+                        // Try multiple date formats for other formats
+                        for format in dateFormats {
+                            let dateFormatter = DateFormatter()
+                            dateFormatter.dateFormat = format
+                            dateFormatter.timeZone = TimeZone(abbreviation: "UTC")
+                            
+                            if let parsedDate = dateFormatter.date(from: lastTakenDateString) {
+                                // Extract just the date part to avoid timezone issues
+                                let calendar = Calendar.current
+                                let components = calendar.dateComponents([.year, .month, .day], from: parsedDate)
+                                lastTakenDate = calendar.date(from: components)
+                                
+                                NetworkLogger.shared.log("💊 MEDICATION: Successfully parsed date using format '\(format)'", level: .debug, category: .journal)
+                                NetworkLogger.shared.log("💊 MEDICATION: Original: \(parsedDate), Date only: \(lastTakenDate ?? parsedDate)", level: .debug, category: .journal)
+                                break
+                            }
+                        }
+                    }
+                    
+                    if let parsedDate = lastTakenDate {
+                        self.medicationData.lastTakenDate = parsedDate
+                        NetworkLogger.shared.log("💊 MEDICATION: Successfully loaded last_taken_date '\(lastTakenDateString)' -> \(parsedDate) for \(self.medicationData.medicationType)", level: .debug, category: .journal)
+                    } else {
+                        NetworkLogger.shared.log("💊 MEDICATION: Failed to parse date from '\(lastTakenDateString)'", level: .error, category: .journal)
+                    }
+                } else {
+                    // Only set to today's date if there's no existing medication data
+                    // If medication type is "None", don't set a default date
+                    if self.medicationData.medicationType != "None" {
+                        self.medicationData.lastTakenDate = Date()
+                        NetworkLogger.shared.log("💊 MEDICATION: No last_taken_date found, setting to today for new medication", level: .debug, category: .journal)
+                    } else {
+                        NetworkLogger.shared.log("💊 MEDICATION: No last_taken_date found and no medication type set", level: .debug, category: .journal)
+                    }
+                }
+                
+                // Store previous medication type for change detection
+                self.medicationData.previousMedicationType = self.medicationData.medicationType
             }
             
         case .stress:
             // Populate stress data
             DispatchQueue.main.async {
-                self.stressData.stressLevel = entry["stress_level"] as? Int ?? 5
+                self.stressData.stressLevel = entry["stress_level"] as? Int ?? 3
                 self.stressData.stressSource = entry["stress_source"] as? String ?? ""
                 self.stressData.copingStrategies = entry["coping_strategies"] as? String ?? ""
-                self.stressData.mood = entry["mood_level"] as? Int ?? 5
-                self.stressData.notes = entry["notes"] as? String ?? ""
+                self.stressData.mood = entry["mood_level"] as? Int ?? 3
+                self.stressData.notes = ""  // Always empty for user to fill
             }
             
         case .sleep:
             // Populate sleep data
             DispatchQueue.main.async {
-                self.sleepData.sleepHours = entry["sleep_hours"] as? Double ?? 8.0
+                self.sleepData.sleepHours = entry["sleep_hours"] as? Int ?? 8
                 self.sleepData.sleepQuality = entry["sleep_quality"] as? Int ?? 5
-                self.sleepData.notes = entry["notes"] as? String ?? ""
+                self.sleepData.sleepNotes = entry["sleep_notes"] as? String ?? ""
+                self.sleepData.notes = ""  // Always empty for user to fill
             }
             
         case .hydration:
             // Populate hydration data
             DispatchQueue.main.async {
-                self.hydrationData.waterIntake = entry["water_intake"] as? Double ?? 0
+                // Convert liters back to cups for display (1 liter = 4.22675 cups)
+                let waterIntakeLiters = entry["water_intake"] as? Double ?? 0
+                self.hydrationData.waterCups = Int(round(waterIntakeLiters * 4.22675))
                 self.hydrationData.otherFluids = entry["other_fluids"] as? Double ?? 0
                 self.hydrationData.fluidType = entry["fluid_type"] as? String ?? "Water"
                 self.hydrationData.hydrationLevel = entry["hydration_level"] as? Int ?? 5
-                self.hydrationData.notes = entry["notes"] as? String ?? ""
+                self.hydrationData.notes = ""  // Always empty for user to fill
             }
         }
     }
@@ -561,8 +702,7 @@ struct EntryFormView: View {
         
         var entryData: [String: Any] = [
             "username": userData.id,  // Use username instead of user_id
-            "entry_date": dateString,
-            "entry_type": entryType.rawValue
+            "entry_date": dateString
         ]
         
         NetworkLogger.shared.log("🔧 Base entry data: \(entryData)", level: .debug, category: .journal)
@@ -711,6 +851,53 @@ struct EntryFormView: View {
         return enhancedCalculator.calculateNutrition(for: description)
     }
     
+    private func loadPreviousMedicationData() {
+        guard let userData = userData else { return }
+        
+        NetworkLogger.shared.log("💊 Loading previous medication data for user: \(userData.id)", level: .info, category: .journal)
+        
+        guard let url = URL(string: "\(AppConfig.apiBaseURL)/journal/latest-medication/\(userData.id)") else { return }
+        
+        URLSession.shared.dataTask(with: url) { data, response, error in
+            DispatchQueue.main.async {
+                if let error = error {
+                    NetworkLogger.shared.log("❌ Error loading previous medication data: \(error.localizedDescription)", level: .error, category: .journal)
+                    return
+                }
+                
+                guard let data = data else { 
+                    NetworkLogger.shared.log("❌ No medication data received from server", level: .error, category: .journal)
+                    return 
+                }
+                
+                do {
+                    if let medicationData = try JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                        NetworkLogger.shared.log("💊 Received previous medication data: \(medicationData)", level: .debug, category: .journal)
+                        
+                        // Only populate if medication type is not "None"
+                        if let medicationType = medicationData["medication_type"] as? String, medicationType != "None" {
+                            self.medicationData.medicationType = medicationType
+                            
+                            // Parse dosage_level to separate dosage and frequency
+                            if let dosageLevel = medicationData["dosage_level"] as? String {
+                                let (dosage, frequency) = MedicationFormData.fromDosageLevel(dosageLevel)
+                                self.medicationData.dosage = dosage
+                                self.medicationData.frequency = frequency
+                                NetworkLogger.shared.log("💊 Loaded previous medication: \(medicationType), \(dosage)mg, \(frequency)", level: .info, category: .journal)
+                            }
+                        } else {
+                            NetworkLogger.shared.log("💊 No previous medication data found or medication type is None", level: .info, category: .journal)
+                        }
+                    } else {
+                        NetworkLogger.shared.log("❌ Failed to parse medication data", level: .error, category: .journal)
+                    }
+                } catch {
+                    NetworkLogger.shared.log("❌ Error parsing medication data: \(error)", level: .error, category: .journal)
+                }
+            }
+        }.resume()
+    }
+    
     // Note: Old nutrition calculation functions removed - now using EnhancedNutritionCalculator
 }
 
@@ -842,13 +1029,11 @@ struct MealsFormData {
     
     func toDictionary() -> [String: Any] {
         return [
-            "meal_type": mealType,
             "food_description": foodDescription,
             "calories": totalCalories,
             "protein": totalProtein,
             "carbs": totalCarbs,
             "fiber": totalFiber,
-            "fat": totalFat,
             "notes": notes,
             // Meal descriptions for each meal type
             "breakfast": breakfastDescription,
@@ -929,20 +1114,48 @@ struct BowelHealthFormData {
 
 struct MedicationFormData {
     var medicationType = "None"
-    var dosageLevel = "0"
-    var taken = true
+    var dosage = "0" // Standard dosage in mg
+    var frequency = "daily" // Frequency of administration
     var notes = ""
+    var lastTakenDate = Date()
+    var previousMedicationType = "None" // Track for change detection
     
-    // Available medication types
-    static let medicationTypes = ["None", "biologic", "immunosuppressant", "steroid"]
+    // Available medication types with descriptions
+    static let medicationTypes = ["None", "biologic", "immunosuppressant", "steroid", "mesalamine"]
     
-    // Available dosage levels by medication type
-    static let biologicDosages = ["every_2_weeks", "every_4_weeks", "every_8_weeks"]
-    static let immunosuppressantDosages = ["daily", "twice_daily", "weekly"]
-    static let steroidDosages = ["5", "10", "20"]
+    // Medication type descriptions for warnings
+    static let medicationDescriptions: [String: String] = [
+        "biologic": "Biologic medications (e.g., Humira, Remicade, Stelara)",
+        "immunosuppressant": "Immunosuppressant medications (e.g., Azathioprine, Methotrexate)",
+        "steroid": "Steroid medications (e.g., Prednisone, Budesonide)",
+        "mesalamine": "Mesalamine medications (e.g., Lialda, Asacol, Pentasa)"
+    ]
     
-    // Get available dosage levels for current medication type
-    var availableDosageLevels: [String] {
+    // Industry standard dosages by medication type (in mg)
+    static let biologicDosages = ["40", "80", "120", "160"] // Standard biologic dosages
+    static let immunosuppressantDosages = ["25", "50", "75", "100", "150", "200"] // Standard immunosuppressant dosages
+    static let steroidDosages = ["5", "10", "15", "20", "30", "40"] // Standard steroid dosages
+    static let mesalamineDosages = ["400", "800", "1200", "2400", "4800"] // Standard mesalamine dosages (in mg)
+    
+    // Available frequencies by medication type
+    static let biologicFrequencies = ["every_2_weeks", "every_4_weeks", "every_8_weeks"]
+    static let immunosuppressantFrequencies = ["daily", "twice_daily", "weekly"]
+    static let steroidFrequencies = ["daily", "twice_daily", "weekly"]
+    static let mesalamineFrequencies = ["daily", "twice_daily", "three_times_daily"]
+    
+    // Frequency details for validation
+    static let frequencyDetails: [String: (days: Int, description: String)] = [
+        "daily": (1, "Every day"),
+        "twice_daily": (1, "Twice daily"),
+        "three_times_daily": (1, "Three times daily"),
+        "weekly": (7, "Every week"),
+        "every_2_weeks": (14, "Every 2 weeks"),
+        "every_4_weeks": (28, "Every 4 weeks"),
+        "every_8_weeks": (56, "Every 8 weeks")
+    ]
+    
+    // Get available dosages for current medication type
+    var availableDosages: [String] {
         switch medicationType {
         case "biologic":
             return Self.biologicDosages
@@ -950,51 +1163,209 @@ struct MedicationFormData {
             return Self.immunosuppressantDosages
         case "steroid":
             return Self.steroidDosages
+        case "mesalamine":
+            return Self.mesalamineDosages
         default:
             return ["0"]
         }
     }
     
-    // Validate and get correct dosage level
-    var validatedDosageLevel: String {
+    // Get available frequencies for current medication type
+    var availableFrequencies: [String] {
+        switch medicationType {
+        case "biologic":
+            return Self.biologicFrequencies
+        case "immunosuppressant":
+            return Self.immunosuppressantFrequencies
+        case "steroid":
+            return Self.steroidFrequencies
+        case "mesalamine":
+            return Self.mesalamineFrequencies
+        default:
+            return ["daily"]
+        }
+    }
+    
+    // Validate and get correct dosage
+    var validatedDosage: String {
         if medicationType == "None" {
             return "0"
         }
         
-        let availableLevels = availableDosageLevels
-        if availableLevels.contains(dosageLevel) {
-            return dosageLevel
+        let availableDosages = availableDosages
+        if availableDosages.contains(dosage) {
+            return dosage
         } else {
             // Return first available dosage as default
-            return availableLevels.first ?? "0"
+            return availableDosages.first ?? "0"
+        }
+    }
+    
+    // Validate and get correct frequency
+    var validatedFrequency: String {
+        if medicationType == "None" {
+            return "daily"
+        }
+        
+        let availableFrequencies = availableFrequencies
+        if availableFrequencies.contains(frequency) {
+            return frequency
+        } else {
+            // Return first available frequency as default
+            return availableFrequencies.first ?? "daily"
+        }
+    }
+    
+    // Check if medication type has changed
+    var hasMedicationTypeChanged: Bool {
+        return previousMedicationType != "None" && previousMedicationType != medicationType
+    }
+    
+    // Get frequency details for current frequency
+    var currentFrequencyDetails: (days: Int, description: String)? {
+        return Self.frequencyDetails[validatedFrequency]
+    }
+    
+    // Check if medication is overdue
+    var isOverdue: Bool {
+        guard let frequency = currentFrequencyDetails else { return false }
+        let daysSinceLastTaken = Calendar.current.dateComponents([.day], from: lastTakenDate, to: Date()).day ?? 0
+        return daysSinceLastTaken > frequency.days
+    }
+    
+    // Get days overdue
+    var daysOverdue: Int {
+        guard let frequency = currentFrequencyDetails else { return 0 }
+        let daysSinceLastTaken = Calendar.current.dateComponents([.day], from: lastTakenDate, to: Date()).day ?? 0
+        return max(0, daysSinceLastTaken - frequency.days)
+    }
+    
+    // Get next due date
+    var nextDueDate: Date {
+        guard let frequency = currentFrequencyDetails else { return Date() }
+        return Calendar.current.date(byAdding: .day, value: frequency.days, to: lastTakenDate) ?? Date()
+    }
+    
+    // Get medication adherence status
+    var adherenceStatus: (status: String, color: Color, description: String) {
+        if medicationType == "None" {
+            return ("No Medication", .gray, "No medication prescribed")
+        }
+        
+        if isOverdue {
+            return ("Overdue", .red, "\(daysOverdue) days overdue")
+        } else {
+            let daysUntilDue = Calendar.current.dateComponents([.day], from: Date(), to: nextDueDate).day ?? 0
+            if daysUntilDue <= 0 {
+                return ("Due Today", .orange, "Medication due today")
+            } else {
+                return ("Due Soon", .orange, "Due in \(daysUntilDue) days")
+            }
         }
     }
     
     func toDictionary() -> [String: Any] {
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "yyyy-MM-dd"
+        
+        let lastTakenDateString = dateFormatter.string(from: lastTakenDate)
+        NetworkLogger.shared.log("💊 MEDICATION: Saving last_taken_date as '\(lastTakenDateString)' for \(medicationType)", level: .debug, category: .journal)
+        
+        // Combine dosage and frequency into dosage_level for backward compatibility
+        let dosageLevel = "\(validatedDosage)mg_\(validatedFrequency)"
+        
         return [
-            "medication_taken": taken,
             "medication_type": medicationType,
-            "dosage_level": validatedDosageLevel,
+            "dosage_level": dosageLevel,
+            "last_taken_date": lastTakenDateString,
             "notes": notes
         ]
+    }
+    
+    // Parse dosage_level back to separate dosage and frequency
+    static func fromDosageLevel(_ dosageLevel: String) -> (dosage: String, frequency: String) {
+        if dosageLevel == "0" {
+            return ("0", "daily")
+        }
+        
+        // Handle formats like "40mg_every_4_weeks" or "2.4g" or "2400mg"
+        let components = dosageLevel.components(separatedBy: "_")
+        if components.count >= 2 {
+            // New format: "40mg_every_4_weeks"
+            let dosage = components[0].replacingOccurrences(of: "mg", with: "")
+            let frequency = components.dropFirst().joined(separator: "_")
+            return (dosage, frequency)
+        } else {
+            // Old format or single value: "2.4g" or "2400mg"
+            var dosage = dosageLevel
+            
+            // Convert g to mg if needed
+            if dosageLevel.contains("g") {
+                let numericValue = dosageLevel.replacingOccurrences(of: "g", with: "")
+                if let doubleValue = Double(numericValue) {
+                    dosage = String(Int(doubleValue * 1000)) // Convert g to mg
+                }
+            } else if dosageLevel.contains("mg") {
+                dosage = dosageLevel.replacingOccurrences(of: "mg", with: "")
+            }
+            
+            // Default frequency based on medication type (will be updated when medication type is known)
+            return (dosage, "daily")
+        }
     }
 }
 
 struct StressFormData {
-    var stressLevel: Int = 5
+    var stressLevel: Int = 3
     var stressSource = ""
     var copingStrategies = ""
-    var mood: Int = 5
+    var mood: Int = 3
     var notes = ""
     
-    // Validate stress level (0-10 constraint)
+    // Validate stress level (1-5 constraint)
     var validatedStressLevel: Int {
-        return max(0, min(10, stressLevel))
+        return max(1, min(5, stressLevel))
     }
     
-    // Validate mood level (0-10 constraint)
+    // Validate mood level (1-5 constraint)
     var validatedMoodLevel: Int {
-        return max(0, min(10, mood))
+        return max(1, min(5, mood))
+    }
+    
+    // Get mood emoji based on level
+    var moodEmoji: String {
+        switch validatedMoodLevel {
+        case 1: return "😢"  // Desperate
+        case 2: return "😔"  // Sad
+        case 3: return "😐"  // Neutral
+        case 4: return "😊"  // Happy
+        case 5: return "😄"  // Very Happy
+        default: return "😐"
+        }
+    }
+    
+    // Get mood description based on level
+    var moodDescription: String {
+        switch validatedMoodLevel {
+        case 1: return "Desperate"
+        case 2: return "Sad"
+        case 3: return "Neutral"
+        case 4: return "Happy"
+        case 5: return "Very Happy"
+        default: return "Neutral"
+        }
+    }
+    
+    // Get stress description based on level
+    var stressDescription: String {
+        switch validatedStressLevel {
+        case 1: return "Very Low"
+        case 2: return "Low"
+        case 3: return "Moderate"
+        case 4: return "High"
+        case 5: return "Very High"
+        default: return "Moderate"
+        }
     }
     
     func toDictionary() -> [String: Any] {
@@ -1009,15 +1380,13 @@ struct StressFormData {
 }
 
 struct SleepFormData {
-    var sleepHours: Double = 8.0
+    var sleepHours: Int = 8
     var sleepQuality: Int = 5
-    var bedtime = Date()
-    var wakeTime = Date()
-    var sleepInterruptions = 0
+    var sleepNotes = ""
     var notes = ""
     
     // Validate sleep hours (0-24 constraint)
-    var validatedSleepHours: Double {
+    var validatedSleepHours: Int {
         return max(0, min(24, sleepHours))
     }
     
@@ -1026,36 +1395,31 @@ struct SleepFormData {
         return max(0, min(10, sleepQuality))
     }
     
-    // Validate sleep interruptions (non-negative)
-    var validatedSleepInterruptions: Int {
-        return max(0, sleepInterruptions)
-    }
-    
     func toDictionary() -> [String: Any] {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "HH:mm"
-        
         return [
             "sleep_hours": validatedSleepHours,
             "sleep_quality": validatedSleepQuality,
-            "bedtime": formatter.string(from: bedtime),
-            "wake_time": formatter.string(from: wakeTime),
-            "sleep_interruptions": validatedSleepInterruptions,
+            "sleep_notes": sleepNotes,
             "notes": notes
         ]
     }
 }
 
 struct HydrationFormData {
-    var waterIntake: Double = 0
+    var waterCups: Int = 0  // User input in cups
     var otherFluids: Double = 0
     var fluidType = "Water"
     var hydrationLevel: Int = 5
     var notes = ""
     
-    // Validate water intake (non-negative)
-    var validatedWaterIntake: Double {
-        return max(0, waterIntake)
+    // Convert cups to liters (1 cup = 0.236588 liters)
+    var waterIntakeInLiters: Double {
+        return Double(waterCups) * 0.236588
+    }
+    
+    // Validate water cups (non-negative)
+    var validatedWaterCups: Int {
+        return max(0, waterCups)
     }
     
     // Validate other fluids (non-negative)
@@ -1070,7 +1434,7 @@ struct HydrationFormData {
     
     func toDictionary() -> [String: Any] {
         return [
-            "water_intake": validatedWaterIntake,
+            "water_intake": waterIntakeInLiters,  // Convert to liters for database
             "other_fluids": validatedOtherFluids,
             "fluid_type": fluidType,
             "hydration_level": validatedHydrationLevel,
@@ -1082,6 +1446,7 @@ struct HydrationFormData {
 // Form Views
 struct MealsFormView: View {
     @Binding var data: MealsFormData
+    @State var dataLoaded: Bool
     @StateObject private var foodDatabase = FoodDatabase.shared
     @State private var isNutritionLocked = false
     @State private var autoCalculatedNutrition: CalculatedNutrition?
@@ -1093,9 +1458,10 @@ struct MealsFormView: View {
     
     private let mealTypes = ["Breakfast", "Lunch", "Dinner", "Snack"]
     
-    init(data: Binding<MealsFormData>) {
+    init(data: Binding<MealsFormData>, dataLoaded: Bool) {
         self._data = data
-        NetworkLogger.shared.log("🍽️ FORM: MealsFormView initialized with mealType='\(data.wrappedValue.mealType)', breakfast='\(data.wrappedValue.breakfastDescription)', lunch='\(data.wrappedValue.lunchDescription)', dinner='\(data.wrappedValue.dinnerDescription)', snack='\(data.wrappedValue.snackDescription)'", level: .info, category: .journal)
+        self.dataLoaded = dataLoaded
+        NetworkLogger.shared.log("🍽️ FORM: MealsFormView initialized with mealType='\(data.wrappedValue.mealType)', breakfast='\(data.wrappedValue.breakfastDescription)', lunch='\(data.wrappedValue.lunchDescription)', dinner='\(data.wrappedValue.dinnerDescription)', snack='\(data.wrappedValue.snackDescription)', dataLoaded=\(dataLoaded)", level: .info, category: .journal)
     }
     
     var body: some View {
@@ -1146,6 +1512,8 @@ struct MealsFormView: View {
                             // Only save if the text actually changed and we're not loading
                             if oldValue != newValue && !isLoadingText {
                                 saveCurrentTextToMealType(data.mealType)
+                                // Also update the main foodDescription for consistency
+                                data.foodDescription = newValue
                             }
                         }
                 }
@@ -1163,10 +1531,16 @@ struct MealsFormView: View {
                             // Only update if we're not loading and the text actually changed
                             if !isLoadingText && oldValue != newValue {
                                 data.foodDescription = newValue
-                                performAutoCalculation()
                                 
                                 // Save to the current meal type immediately
                                 saveCurrentTextToMealType(data.mealType)
+                                
+                                // Trigger auto-calculation with a slight delay to avoid too frequent calls
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                                    if currentFoodDescription == newValue { // Only calculate if text hasn't changed
+                                        performAutoCalculation()
+                                    }
+                                }
                             }
                         }
                         .onAppear {
@@ -1174,13 +1548,10 @@ struct MealsFormView: View {
                             let initialText = getStoredTextForMealType(data.mealType)
                             NetworkLogger.shared.log("🍽️ FORM: onAppear - Initializing currentFoodDescription with '\(initialText)' for meal type '\(data.mealType)'", level: .info, category: .journal)
                             
-                            // Use DispatchQueue.main.async to ensure proper initialization
-                            DispatchQueue.main.async {
-                                // Set initial text without triggering onChange
-                                isLoadingText = true
-                                currentFoodDescription = initialText
-                                isLoadingText = false
-                            }
+                            // Set initial text without triggering onChange
+                            isLoadingText = true
+                            currentFoodDescription = initialText
+                            isLoadingText = false
                         }
 
                     
@@ -1239,11 +1610,14 @@ struct MealsFormView: View {
                     }
                 }
                 
-                // Nutrition Information
-                VStack(alignment: .leading, spacing: 16) {
+
+                
+                // Daily Nutrition Summary
+                VStack(alignment: .leading, spacing: 12) {
                     HStack {
-                        Text("Nutrition Information")
+                        Text("Daily Nutrition Summary")
                             .font(.headline)
+                            .foregroundColor(.ibdPrimaryText)
                         
                         Spacer()
                         
@@ -1255,36 +1629,6 @@ struct MealsFormView: View {
                             .foregroundColor(isNutritionLocked ? .red : .green)
                         }
                     }
-                    
-                    LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 2), spacing: 12) {
-                        NutritionInputField(title: "Total Calories", value: Binding(
-                            get: { data.totalCalories },
-                            set: { _ in } // Read-only for cumulative totals
-                        ), unit: "kcal", isLocked: true)
-                        NutritionInputField(title: "Total Protein", value: Binding(
-                            get: { data.totalProtein },
-                            set: { _ in } // Read-only for cumulative totals
-                        ), unit: "g", isLocked: true)
-                        NutritionInputField(title: "Total Carbs", value: Binding(
-                            get: { data.totalCarbs },
-                            set: { _ in } // Read-only for cumulative totals
-                        ), unit: "g", isLocked: true)
-                        NutritionInputField(title: "Total Fiber", value: Binding(
-                            get: { data.totalFiber },
-                            set: { _ in } // Read-only for cumulative totals
-                        ), unit: "g", isLocked: true)
-                        NutritionInputField(title: "Total Fat", value: Binding(
-                            get: { data.totalFat },
-                            set: { _ in } // Read-only for cumulative totals
-                        ), unit: "g", isLocked: true)
-                    }
-                }
-                
-                // Daily Nutrition Summary
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("Daily Nutrition Summary")
-                        .font(.headline)
-                        .foregroundColor(.ibdPrimaryText)
                     
                     VStack(spacing: 8) {
                         HStack {
@@ -1368,15 +1712,89 @@ struct MealsFormView: View {
             NetworkLogger.shared.log("🍽️ FORM: MealsFormView onAppear - mealType='\(data.mealType)', currentFoodDescription='\(currentFoodDescription)'", level: .info, category: .journal)
             
             previousMealType = data.mealType
-            currentFoodDescription = data.foodDescription
             
             // Initialize currentFoodDescription with the current meal type's description
             let initialText = getStoredTextForMealType(data.mealType)
             NetworkLogger.shared.log("🍽️ FORM: onAppear - Setting currentFoodDescription to '\(initialText)' for meal type '\(data.mealType)'", level: .info, category: .journal)
+            
+            // Set loading flag to prevent onChange from saving during initialization
+            isLoadingText = true
             currentFoodDescription = initialText
+            isLoadingText = false
             
             // If there's text, trigger auto-calculation
             if !currentFoodDescription.isEmpty {
+                performAutoCalculation()
+            }
+        }
+        .onChange(of: dataLoaded) { oldValue, newValue in
+            if newValue && !oldValue {
+                // Data was just loaded, update the current food description
+                NetworkLogger.shared.log("🍽️ FORM: Data loaded, updating currentFoodDescription", level: .info, category: .journal)
+                
+                let activeMealDescription = getStoredTextForMealType(data.mealType)
+                NetworkLogger.shared.log("🍽️ FORM: Setting currentFoodDescription to '\(activeMealDescription)' for meal type '\(data.mealType)'", level: .info, category: .journal)
+                
+                // Set loading flag to prevent onChange from saving during update
+                isLoadingText = true
+                currentFoodDescription = activeMealDescription
+                isLoadingText = false
+                
+                // Trigger auto-calculation if there's text
+                if !currentFoodDescription.isEmpty {
+                    performAutoCalculation()
+                }
+            }
+        }
+        .onChange(of: data.breakfastDescription) { oldValue, newValue in
+            // If we're on the breakfast tab and breakfast description changed, update the text field
+            if data.mealType == "Breakfast" && oldValue != newValue && !newValue.isEmpty {
+                NetworkLogger.shared.log("🍽️ FORM: Breakfast description changed to '\(newValue)', updating text field", level: .info, category: .journal)
+                
+                isLoadingText = true
+                currentFoodDescription = newValue
+                isLoadingText = false
+                
+                // Trigger auto-calculation
+                performAutoCalculation()
+            }
+        }
+        .onChange(of: data.lunchDescription) { oldValue, newValue in
+            // If we're on the lunch tab and lunch description changed, update the text field
+            if data.mealType == "Lunch" && oldValue != newValue && !newValue.isEmpty {
+                NetworkLogger.shared.log("🍽️ FORM: Lunch description changed to '\(newValue)', updating text field", level: .info, category: .journal)
+                
+                isLoadingText = true
+                currentFoodDescription = newValue
+                isLoadingText = false
+                
+                // Trigger auto-calculation
+                performAutoCalculation()
+            }
+        }
+        .onChange(of: data.dinnerDescription) { oldValue, newValue in
+            // If we're on the dinner tab and dinner description changed, update the text field
+            if data.mealType == "Dinner" && oldValue != newValue && !newValue.isEmpty {
+                NetworkLogger.shared.log("🍽️ FORM: Dinner description changed to '\(newValue)', updating text field", level: .info, category: .journal)
+                
+                isLoadingText = true
+                currentFoodDescription = newValue
+                isLoadingText = false
+                
+                // Trigger auto-calculation
+                performAutoCalculation()
+            }
+        }
+        .onChange(of: data.snackDescription) { oldValue, newValue in
+            // If we're on the snack tab and snack description changed, update the text field
+            if data.mealType == "Snack" && oldValue != newValue && !newValue.isEmpty {
+                NetworkLogger.shared.log("🍽️ FORM: Snack description changed to '\(newValue)', updating text field", level: .info, category: .journal)
+                
+                isLoadingText = true
+                currentFoodDescription = newValue
+                isLoadingText = false
+                
+                // Trigger auto-calculation
                 performAutoCalculation()
             }
         }
@@ -1557,6 +1975,7 @@ struct CalculatedNutrition {
 
 struct BowelHealthFormView: View {
     @Binding var data: BowelHealthFormData
+    @State private var showingBristolScaleInfo = false
     
     var body: some View {
         ScrollView {
@@ -1574,8 +1993,20 @@ struct BowelHealthFormView: View {
                 
                 // Bristol Scale
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("Bristol Stool Scale")
-                        .font(.headline)
+                    HStack {
+                        Text("Bristol Stool Scale")
+                            .font(.headline)
+                        
+                        Spacer()
+                        
+                        Button(action: {
+                            showingBristolScaleInfo = true
+                        }) {
+                            Image(systemName: "info.circle")
+                                .foregroundColor(.blue)
+                                .font(.title2)
+                        }
+                    }
                     
                     Picker("Bristol Scale", selection: $data.bristolScale) {
                         ForEach(1...7, id: \.self) { scale in
@@ -1681,6 +2112,9 @@ struct BowelHealthFormView: View {
             }
             .padding()
         }
+        .sheet(isPresented: $showingBristolScaleInfo) {
+            BristolScaleInfoView()
+        }
     }
     
     private func formatPainLocation(_ location: String) -> String {
@@ -1706,14 +2140,19 @@ struct BowelHealthFormView: View {
 
 struct MedicationFormView: View {
     @Binding var data: MedicationFormData
+    @State private var showingMedicationChangeAlert = false
+    @State private var showingDatePicker = false
+    @State private var showingOverdueAlert = false
     
     var body: some View {
         ScrollView {
-            VStack(spacing: 20) {
-                // Medication Type
-                VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: 24) {
+                // Medication Type with Change Warning
+                VStack(alignment: .leading, spacing: 12) {
                     Text("Medication Type")
                         .font(.headline)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.primary)
                     
                     Picker("Medication Type", selection: $data.medicationType) {
                         ForEach(MedicationFormData.medicationTypes, id: \.self) { type in
@@ -1721,51 +2160,247 @@ struct MedicationFormView: View {
                         }
                     }
                     .pickerStyle(MenuPickerStyle())
-                    .padding()
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
                     .background(Color(.systemGray6))
-                    .cornerRadius(8)
-                }
-                
-                // Dosage Level (only show if medication type is not None)
-                if data.medicationType != "None" {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Dosage/Frequency")
-                            .font(.headline)
+                    .cornerRadius(10)
+                    .onChange(of: data.medicationType) { oldValue, newValue in
+                        if data.hasMedicationTypeChanged {
+                            showingMedicationChangeAlert = true
+                        }
                         
-                        Picker("Dosage Level", selection: $data.dosageLevel) {
-                            ForEach(data.availableDosageLevels, id: \.self) { dosage in
-                                Text(formatDosageDisplay(dosage)).tag(dosage)
+                        // If changing from "None" to a real medication type, set default date
+                        if oldValue == "None" && newValue != "None" {
+                            // Check if lastTakenDate is still the default (today's date when initialized)
+                            let calendar = Calendar.current
+                            let today = Date()
+                            let isLastTakenDateToday = calendar.isDate(data.lastTakenDate, inSameDayAs: today)
+                            
+                            if isLastTakenDateToday {
+                                // Set to today as default for new medication
+                                data.lastTakenDate = Date()
+                                NetworkLogger.shared.log("💊 MEDICATION: Setting default date to today for new medication type: \(newValue)", level: .debug, category: .journal)
                             }
                         }
-                        .pickerStyle(MenuPickerStyle())
-                        .padding()
-                        .background(Color(.systemGray6))
-                        .cornerRadius(8)
                     }
                 }
                 
-                // Taken Status
+                // Medication Type Change Alert
+                if data.hasMedicationTypeChanged {
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .foregroundColor(.orange)
+                            Text("Medication Type Changed")
+                                .font(.subheadline)
+                                .fontWeight(.semibold)
+                                .foregroundColor(.orange)
+                        }
+                        
+                        Text("Changing medication type requires doctor's approval. Please consult your healthcare provider before making changes.")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .padding()
+                            .background(Color.orange.opacity(0.1))
+                            .cornerRadius(8)
+                    }
+                }
+                
+                // Dosage and Frequency (only show if medication type is not None)
+                if data.medicationType != "None" {
+                    VStack(alignment: .leading, spacing: 20) {
+                        // Dosage Picker
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("Dosage (mg)")
+                                .font(.headline)
+                                .fontWeight(.semibold)
+                                .foregroundColor(.primary)
+                            
+                            Picker("Dosage", selection: $data.dosage) {
+                                ForEach(data.availableDosages, id: \.self) { dosage in
+                                    Text("\(dosage) mg").tag(dosage)
+                                }
+                            }
+                            .pickerStyle(MenuPickerStyle())
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 12)
+                            .background(Color(.systemGray6))
+                            .cornerRadius(10)
+                        }
+                        
+                        // Frequency Picker
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("Frequency")
+                                .font(.headline)
+                                .fontWeight(.semibold)
+                                .foregroundColor(.primary)
+                            
+                            Picker("Frequency", selection: $data.frequency) {
+                                ForEach(data.availableFrequencies, id: \.self) { frequency in
+                                    Text(formatFrequencyDisplay(frequency)).tag(frequency)
+                                }
+                            }
+                            .pickerStyle(MenuPickerStyle())
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 12)
+                            .background(Color(.systemGray6))
+                            .cornerRadius(10)
+                        }
+                    }
+                }
+                
+                // Last Taken Date (for all medications)
+                if data.medicationType != "None" {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Last Taken Date")
+                            .font(.headline)
+                            .fontWeight(.semibold)
+                            .foregroundColor(.primary)
+                        
+                        Button(action: {
+                            NetworkLogger.shared.log("💊 MEDICATION: Opening date picker, current lastTakenDate: \(formatDate(data.lastTakenDate))", level: .debug, category: .journal)
+                            showingDatePicker = true
+                        }) {
+                            HStack {
+                                Image(systemName: "calendar")
+                                    .foregroundColor(.blue)
+                                    .font(.system(size: 18))
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(formatDate(data.lastTakenDate))
+                                        .foregroundColor(.primary)
+                                        .font(.body)
+                                    Text("Tap to change")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                                    .foregroundColor(.gray)
+                                    .font(.system(size: 14))
+                            }
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 12)
+                            .background(Color(.systemGray6))
+                            .cornerRadius(10)
+                        }
+                        
+                        // Show next due date for non-daily medications
+                        if data.frequency != "daily" && data.frequency != "twice_daily" {
+                            HStack {
+                                Image(systemName: "clock")
+                                    .foregroundColor(.blue)
+                                    .font(.system(size: 14))
+                                Text("Next due: \(formatDate(data.nextDueDate))")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                Spacer()
+                            }
+                            .padding(.horizontal, 4)
+                        }
+                    }
+                }
+                
+                // Medication Status and Adherence
                 VStack(alignment: .leading, spacing: 12) {
                     Text("Status")
                         .font(.headline)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.primary)
                     
-                    Toggle("Medication Taken", isOn: $data.taken)
-                        .padding()
-                        .background(Color(.systemGray6))
-                        .cornerRadius(8)
+                    // Adherence Status Card
+                    VStack(alignment: .leading, spacing: 12) {
+                        HStack {
+                            Circle()
+                                .fill(data.adherenceStatus.color)
+                                .frame(width: 12, height: 12)
+                            Text(data.adherenceStatus.status)
+                                .font(.subheadline)
+                                .fontWeight(.semibold)
+                                .foregroundColor(data.adherenceStatus.color)
+                            Spacer()
+                        }
+                        
+                        Text(data.adherenceStatus.description)
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        
+                        // Show frequency details
+                        if let frequency = data.currentFrequencyDetails {
+                            HStack {
+                                Image(systemName: "repeat")
+                                    .foregroundColor(.blue)
+                                    .font(.system(size: 12))
+                                Text("Frequency: \(frequency.description)")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                Spacer()
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
+                    .background(data.adherenceStatus.color.opacity(0.1))
+                    .cornerRadius(10)
+                }
+                
+                // Overdue Warning
+                if data.isOverdue {
+                    VStack(alignment: .leading, spacing: 12) {
+                        HStack {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .foregroundColor(.red)
+                                .font(.system(size: 16))
+                            Text("Medication Overdue")
+                                .font(.subheadline)
+                                .fontWeight(.semibold)
+                                .foregroundColor(.red)
+                        }
+                        
+                        Text("Your medication is \(data.daysOverdue) days overdue. Please take it as soon as possible and contact your doctor if you have concerns.")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 12)
+                            .background(Color.red.opacity(0.1))
+                            .cornerRadius(10)
+                    }
                 }
                 
                 // Notes
-                VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: 12) {
                     Text("Notes")
                         .font(.headline)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.primary)
                     
                     TextField("Any additional notes...", text: $data.notes, axis: .vertical)
                         .textFieldStyle(RoundedBorderTextFieldStyle())
                         .lineLimit(2...4)
+                        .padding(.horizontal, 4)
                 }
             }
-            .padding()
+            .padding(.horizontal, 20)
+            .padding(.vertical, 16)
+        }
+        .sheet(isPresented: $showingDatePicker) {
+            DatePickerView(
+                selectedDate: $data.lastTakenDate,
+                onDateSelected: {
+                    NetworkLogger.shared.log("💊 MEDICATION: Date picker closed, lastTakenDate is now: \(formatDate(data.lastTakenDate))", level: .debug, category: .journal)
+                    showingDatePicker = false
+                }
+            )
+        }
+        .alert("Medication Type Change", isPresented: $showingMedicationChangeAlert) {
+            Button("OK") {
+                // User acknowledges the warning
+            }
+        } message: {
+            Text("Changing medication type requires doctor's approval. Please consult your healthcare provider before making changes.")
+        }
+        .onAppear {
+            // Store the current medication type for change detection
+            data.previousMedicationType = data.medicationType
         }
     }
     
@@ -1776,12 +2411,32 @@ struct MedicationFormView: View {
         case "every_8_weeks": return "Every 8 Weeks"
         case "daily": return "Daily"
         case "twice_daily": return "Twice Daily"
+        case "three_times_daily": return "Three Times Daily"
         case "weekly": return "Weekly"
         case "5": return "5mg"
         case "10": return "10mg"
         case "20": return "20mg"
         default: return dosage
         }
+    }
+    
+    private func formatFrequencyDisplay(_ frequency: String) -> String {
+        switch frequency {
+        case "every_2_weeks": return "Every 2 Weeks"
+        case "every_4_weeks": return "Every 4 Weeks"
+        case "every_8_weeks": return "Every 8 Weeks"
+        case "daily": return "Daily"
+        case "twice_daily": return "Twice Daily"
+        case "three_times_daily": return "Three Times Daily"
+        case "weekly": return "Weekly"
+        default: return frequency.capitalized
+        }
+    }
+    
+    private func formatDate(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        return formatter.string(from: date)
     }
 }
 
@@ -1790,74 +2445,122 @@ struct StressFormView: View {
     
     var body: some View {
         ScrollView {
-            VStack(spacing: 20) {
+            VStack(alignment: .leading, spacing: 24) {
                 // Stress Level
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Stress Level (0-10)")
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Stress Level")
                         .font(.headline)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.primary)
                     
-                    Slider(value: Binding(
-                        get: { Double(data.stressLevel) },
-                        set: { data.stressLevel = Int($0) }
-                    ), in: 0...10, step: 1)
-                    .padding()
-                    .background(Color(.systemGray6))
-                    .cornerRadius(8)
-                    
-                    Text("\(data.stressLevel)/10")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+                    VStack(spacing: 8) {
+                        Slider(value: Binding(
+                            get: { Double(data.stressLevel) },
+                            set: { data.stressLevel = Int($0) }
+                        ), in: 1...5, step: 1)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 12)
+                        .background(Color(.systemGray6))
+                        .cornerRadius(10)
+                        
+                        HStack {
+                            Text("1")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            Spacer()
+                            Text(data.stressDescription)
+                                .font(.subheadline)
+                                .fontWeight(.medium)
+                                .foregroundColor(.primary)
+                            Spacer()
+                            Text("5")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                        .padding(.horizontal, 4)
+                    }
                 }
                 
                 // Stress Source
-                VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: 12) {
                     Text("What's causing stress?")
                         .font(.headline)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.primary)
                     
                     TextField("Describe stress source...", text: $data.stressSource, axis: .vertical)
                         .textFieldStyle(RoundedBorderTextFieldStyle())
                         .lineLimit(2...4)
+                        .padding(.horizontal, 4)
                 }
                 
                 // Coping Strategies
-                VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: 12) {
                     Text("Coping Strategies")
                         .font(.headline)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.primary)
                     
                     TextField("What helped you cope...", text: $data.copingStrategies, axis: .vertical)
                         .textFieldStyle(RoundedBorderTextFieldStyle())
                         .lineLimit(2...4)
+                        .padding(.horizontal, 4)
                 }
                 
-                // Mood Level
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Mood Level (0-10)")
+                // Mood Level with Emojis
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Mood Level")
                         .font(.headline)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.primary)
                     
-                    Slider(value: Binding(
-                        get: { Double(data.mood) },
-                        set: { data.mood = Int($0) }
-                    ), in: 0...10, step: 1)
-                    .padding()
-                    .background(Color(.systemGray6))
-                    .cornerRadius(8)
-                    
-                    Text("\(data.mood)/10")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+                    VStack(spacing: 8) {
+                        Slider(value: Binding(
+                            get: { Double(data.mood) },
+                            set: { data.mood = Int($0) }
+                        ), in: 1...5, step: 1)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 12)
+                        .background(Color(.systemGray6))
+                        .cornerRadius(10)
+                        
+                        HStack {
+                            Text("1")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            Spacer()
+                            HStack(spacing: 4) {
+                                Text(data.moodEmoji)
+                                    .font(.title2)
+                                Text(data.moodDescription)
+                                    .font(.subheadline)
+                                    .fontWeight(.medium)
+                                    .foregroundColor(.primary)
+                            }
+                            Spacer()
+                            Text("5")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                        .padding(.horizontal, 4)
+                    }
                 }
                 
                 // Notes
-                VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: 12) {
                     Text("Notes")
                         .font(.headline)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.primary)
                     
                     TextField("Any additional notes...", text: $data.notes, axis: .vertical)
                         .textFieldStyle(RoundedBorderTextFieldStyle())
                         .lineLimit(2...4)
+                        .padding(.horizontal, 4)
                 }
             }
-            .padding()
+            .padding(.horizontal, 20)
+            .padding(.vertical, 16)
         }
     }
 }
@@ -1873,7 +2576,7 @@ struct SleepFormView: View {
                     Text("Hours of Sleep")
                         .font(.headline)
                     
-                    Stepper("\(String(format: "%.1f", data.sleepHours)) hours", value: $data.sleepHours, in: 0...24, step: 0.5)
+                    Stepper("\(data.sleepHours) hours", value: $data.sleepHours, in: 0...24, step: 1)
                         .padding()
                         .background(Color(.systemGray6))
                         .cornerRadius(8)
@@ -1897,36 +2600,14 @@ struct SleepFormView: View {
                         .foregroundColor(.secondary)
                 }
                 
-                // Bedtime and Wake Time
-                VStack(alignment: .leading, spacing: 16) {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Bedtime")
-                            .font(.headline)
-                        
-                        DatePicker("Bedtime", selection: $data.bedtime, displayedComponents: .hourAndMinute)
-                            .datePickerStyle(WheelDatePickerStyle())
-                            .frame(height: 100)
-                    }
-                    
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Wake Time")
-                            .font(.headline)
-                        
-                        DatePicker("Wake Time", selection: $data.wakeTime, displayedComponents: .hourAndMinute)
-                            .datePickerStyle(WheelDatePickerStyle())
-                            .frame(height: 100)
-                    }
-                }
-                
-                // Sleep Interruptions
+                // Sleep Notes
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("Sleep Interruptions")
+                    Text("Sleep Notes")
                         .font(.headline)
                     
-                    Stepper("\(data.sleepInterruptions) times", value: $data.sleepInterruptions, in: 0...10)
-                        .padding()
-                        .background(Color(.systemGray6))
-                        .cornerRadius(8)
+                    TextField("Any additional notes...", text: $data.sleepNotes, axis: .vertical)
+                        .textFieldStyle(RoundedBorderTextFieldStyle())
+                        .lineLimit(2...4)
                 }
                 
                 // Notes
@@ -1951,72 +2632,112 @@ struct HydrationFormView: View {
     
     var body: some View {
         ScrollView {
-            VStack(spacing: 20) {
-                // Water Intake
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Water Intake (liters)")
+            VStack(alignment: .leading, spacing: 24) {
+                // Water Intake in Cups
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Water Intake")
                         .font(.headline)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.primary)
                     
-                    Stepper("\(String(format: "%.1f", data.waterIntake)) L", value: $data.waterIntake, in: 0...10, step: 0.1)
-                        .padding()
-                        .background(Color(.systemGray6))
-                        .cornerRadius(8)
+                    VStack(spacing: 8) {
+                        Stepper("\(data.waterCups) cups", value: $data.waterCups, in: 0...20, step: 1)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 12)
+                            .background(Color(.systemGray6))
+                            .cornerRadius(10)
+                        
+                        // Show equivalent in liters for reference
+                        Text("≈ \(String(format: "%.1f", data.waterIntakeInLiters)) liters")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .padding(.horizontal, 4)
+                    }
                 }
                 
                 // Other Fluids
-                VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: 12) {
                     Text("Other Fluids (liters)")
                         .font(.headline)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.primary)
                     
                     Stepper("\(String(format: "%.1f", data.otherFluids)) L", value: $data.otherFluids, in: 0...5, step: 0.1)
-                        .padding()
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 12)
                         .background(Color(.systemGray6))
-                        .cornerRadius(8)
+                        .cornerRadius(10)
                 }
                 
                 // Fluid Type
-                VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: 12) {
                     Text("Primary Fluid Type")
                         .font(.headline)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.primary)
                     
                     Picker("Fluid Type", selection: $data.fluidType) {
                         ForEach(fluidTypes, id: \.self) { type in
                             Text(type).tag(type)
                         }
                     }
-                    .pickerStyle(WheelPickerStyle())
-                    .frame(height: 100)
+                    .pickerStyle(MenuPickerStyle())
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
+                    .background(Color(.systemGray6))
+                    .cornerRadius(10)
                 }
                 
                 // Hydration Level
-                VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: 12) {
                     Text("Hydration Level (0-10)")
                         .font(.headline)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.primary)
                     
-                    Slider(value: Binding(
-                        get: { Double(data.hydrationLevel) },
-                        set: { data.hydrationLevel = Int($0) }
-                    ), in: 0...10, step: 1)
-                    .padding()
-                    .background(Color(.systemGray6))
-                    .cornerRadius(8)
-                    
-                    Text("\(data.hydrationLevel)/10")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+                    VStack(spacing: 8) {
+                        Slider(value: Binding(
+                            get: { Double(data.hydrationLevel) },
+                            set: { data.hydrationLevel = Int($0) }
+                        ), in: 0...10, step: 1)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 12)
+                        .background(Color(.systemGray6))
+                        .cornerRadius(10)
+                        
+                        HStack {
+                            Text("0")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            Spacer()
+                            Text("\(data.hydrationLevel)/10")
+                                .font(.subheadline)
+                                .fontWeight(.medium)
+                                .foregroundColor(.primary)
+                            Spacer()
+                            Text("10")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                        .padding(.horizontal, 4)
+                    }
                 }
                 
                 // Notes
-                VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: 12) {
                     Text("Notes")
                         .font(.headline)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.primary)
                     
                     TextField("Any additional notes...", text: $data.notes, axis: .vertical)
                         .textFieldStyle(RoundedBorderTextFieldStyle())
                         .lineLimit(2...4)
+                        .padding(.horizontal, 4)
                 }
             }
-            .padding()
+            .padding(.horizontal, 20)
+            .padding(.vertical, 16)
         }
     }
 }
@@ -2084,7 +2805,7 @@ struct LogEntry: Identifiable, Codable {
     let fatigueLevel: Int?
     let notes: String?
     
-    // Meal data
+    // Meal data - old flat format
     let breakfast: String?
     let lunch: String?
     let dinner: String?
@@ -2109,6 +2830,9 @@ struct LogEntry: Identifiable, Codable {
     let snackCarbs: String?
     let snackFiber: String?
     let snackFat: String?
+    
+    // New structured format - meals array
+    let meals: [Meal]?
     
     // Helper function to parse nutrition values to string
     private static func parseNutritionValueToString(_ value: Any?) -> String? {
@@ -2157,7 +2881,7 @@ struct LogEntry: Identifiable, Codable {
         fatigueLevel = dict["fatigue_level"] as? Int
         notes = dict["notes"] as? String
         
-        // Meal data - handle both string and integer types for nutrition
+        // Meal data - handle both string and integer types for nutrition (old flat format)
         breakfast = dict["breakfast"] as? String
         lunch = dict["lunch"] as? String
         dinner = dict["dinner"] as? String
@@ -2184,6 +2908,30 @@ struct LogEntry: Identifiable, Codable {
         snackCarbs = LogEntry.parseNutritionValueToString(dict["snack_carbs"])
         snackFiber = LogEntry.parseNutritionValueToString(dict["snack_fiber"])
         snackFat = LogEntry.parseNutritionValueToString(dict["snack_fat"])
+        
+        // New structured format - meals array
+        if let mealsArray = dict["meals"] as? [[String: Any]] {
+            meals = mealsArray.compactMap { mealDict in
+                guard let mealId = mealDict["meal_id"] as? String,
+                      let mealType = mealDict["meal_type"] as? String,
+                      let description = mealDict["description"] as? String else {
+                    return nil
+                }
+                
+                return Meal(
+                    meal_id: mealId,
+                    meal_type: mealType,
+                    description: description,
+                    calories: mealDict["calories"] as? Int,
+                    protein: mealDict["protein"] as? Int,
+                    carbs: mealDict["carbs"] as? Int,
+                    fiber: mealDict["fiber"] as? Int,
+                    fat: mealDict["fat"] as? Int
+                )
+            }
+        } else {
+            meals = nil
+        }
     }
 }
 
@@ -2270,6 +3018,12 @@ struct LogEntryCard: View {
     }
     
     private var hasNutritionData: Bool {
+        // Check new structured format first
+        if let meals = entry.meals, !meals.isEmpty {
+            return true
+        }
+        
+        // Fallback to old flat format
         return (entry.calories ?? 0) > 0 || 
                (entry.protein ?? 0) > 0 || 
                (entry.carbs ?? 0) > 0 || 
@@ -2309,24 +3063,119 @@ struct NutritionSection: View {
                 .fontWeight(.semibold)
                 .foregroundColor(.green)
             
-            HStack {
-                if let calories = entry.calories, calories > 0 {
-                    NutritionItem(label: "Calories", value: "\(Int(calories))")
+            // Display meals from new structured format if available
+            if let meals = entry.meals, !meals.isEmpty {
+                VStack(alignment: .leading, spacing: 6) {
+                    ForEach(meals, id: \.meal_id) { meal in
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack {
+                                Text(meal.meal_type.capitalized)
+                                    .font(.caption)
+                                    .fontWeight(.semibold)
+                                    .foregroundColor(.primary)
+                                
+                                Spacer()
+                                
+                                if let calories = meal.calories, calories > 0 {
+                                    Text("\(calories) cal")
+                                        .font(.caption)
+                                        .foregroundColor(.blue)
+                                }
+                            }
+                            
+                            Text(meal.description)
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            
+                            // Show nutrition breakdown if available
+                            if let protein = meal.protein, let carbs = meal.carbs, let fiber = meal.fiber, let fat = meal.fat,
+                               protein > 0 || carbs > 0 || fiber > 0 || fat > 0 {
+                                HStack(spacing: 12) {
+                                    if protein > 0 {
+                                        NutritionItem(label: "Protein", value: "\(protein)g")
+                                    }
+                                    if carbs > 0 {
+                                        NutritionItem(label: "Carbs", value: "\(carbs)g")
+                                    }
+                                    if fiber > 0 {
+                                        NutritionItem(label: "Fiber", value: "\(fiber)g")
+                                    }
+                                    if fat > 0 {
+                                        NutritionItem(label: "Fat", value: "\(fat)g")
+                                    }
+                                }
+                            }
+                        }
+                        .padding(.vertical, 4)
+                        .padding(.horizontal, 8)
+                        .background(Color(.systemGray6))
+                        .cornerRadius(6)
+                    }
+                }
+            } else {
+                // Fallback to old flat format
+                HStack {
+                    if let calories = entry.calories, calories > 0 {
+                        NutritionItem(label: "Calories", value: "\(Int(calories))")
+                    }
+                    
+                    if let protein = entry.protein, protein > 0 {
+                        NutritionItem(label: "Protein", value: "\(Int(protein))g")
+                    }
+                    
+                    if let carbs = entry.carbs, carbs > 0 {
+                        NutritionItem(label: "Carbs", value: "\(Int(carbs))g")
+                    }
+                    
+                    if let fiber = entry.fiber, fiber > 0 {
+                        NutritionItem(label: "Fiber", value: "\(Int(fiber))g")
+                    }
                 }
                 
-                if let protein = entry.protein, protein > 0 {
-                    NutritionItem(label: "Protein", value: "\(Int(protein))g")
-                }
-                
-                if let carbs = entry.carbs, carbs > 0 {
-                    NutritionItem(label: "Carbs", value: "\(Int(carbs))g")
-                }
-                
-                if let fiber = entry.fiber, fiber > 0 {
-                    NutritionItem(label: "Fiber", value: "\(Int(fiber))g")
+                // Show individual meals from old format if available
+                VStack(alignment: .leading, spacing: 4) {
+                    if let breakfast = entry.breakfast, !breakfast.isEmpty {
+                        MealItem(mealType: "Breakfast", description: breakfast, calories: entry.breakfastCalories)
+                    }
+                    if let lunch = entry.lunch, !lunch.isEmpty {
+                        MealItem(mealType: "Lunch", description: lunch, calories: entry.lunchCalories)
+                    }
+                    if let dinner = entry.dinner, !dinner.isEmpty {
+                        MealItem(mealType: "Dinner", description: dinner, calories: entry.dinnerCalories)
+                    }
+                    if let snacks = entry.snacks, !snacks.isEmpty {
+                        MealItem(mealType: "Snacks", description: snacks, calories: entry.snackCalories)
+                    }
                 }
             }
         }
+    }
+}
+
+struct MealItem: View {
+    let mealType: String
+    let description: String
+    let calories: String?
+    
+    var body: some View {
+        HStack {
+            Text(mealType)
+                .font(.caption)
+                .fontWeight(.semibold)
+                .foregroundColor(.primary)
+            
+            Spacer()
+            
+            if let calories = calories, !calories.isEmpty {
+                Text("\(calories) cal")
+                    .font(.caption)
+                    .foregroundColor(.blue)
+            }
+        }
+        
+        Text(description)
+            .font(.caption)
+            .foregroundColor(.secondary)
     }
 }
 
@@ -2454,7 +3303,7 @@ struct DatePickerView: View {
     var body: some View {
         NavigationView {
             VStack {
-                DatePicker("Select Date", selection: $selectedDate, in: ...Date(), displayedComponents: .date)
+                DatePicker("Select Date", selection: $selectedDate, displayedComponents: .date)
                     .datePickerStyle(GraphicalDatePickerStyle())
                     .padding()
                 
@@ -2471,7 +3320,7 @@ struct DatePickerView: View {
 }
 
 #Preview {
-    DailyLogView(userData: UserData(id: "1", email: "test@example.com", name: "Test User", token: "token"))
+    DailyLogView(userData: UserData(id: "1", email: "test@example.com", name: "Test User", phoneNumber: nil, token: "token"))
 }
 
 // MARK: - Lookup Value Mappings
@@ -2593,4 +3442,87 @@ extension Int {
     func fatigueLevelDescription() -> String {
         return LookupMappings.fatigueLevelDescriptions[self] ?? "Unknown"
     }
-} 
+}
+
+// MARK: - Bristol Scale Info View
+struct BristolScaleInfoView: View {
+    @Environment(\.dismiss) private var dismiss
+    
+    var body: some View {
+        NavigationView {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    Text("Bristol Stool Scale")
+                        .font(.largeTitle)
+                        .fontWeight(.bold)
+                        .padding(.bottom, 8)
+                    
+                    Text("The Bristol Stool Scale is a medical aid designed to classify the form of human feces into seven categories. It helps healthcare providers understand your bowel health.")
+                        .font(.body)
+                        .foregroundColor(.secondary)
+                    
+                    VStack(alignment: .leading, spacing: 12) {
+                        ForEach(1...7, id: \.self) { scale in
+                            VStack(alignment: .leading, spacing: 4) {
+                                HStack {
+                                    Text("Type \(scale)")
+                                        .font(.headline)
+                                        .foregroundColor(.primary)
+                                    
+                                    Spacer()
+                                    
+                                    Text(scale.bristolScaleDescription())
+                                        .font(.subheadline)
+                                        .foregroundColor(.secondary)
+                                        .italic()
+                                }
+                                
+                                // Add color coding for better understanding
+                                Rectangle()
+                                    .fill(bristolScaleColor(for: scale))
+                                    .frame(height: 8)
+                                    .cornerRadius(4)
+                            }
+                            .padding(.vertical, 4)
+                        }
+                    }
+                    
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("What to look for:")
+                            .font(.headline)
+                            .padding(.top, 16)
+                        
+                        Text("• Types 1-2: May indicate constipation")
+                        Text("• Types 3-4: Normal, healthy stools")
+                        Text("• Types 5-7: May indicate diarrhea or urgency")
+                    }
+                    .font(.body)
+                    .foregroundColor(.secondary)
+                }
+                .padding()
+            }
+            .navigationTitle("Bristol Scale Guide")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                }
+            }
+        }
+    }
+    
+    private func bristolScaleColor(for scale: Int) -> Color {
+        switch scale {
+        case 1, 2:
+            return .brown // Constipation
+        case 3, 4:
+            return .green // Normal
+        case 5, 6, 7:
+            return .orange // Diarrhea
+        default:
+            return .gray
+        }
+    }
+}

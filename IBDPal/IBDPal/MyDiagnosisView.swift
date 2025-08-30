@@ -5,37 +5,37 @@ struct MyDiagnosisView: View {
     @Environment(\.dismiss) private var dismiss
     
     // Basic Diagnosis Information
-    @State private var diagnosis = ""
-    @State private var diagnosisYear = ""
-    @State private var diagnosisMonth = ""
-    @State private var diseaseLocation = ""
-    @State private var diseaseBehavior = ""
-    @State private var diseaseSeverity = ""
+    @State private var diagnosis = "Select your diagnosis"
+    @State private var diagnosisYear = "Select year"
+    @State private var diagnosisMonth = "Select month"
+    @State private var diseaseLocation = "Select location"
+    @State private var diseaseBehavior = "Select behavior"
+    @State private var diseaseSeverity = "Select severity"
     
     // Medication Information
-    @State private var takingMedications = ""
+    @State private var takingMedications = "Select"
     @State private var currentMedications: [String] = []
-    @State private var selectedMedication = ""
+    @State private var selectedMedication = "Select medication"
     @State private var medicationComplications: [String] = []
-    @State private var selectedComplication = ""
+    @State private var selectedComplication = "Select complication"
     
     // Health Status
-    @State private var isAnemic = ""
-    @State private var anemiaSeverity = ""
-    @State private var giSpecialistFrequency = ""
-    @State private var lastGiVisit = ""
+    @State private var isAnemic = "Select"
+    @State private var anemiaSeverity = "Select severity"
+    @State private var giSpecialistFrequency = "Select frequency"
+    @State private var lastGiVisit = Date()
     
     // Additional IBD Questions
-    @State private var familyHistory = ""
-    @State private var surgeryHistory = ""
-    @State private var hospitalizations = ""
-    @State private var flareFrequency = ""
+    @State private var familyHistory = "Select"
+    @State private var surgeryHistory = "Select"
+    @State private var hospitalizations = "Select"
+    @State private var flareFrequency = "Select frequency"
     @State private var currentSymptoms: [String] = []
-    @State private var selectedSymptom = ""
+    @State private var selectedSymptom = "Select symptom"
     @State private var dietaryRestrictions: [String] = []
-    @State private var selectedRestriction = ""
+    @State private var selectedRestriction = "Select restriction"
     @State private var comorbidities: [String] = []
-    @State private var selectedComorbidity = ""
+    @State private var selectedComorbidity = "Select comorbidity"
     
     // Form State
     @State private var isLoading = false
@@ -96,18 +96,22 @@ struct MyDiagnosisView: View {
     
     private let medicationOptions = [
         "Select medication",
-        "Mesalamine",
-        "Sulfasalazine",
-        "Corticosteroids",
-        "Azathioprine",
-        "Mercaptopurine",
-        "Methotrexate",
-        "Infliximab",
-        "Adalimumab",
-        "Certolizumab",
-        "Vedolizumab",
-        "Ustekinumab",
-        "Tofacitinib",
+        "Mesalamine (Asacol, Pentasa, Lialda)",
+        "Sulfasalazine (Azulfidine)",
+        "Corticosteroids (Prednisone, Budesonide)",
+        "Azathioprine (Imuran)",
+        "Mercaptopurine (6-MP, Purinethol)",
+        "Methotrexate (Rheumatrex, Trexall)",
+        "Infliximab (Remicade)",
+        "Adalimumab (Humira)",
+        "Certolizumab (Cimzia)",
+        "Vedolizumab (Entyvio)",
+        "Ustekinumab (Stelara)",
+        "Tofacitinib (Xeljanz)",
+        "Golimumab (Simponi)",
+        "Natalizumab (Tysabri)",
+        "Filgotinib (Jyseleca)",
+        "Upadacitinib (Rinvoq)",
         "Other"
     ]
     
@@ -172,94 +176,92 @@ struct MyDiagnosisView: View {
     ]
     
     var body: some View {
-        NavigationView {
-            ScrollView {
-                VStack(spacing: 0) {
-                    // Header
-                    VStack(spacing: 16) {
-                        Text("My Diagnosis Assessment")
-                            .font(.largeTitle)
-                            .fontWeight(.bold)
+        ScrollView {
+            VStack(spacing: 0) {
+                // Header
+                VStack(spacing: 16) {
+                    Text("My Diagnosis Assessment")
+                        .font(.largeTitle)
+                        .fontWeight(.bold)
+                        .foregroundColor(.ibdPrimary)
+                        .multilineTextAlignment(.center)
+                    
+                    Text("Help us understand your IBD journey for personalized care")
+                        .font(.subheadline)
+                        .foregroundColor(.ibdSecondaryText)
+                        .multilineTextAlignment(.center)
+                    
+                    // Progress Bar
+                    VStack(spacing: 8) {
+                        ProgressView(value: Double(currentStep), total: Double(totalSteps))
+                            .progressViewStyle(LinearProgressViewStyle(tint: .ibdPrimary))
+                            .scaleEffect(x: 1, y: 2, anchor: .center)
+                        
+                        Text("Step \(currentStep) of \(totalSteps)")
+                            .font(.caption)
+                            .fontWeight(.semibold)
                             .foregroundColor(.ibdPrimary)
-                            .multilineTextAlignment(.center)
-                        
-                        Text("Help us understand your IBD journey for personalized care")
-                            .font(.subheadline)
-                            .foregroundColor(.ibdSecondaryText)
-                            .multilineTextAlignment(.center)
-                        
-                        // Progress Bar
-                        VStack(spacing: 8) {
-                            ProgressView(value: Double(currentStep), total: Double(totalSteps))
-                                .progressViewStyle(LinearProgressViewStyle(tint: .ibdPrimary))
-                                .scaleEffect(x: 1, y: 2, anchor: .center)
-                            
-                            Text("Step \(currentStep) of \(totalSteps)")
-                                .font(.caption)
-                                .fontWeight(.semibold)
-                                .foregroundColor(.ibdPrimary)
-                        }
-                        .padding(.horizontal)
                     }
-                    .padding()
-                    .background(Color.ibdSurfaceBackground)
-                    
-                    // Navigation Buttons
-                    HStack(spacing: 16) {
-                        if currentStep > 1 {
-                            Button("← Previous") {
-                                currentStep -= 1
-                            }
-                            .buttonStyle(SecondaryButtonStyle())
-                        } else {
-                            Spacer()
-                        }
-                        
-                        if currentStep < totalSteps {
-                            Button("Next →") {
-                                if validateCurrentStep() {
-                                    currentStep += 1
-                                }
-                            }
-                            .buttonStyle(PrimaryButtonStyle())
-                        } else {
-                            Button("Save Diagnosis") {
-                                handleSave()
-                            }
-                            .buttonStyle(PrimaryButtonStyle())
-                            .disabled(isLoading)
-                        }
-                    }
-                    .padding()
-                    
-                    // Form Content
-                    VStack(spacing: 24) {
-                        switch currentStep {
-                        case 1:
-                            renderStep1()
-                        case 2:
-                            renderStep2()
-                        case 3:
-                            renderStep3()
-                        case 4:
-                            renderStep4()
-                        default:
-                            renderStep1()
-                        }
-                    }
-                    .padding()
+                    .padding(.horizontal)
                 }
-                .onAppear {
-                    loadExistingDiagnosis()
+                .padding()
+                .background(Color.ibdSurfaceBackground)
+                
+                // Navigation Buttons
+                HStack(spacing: 16) {
+                    if currentStep > 1 {
+                        Button("← Previous") {
+                            currentStep -= 1
+                        }
+                        .buttonStyle(SecondaryButtonStyle())
+                    } else {
+                        Spacer()
+                    }
+                    
+                    if currentStep < totalSteps {
+                        Button("Next →") {
+                            if validateCurrentStep() {
+                                currentStep += 1
+                            }
+                        }
+                        .buttonStyle(PrimaryButtonStyle())
+                    } else {
+                        Button("Save Diagnosis") {
+                            handleSave()
+                        }
+                        .buttonStyle(PrimaryButtonStyle())
+                        .disabled(isLoading)
+                    }
                 }
+                .padding()
+                
+                // Form Content
+                VStack(spacing: 24) {
+                    switch currentStep {
+                    case 1:
+                        renderStep1()
+                    case 2:
+                        renderStep2()
+                    case 3:
+                        renderStep3()
+                    case 4:
+                        renderStep4()
+                    default:
+                        renderStep1()
+                    }
+                }
+                .padding()
             }
-            .navigationTitle("My Diagnosis")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button("Close") {
-                        dismiss()
-                    }
+            .onAppear {
+                loadExistingDiagnosis()
+            }
+        }
+        .navigationTitle("My Diagnosis")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button("Close") {
+                    dismiss()
                 }
             }
         }
@@ -582,15 +584,10 @@ struct MyDiagnosisView: View {
                     .font(.headline)
                     .foregroundColor(.ibdPrimaryText)
                 
-                Picker("Last GI Visit", selection: $lastGiVisit) {
-                    ForEach(frequencyOptions, id: \.self) { option in
-                        Text(option).tag(option)
-                    }
-                }
-                .pickerStyle(MenuPickerStyle())
-                .padding()
-                .background(Color.ibdSurfaceBackground)
-                .cornerRadius(8)
+                DatePicker("Last GI Visit", selection: $lastGiVisit, displayedComponents: .date)
+                    .padding()
+                    .background(Color.ibdSurfaceBackground)
+                    .cornerRadius(8)
             }
         }
     }
@@ -888,8 +885,7 @@ struct MyDiagnosisView: View {
         case 2:
             return !takingMedications.isEmpty && takingMedications != "Select"
         case 3:
-            return !giSpecialistFrequency.isEmpty && giSpecialistFrequency != "Select frequency" &&
-                   !lastGiVisit.isEmpty && lastGiVisit != "Select frequency"
+            return !giSpecialistFrequency.isEmpty && giSpecialistFrequency != "Select frequency"
         case 4:
             return !familyHistory.isEmpty && familyHistory != "Select" &&
                    !surgeryHistory.isEmpty && surgeryHistory != "Select" &&
@@ -902,6 +898,11 @@ struct MyDiagnosisView: View {
     
     private func handleSave() {
         isLoading = true
+        
+        // Format the date for API
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "yyyy-MM-dd"
+        let lastGiVisitString = dateFormatter.string(from: lastGiVisit)
         
         // Prepare diagnosis data
         let diagnosisData: [String: Any] = [
@@ -917,7 +918,7 @@ struct MyDiagnosisView: View {
             "isAnemic": isAnemic.isEmpty ? nil : isAnemic,
             "anemiaSeverity": anemiaSeverity.isEmpty ? nil : anemiaSeverity,
             "giSpecialistFrequency": giSpecialistFrequency.isEmpty ? nil : giSpecialistFrequency,
-            "lastGiVisit": lastGiVisit.isEmpty ? nil : lastGiVisit,
+            "lastGiVisit": lastGiVisitString,
             "familyHistory": familyHistory.isEmpty ? nil : familyHistory,
             "surgeryHistory": surgeryHistory.isEmpty ? nil : surgeryHistory,
             "hospitalizations": hospitalizations.isEmpty ? nil : hospitalizations,
@@ -932,7 +933,7 @@ struct MyDiagnosisView: View {
     }
     
     private func saveDiagnosisToAPI(_ data: [String: Any]) {
-        guard let url = URL(string: "\(AppConfig.apiBaseURL)/api/diagnosis") else {
+        guard let url = URL(string: "\(AppConfig.apiBaseURL)/diagnosis") else {
             handleError("Invalid API URL")
             return
         }
@@ -984,7 +985,7 @@ struct MyDiagnosisView: View {
     }
     
     private func loadExistingDiagnosis() {
-        guard let url = URL(string: "\(AppConfig.apiBaseURL)/api/diagnosis") else {
+        guard let url = URL(string: "\(AppConfig.apiBaseURL)/diagnosis") else {
             return
         }
         
@@ -1022,7 +1023,16 @@ struct MyDiagnosisView: View {
                         self.isAnemic = diagnosisData["is_anemic"] as? String ?? ""
                         self.anemiaSeverity = diagnosisData["anemia_severity"] as? String ?? ""
                         self.giSpecialistFrequency = diagnosisData["gi_specialist_frequency"] as? String ?? ""
-                        self.lastGiVisit = diagnosisData["last_gi_visit"] as? String ?? ""
+                        
+                        // Parse last GI visit date
+                        if let lastGiVisitString = diagnosisData["last_gi_visit"] as? String {
+                            let dateFormatter = DateFormatter()
+                            dateFormatter.dateFormat = "yyyy-MM-dd"
+                            self.lastGiVisit = dateFormatter.date(from: lastGiVisitString) ?? Date()
+                        } else {
+                            self.lastGiVisit = Date()
+                        }
+                        
                         self.familyHistory = diagnosisData["family_history"] as? String ?? ""
                         self.surgeryHistory = diagnosisData["surgery_history"] as? String ?? ""
                         self.hospitalizations = diagnosisData["hospitalizations"] as? String ?? ""
@@ -1070,5 +1080,5 @@ struct SecondaryButtonStyle: ButtonStyle {
 }
 
 #Preview {
-    MyDiagnosisView(userData: UserData(id: "1", email: "test@example.com", name: "Test User", token: "token"))
+    MyDiagnosisView(userData: UserData(id: "1", email: "test@example.com", name: "Test User", phoneNumber: nil, token: "token"))
 } 

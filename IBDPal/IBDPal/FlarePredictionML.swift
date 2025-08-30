@@ -2,6 +2,63 @@ import Foundation
 import CoreML
 import Accelerate
 
+// MARK: - Data Models for API Response
+struct JournalEntry: Codable {
+    let entry_id: String
+    let user_id: String
+    let entry_date: String
+    let meals: [Meal]?
+    let symptoms: [Symptom]?
+    let bowel_movements: [BowelMovement]?
+    let bowel_frequency: Int?
+    let blood_present: Bool?
+    let mucus_present: Bool?
+    let pain_severity: Int?
+    let pain_location: String?
+    let urgency_level: Int?
+    let bristol_scale: Int?
+    let hydration: Int?
+    let notes: String?
+    let created_at: String
+    let updated_at: String
+}
+
+struct Meal: Codable {
+    let meal_id: String
+    let meal_type: String
+    let description: String
+    let calories: Int?
+    let protein: Int?
+    let carbs: Int?
+    let fiber: Int?
+    let fat: Int?
+}
+
+struct Symptom: Codable {
+    let symptom_id: String
+    let type: String
+    let severity: Int
+    let notes: String?
+}
+
+struct BowelMovement: Codable {
+    let movement_id: String
+    let time: String
+    let consistency: Int
+    let urgency: Int?
+    let blood_present: Bool?
+    let notes: String?
+}
+
+// MARK: - Extensions
+extension String {
+    func toDate() -> Date? {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter.date(from: self)
+    }
+}
+
 // MARK: - Flare Prediction ML Models
 struct FlarePredictionInput {
     let nutritionData: NutritionFeatures
@@ -258,36 +315,29 @@ class FlarePredictionMLEngine: ObservableObject {
         let supplementIntake: [String: Double] = [:]
         
         for entry in recentEntries {
-            if let foods = entry.foods {
-                for food in foods {
-                    // Use nutrition data if available, otherwise estimate from food name
-                    if let nutrition = entry.nutrition {
-                        fiberIntake += nutrition.fiber
-                        proteinIntake += nutrition.protein
-                        fatIntake += nutrition.fat
-                    } else {
-                        // Estimate nutrition based on food name (simplified)
-                        proteinIntake += estimateProtein(for: food.name, quantity: food.quantity)
-                        fatIntake += estimateFat(for: food.name, quantity: food.quantity)
-                        fiberIntake += estimateFiber(for: food.name, quantity: food.quantity)
-                    }
+            if let meals = entry.meals {
+                for meal in meals {
+                    // Use nutrition data from meal properties
+                    fiberIntake += Double(meal.fiber ?? 0)
+                    proteinIntake += Double(meal.protein ?? 0)
+                    fatIntake += Double(meal.fat ?? 0)
                     
-                    if isTriggerFood(food.name) {
+                    if isTriggerFood(meal.description) {
                         triggerFoodCount += 1
                     }
-                    if isInflammatoryFood(food.name) {
+                    if isInflammatoryFood(meal.description) {
                         inflammatoryFoodCount += 1
                     }
                     
-                    foodItems.insert(food.name)
+                    foodItems.insert(meal.description)
                 }
             }
             
-            if let beverages = entry.beverages {
-                hydrationLevel += beverages.totalHydration
+            if let hydration = entry.hydration {
+                hydrationLevel += Double(hydration)
             }
             
-            let hoursSinceMidnight = Calendar.current.component(.hour, from: entry.date)
+            let hoursSinceMidnight = Calendar.current.component(.hour, from: entry.entry_date.toDate() ?? Date())
             mealTimings.append(Double(hoursSinceMidnight))
         }
         
@@ -332,19 +382,19 @@ class FlarePredictionMLEngine: ObservableObject {
             if let symptoms = entry.symptoms {
                 // Parse symptoms from string array
                 for symptom in symptoms {
-                    switch symptom.lowercased() {
+                    switch symptom.type.lowercased() {
                     case "abdominal_pain", "stomach_pain":
-                        abdominalPain += 5.0
+                        abdominalPain += Double(symptom.severity) * 0.5
                     case "diarrhea":
-                        diarrhea += 7.0
+                        diarrhea += Double(symptom.severity) * 0.7
                     case "constipation":
-                        constipation += 6.0
+                        constipation += Double(symptom.severity) * 0.6
                     case "bloating":
-                        bloating += 5.0
+                        bloating += Double(symptom.severity) * 0.5
                     case "fatigue":
-                        fatigue += 4.0
+                        fatigue += Double(symptom.severity) * 0.4
                     case "urgency":
-                        urgency += 6.0
+                        urgency += Double(symptom.severity) * 0.6
                     case "blood_in_stool":
                         bloodInStool = true
                     case "incomplete_evacuation":
@@ -455,9 +505,9 @@ class FlarePredictionMLEngine: ObservableObject {
             if let symptoms = entry.symptoms {
                 // Check for severe symptoms in the string array
                 return symptoms.contains { symptom in
-                    symptom.lowercased() == "abdominal_pain" || 
-                    symptom.lowercased() == "diarrhea" ||
-                    symptom.lowercased() == "blood_in_stool"
+                    symptom.type.lowercased() == "abdominal_pain" || 
+                    symptom.type.lowercased() == "diarrhea" ||
+                    symptom.type.lowercased() == "blood_in_stool"
                 }
             }
             return false
@@ -708,23 +758,23 @@ class FlarePredictionMLEngine: ObservableObject {
             if let symptoms = entry.symptoms {
                 // Calculate severity based on symptom strings
                 for symptom in symptoms {
-                    switch symptom.lowercased() {
+                    switch symptom.type.lowercased() {
                     case "abdominal_pain", "stomach_pain":
-                        totalSeverity += 5.0
+                        totalSeverity += Double(symptom.severity) * 0.5
                     case "diarrhea":
-                        totalSeverity += 7.0
+                        totalSeverity += Double(symptom.severity) * 0.7
                     case "constipation":
-                        totalSeverity += 6.0
+                        totalSeverity += Double(symptom.severity) * 0.6
                     case "bloating":
-                        totalSeverity += 5.0
+                        totalSeverity += Double(symptom.severity) * 0.5
                     case "fatigue":
-                        totalSeverity += 4.0
+                        totalSeverity += Double(symptom.severity) * 0.4
                     case "urgency":
-                        totalSeverity += 6.0
+                        totalSeverity += Double(symptom.severity) * 0.6
                     case "blood_in_stool":
-                        totalSeverity += 8.0
+                        totalSeverity += Double(symptom.severity) * 0.8
                     default:
-                        totalSeverity += 3.0
+                        totalSeverity += Double(symptom.severity) * 0.3
                     }
                 }
                 count += 1
@@ -749,7 +799,7 @@ class FlarePredictionMLEngine: ObservableObject {
     }
     
     private func calculateTimeSinceLastFlare(flareEntries: [JournalEntry]) -> Double {
-        guard let lastFlare = flareEntries.last?.date else { return 30.0 }
+        guard let lastFlare = flareEntries.last?.entry_date.toDate() else { return 30.0 }
         return Date().timeIntervalSince(lastFlare) / (24 * 3600) // Days since last flare
     }
     

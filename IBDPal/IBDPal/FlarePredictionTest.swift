@@ -35,6 +35,7 @@ class FlarePredictionTest {
             id: "test-user-id",
             email: "test@example.com",
             name: "Test User",
+            phoneNumber: nil,
             token: "test-token"
         )
     }
@@ -42,38 +43,53 @@ class FlarePredictionTest {
     private static func createMockJournalEntries() -> [JournalEntry] {
         // Create mock journal entries for testing using the actual JournalEntry structure
         let mockEntry = JournalEntry(
-            id: "test-entry-1",
-            date: Date(),
-            foods: [
-                createMockFoodItem()
+            entry_id: "test-entry-1",
+            user_id: "test-user-id",
+            entry_date: "2024-01-15",
+            meals: [
+                createMockMeal()
             ],
-            beverages: BeverageData(totalHydration: 2000.0),
-            nutrition: createMockNutritionData(),
-            symptoms: ["abdominal_pain", "bloating"]
+            symptoms: [
+                createMockSymptom()
+            ],
+            bowel_movements: nil,
+            bowel_frequency: 2,
+            blood_present: false,
+            mucus_present: false,
+            pain_severity: 3,
+            pain_location: "abdomen",
+            urgency_level: 4,
+            bristol_scale: 4,
+            hydration: 2000,
+            notes: "Test entry",
+            created_at: "2024-01-15T10:00:00Z",
+            updated_at: "2024-01-15T10:00:00Z"
         )
         
         return [mockEntry]
     }
     
-    private static func createMockFoodItem() -> FoodItem {
-        // Create mock food item using the actual FoodItem structure
-        return FoodItem(
-            name: "Chicken Breast",
-            quantity: 100.0,
-            unit: "g"
+    private static func createMockMeal() -> Meal {
+        // Create mock meal using the actual Meal structure
+        return Meal(
+            meal_id: "test-meal-1",
+            meal_type: "breakfast",
+            description: "Chicken Breast",
+            calories: 165,
+            protein: 31,
+            carbs: 0,
+            fiber: 0,
+            fat: 4
         )
     }
     
-    private static func createMockNutritionData() -> NutritionData {
-        // Create mock nutrition data using the actual NutritionData structure
-        return NutritionData(
-            calories: 165.0,
-            protein: 31.0,
-            carbs: 0.0,
-            fiber: 0.0,
-            fat: 3.6,
-            vitamins: ["Vitamin B12": 0.3],
-            minerals: ["Iron": 1.2]
+    private static func createMockSymptom() -> Symptom {
+        // Create mock symptom using the actual Symptom structure
+        return Symptom(
+            symptom_id: "test-symptom-1",
+            type: "abdominal_pain",
+            severity: 5,
+            notes: "Test symptom"
         )
     }
 } 

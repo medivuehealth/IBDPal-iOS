@@ -4,416 +4,444 @@ import Charts
 struct DiscoverView: View {
     let userData: UserData?
     
-    @State private var selectedTimePeriod: TimePeriod = .week
+    @State private var selectedTimeframe: TimeFrame = .week
+    @State private var selectedNutritionTab: NutritionTab = .calories
+    @State private var trendsData: TrendsData?
+    @State private var isLoading = false
+    @State private var errorMessage: String?
     
     var body: some View {
         NavigationView {
             ScrollView {
-                VStack(spacing: 24) {
-                    // Time Period Selector
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text("Trend Analysis")
+                VStack(spacing: 20) {
+                    // Header
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("My Trends")
                             .font(.title2)
                             .fontWeight(.bold)
                             .foregroundColor(.ibdPrimaryText)
-                        
-                        HStack(spacing: 12) {
-                            ForEach(TimePeriod.allCases, id: \.self) { period in
-                                TimePeriodButton(
-                                    period: period,
-                                    isSelected: selectedTimePeriod == period
-                                ) {
-                                    selectedTimePeriod = period
-                                }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal)
+                    
+                    // Timeframe Selector
+                    HStack(spacing: 12) {
+                        ForEach(TimeFrame.allCases, id: \.self) { timeframe in
+                            TimeFrameButton(
+                                timeframe: timeframe,
+                                isSelected: selectedTimeframe == timeframe
+                            ) {
+                                selectedTimeframe = timeframe
+                                loadTrendsData()
                             }
                         }
                     }
                     .padding(.horizontal)
                     
-                    // Enhanced Nutrition Trend Charts
-                    VStack(spacing: 20) {
-                        // IBD Nutrition Chart
-                        IBDNutritionChartCard(
-                            title: "IBD Nutrition Trends",
-                            subtitle: "Fiber, protein, and calorie intake with research benchmarks",
-                            data: getIBDNutritionData(for: selectedTimePeriod),
-                            timePeriod: selectedTimePeriod
+                    if isLoading {
+                        ProgressView("Loading your trends...")
+                            .frame(maxWidth: .infinity, minHeight: 200)
+                    } else if let error = errorMessage {
+                        ErrorView(message: error) {
+                            loadTrendsData()
+                        }
+                    } else if let data = trendsData {
+                        // Summary Cards
+                        SummaryCardsView(summary: data.summary)
+                        
+                        // Nutrition Charts with Tabs
+                        NutritionTabsView(
+                            data: data.nutrition,
+                            selectedTab: $selectedNutritionTab,
+                            timeframe: selectedTimeframe
                         )
                         
-                        // Crohn's Nutrition Chart
-                        CrohnsNutritionChartCard(
-                            title: "Crohn's Disease Nutrition Trends",
-                            subtitle: "FODMAP-friendly nutrition with disease-specific targets",
-                            data: getCrohnsNutritionData(for: selectedTimePeriod),
-                            timePeriod: selectedTimePeriod
-                        )
+                                    // Health Metrics Section
+            HealthMetricsView(data: data.healthMetrics, selectedTimeframe: selectedTimeframe)
                         
-                        // Pain Level Trend Chart
-                        TrendChartCard(
-                            title: "Pain Level Trends",
-                            subtitle: "Daily pain levels and patterns",
-                            data: getPainData(for: selectedTimePeriod),
-                            chartType: .line,
-                            color: .red
-                        )
-                        
-                        // Flare Risk Trend Chart
-                        TrendChartCard(
-                            title: "Flare Risk Assessment",
-                            subtitle: "Risk factors and flare probability",
-                            data: getFlareRiskData(for: selectedTimePeriod),
-                            chartType: .bar,
-                            color: .orange
-                        )
+                        // Insights
+                        InsightsView(insights: data.insights)
+                    } else {
+                        EmptyStateView()
                     }
-                    .padding(.horizontal)
                 }
                 .padding(.vertical)
             }
             .background(Color.ibdBackground)
             .navigationTitle("Discover")
             .navigationBarTitleDisplayMode(.large)
+            .onAppear {
+                loadTrendsData()
+            }
         }
     }
     
-    // MARK: - Enhanced Chart Data Methods
-    
-    private func getIBDNutritionData(for period: TimePeriod) -> [NutritionDataPoint] {
-        switch period {
-        case .week:
-            return [
-                NutritionDataPoint(date: "Mon", fiber: 18, protein: 65, calories: 1850),
-                NutritionDataPoint(date: "Tue", fiber: 22, protein: 72, calories: 2100),
-                NutritionDataPoint(date: "Wed", fiber: 15, protein: 58, calories: 1950),
-                NutritionDataPoint(date: "Thu", fiber: 25, protein: 78, calories: 2200),
-                NutritionDataPoint(date: "Fri", fiber: 12, protein: 55, calories: 1800),
-                NutritionDataPoint(date: "Sat", fiber: 28, protein: 85, calories: 2300),
-                NutritionDataPoint(date: "Sun", fiber: 20, protein: 68, calories: 2000)
-            ]
-        case .month:
-            return generateMonthlyNutritionData()
-        case .threeMonths:
-            return generateThreeMonthNutritionData()
-        }
-    }
-    
-    private func getCrohnsNutritionData(for period: TimePeriod) -> [NutritionDataPoint] {
-        switch period {
-        case .week:
-            return [
-                NutritionDataPoint(date: "Mon", fiber: 12, protein: 70, calories: 1900),
-                NutritionDataPoint(date: "Tue", fiber: 15, protein: 75, calories: 2050),
-                NutritionDataPoint(date: "Wed", fiber: 10, protein: 65, calories: 1850),
-                NutritionDataPoint(date: "Thu", fiber: 18, protein: 80, calories: 2150),
-                NutritionDataPoint(date: "Fri", fiber: 8, protein: 60, calories: 1750),
-                NutritionDataPoint(date: "Sat", fiber: 20, protein: 85, calories: 2250),
-                NutritionDataPoint(date: "Sun", fiber: 14, protein: 72, calories: 1950)
-            ]
-        case .month:
-            return generateMonthlyNutritionData()
-        case .threeMonths:
-            return generateThreeMonthNutritionData()
-        }
-    }
-    
-    private func generateMonthlyNutritionData() -> [NutritionDataPoint] {
-        let weeks = ["Week 1", "Week 2", "Week 3", "Week 4"]
-        return weeks.map { week in
-            NutritionDataPoint(
-                date: week,
-                fiber: Double.random(in: 15...30),
-                protein: Double.random(in: 60...90),
-                calories: Double.random(in: 1800...2300)
-            )
-        }
-    }
-    
-    private func generateThreeMonthNutritionData() -> [NutritionDataPoint] {
-        let months = ["Jan", "Feb", "Mar"]
-        return months.map { month in
-            NutritionDataPoint(
-                date: month,
-                fiber: Double.random(in: 18...28),
-                protein: Double.random(in: 65...85),
-                calories: Double.random(in: 1900...2200)
-            )
-        }
-    }
-    
-    private func getPainData(for period: TimePeriod) -> [TrendDataPoint] {
-        switch period {
-        case .week:
-            return [
-                TrendDataPoint(date: "Mon", value: 3, label: "Pain Level"),
-                TrendDataPoint(date: "Tue", value: 5, label: "Pain Level"),
-                TrendDataPoint(date: "Wed", value: 2, label: "Pain Level"),
-                TrendDataPoint(date: "Thu", value: 4, label: "Pain Level"),
-                TrendDataPoint(date: "Fri", value: 6, label: "Pain Level"),
-                TrendDataPoint(date: "Sat", value: 3, label: "Pain Level"),
-                TrendDataPoint(date: "Sun", value: 2, label: "Pain Level")
-            ]
-        case .month:
-            return generateMonthlyData(baseValue: 4, variation: 0.5)
-        case .threeMonths:
-            return generateThreeMonthData(baseValue: 4, variation: 0.6)
-        }
-    }
-    
-    private func getFlareRiskData(for period: TimePeriod) -> [TrendDataPoint] {
-        switch period {
-        case .week:
-            return [
-                TrendDataPoint(date: "Mon", value: 25, label: "Risk %"),
-                TrendDataPoint(date: "Tue", value: 35, label: "Risk %"),
-                TrendDataPoint(date: "Wed", value: 20, label: "Risk %"),
-                TrendDataPoint(date: "Thu", value: 30, label: "Risk %"),
-                TrendDataPoint(date: "Fri", value: 45, label: "Risk %"),
-                TrendDataPoint(date: "Sat", value: 25, label: "Risk %"),
-                TrendDataPoint(date: "Sun", value: 20, label: "Risk %")
-            ]
-        case .month:
-            return generateMonthlyData(baseValue: 30, variation: 0.4)
-        case .threeMonths:
-            return generateThreeMonthData(baseValue: 30, variation: 0.5)
-        }
-    }
-    
-    private func generateMonthlyData(baseValue: Double, variation: Double) -> [TrendDataPoint] {
-        var data: [TrendDataPoint] = []
-        let days = ["Week 1", "Week 2", "Week 3", "Week 4"]
+    private func loadTrendsData() {
+        guard let userData = userData else { return }
         
-        for day in days {
-            let randomVariation = Double.random(in: -variation...variation)
-            let value = baseValue * (1 + randomVariation)
-            data.append(TrendDataPoint(date: day, value: value, label: "Value"))
+        isLoading = true
+        errorMessage = nil
+        
+        print("📊 [DiscoverView] Loading trends for user: \(userData.email)")
+        
+        // Calculate date range based on timeframe
+        let calendar = Calendar.current
+        let endDate = Date()
+        let startDate: Date
+        
+        switch selectedTimeframe {
+        case .week:
+            startDate = calendar.date(byAdding: .day, value: -7, to: endDate) ?? endDate
+        case .month:
+            startDate = calendar.date(byAdding: .day, value: -30, to: endDate) ?? endDate
+        case .threeMonths:
+            startDate = calendar.date(byAdding: .day, value: -90, to: endDate) ?? endDate
         }
         
-        return data
-    }
-    
-    private func generateThreeMonthData(baseValue: Double, variation: Double) -> [TrendDataPoint] {
-        var data: [TrendDataPoint] = []
-        let months = ["Jan", "Feb", "Mar"]
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "yyyy-MM-dd"
+        let startDateString = dateFormatter.string(from: startDate)
+        let endDateString = dateFormatter.string(from: endDate)
         
-        for month in months {
-            let randomVariation = Double.random(in: -variation...variation)
-            let value = baseValue * (1 + randomVariation)
-            data.append(TrendDataPoint(date: month, value: value, label: "Value"))
-        }
-        
-        return data
-    }
-}
-
-// MARK: - Enhanced Nutrition Chart Components
-
-struct IBDNutritionChartCard: View {
-    let title: String
-    let subtitle: String
-    let data: [NutritionDataPoint]
-    let timePeriod: TimePeriod
-    
-    // IBD Research Benchmarks
-    private let ibdBenchmarks = IBDNutritionBenchmarks()
-    
-    // Convert data to chart series format
-    private var chartData: [NutritionChartPoint] {
-        data.flatMap { point in
-            [
-                NutritionChartPoint(date: point.date, value: point.fiber, type: "Fiber"),
-                NutritionChartPoint(date: point.date, value: point.protein, type: "Protein"),
-                NutritionChartPoint(date: point.date, value: point.calories / 10, type: "Calories")
-            ]
-        }
-    }
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(title)
-                    .font(.headline)
-                    .fontWeight(.semibold)
-                    .foregroundColor(.ibdPrimaryText)
+        // Fetch journal entries from the database
+        fetchJournalEntries(userData: userData, startDate: startDateString, endDate: endDateString) { result in
+            DispatchQueue.main.async {
+                self.isLoading = false
                 
-                Text(subtitle)
-                    .font(.caption)
-                    .foregroundColor(.ibdSecondaryText)
-            }
-            
-            Chart(chartData) { point in
-                LineMark(
-                    x: .value("Date", point.date),
-                    y: .value("Value", point.value)
-                )
-                .foregroundStyle(by: .value("Type", point.type))
-                .lineStyle(StrokeStyle(lineWidth: 3))
-                .symbol(Circle().strokeBorder(lineWidth: 2))
-            }
-            .frame(height: 200)
-            .chartYAxis {
-                AxisMarks(position: .leading)
-            }
-            .chartXAxis {
-                AxisMarks(values: .automatic(desiredCount: data.count))
-            }
-            .chartForegroundStyleScale([
-                "Fiber": .green,
-                "Protein": .blue,
-                "Calories": .orange
-            ])
-            .overlay(
-                // Benchmark lines
-                VStack(spacing: 0) {
-                    // Fiber benchmark line
-                    Rectangle()
-                        .fill(Color.green.opacity(0.3))
-                        .frame(height: 1)
-                        .offset(y: -ibdBenchmarks.fiberTarget * 2)
-                    
-                    // Protein benchmark line
-                    Rectangle()
-                        .fill(Color.blue.opacity(0.3))
-                        .frame(height: 1)
-                        .offset(y: -ibdBenchmarks.proteinTarget * 2)
-                    
-                    // Calories benchmark line
-                    Rectangle()
-                        .fill(Color.orange.opacity(0.3))
-                        .frame(height: 1)
-                        .offset(y: -ibdBenchmarks.calorieTarget / 10 * 2)
+                switch result {
+                case .success(let entries):
+                    // Process real data from database
+                    self.trendsData = self.processRealData(entries: entries, timeframe: self.selectedTimeframe)
+                case .failure(let error):
+                    self.errorMessage = error.localizedDescription
+                    print("❌ [DiscoverView] Error loading trends: \(error)")
                 }
-            )
-            
-            // Legend
-            HStack(spacing: 16) {
-                LegendItem(color: .green, label: "Fiber (\(Int(ibdBenchmarks.fiberTarget))g)")
-                LegendItem(color: .blue, label: "Protein (\(Int(ibdBenchmarks.proteinTarget))g)")
-                LegendItem(color: .orange, label: "Calories (\(Int(ibdBenchmarks.calorieTarget))kcal)")
             }
-            .font(.caption)
         }
-        .padding()
-        .background(Color.ibdSurfaceBackground)
-        .cornerRadius(12)
+    }
+    
+    private func fetchJournalEntries(userData: UserData, startDate: String, endDate: String, completion: @escaping (Result<[JournalEntry], Error>) -> Void) {
+        guard let url = URL(string: "\(AppConfig.apiBaseURL)/journal/entries/\(userData.email)?startDate=\(startDate)&endDate=\(endDate)") else {
+            completion(.failure(NSError(domain: "Invalid URL", code: -1, userInfo: nil)))
+            return
+        }
+        
+        var request = URLRequest(url: url)
+        request.setValue("Bearer \(userData.token)", forHTTPHeaderField: "Authorization")
+        
+        let task = NetworkManager.shared.dataTask(with: request) { data, response, error in
+            print("🔧 [DiscoverView] Network response received")
+            
+            if let error = error {
+                print("❌ [DiscoverView] Network error: \(error)")
+                completion(.failure(error))
+                return
+            }
+            
+            if let httpResponse = response as? HTTPURLResponse {
+                print("🔧 [DiscoverView] HTTP Status: \(httpResponse.statusCode)")
+            }
+            
+            guard let data = data else {
+                print("❌ [DiscoverView] No data received")
+                completion(.failure(NSError(domain: "No data", code: -1, userInfo: nil)))
+                return
+            }
+            
+            print("🔧 [DiscoverView] Received \(data.count) bytes of data")
+            
+            do {
+                let entries = try JSONDecoder().decode([JournalEntry].self, from: data)
+                print("✅ [DiscoverView] Successfully decoded \(entries.count) journal entries")
+                completion(.success(entries))
+            } catch {
+                print("❌ [DiscoverView] JSON decode error: \(error)")
+                print("🔧 [DiscoverView] Raw data: \(String(data: data, encoding: .utf8) ?? "unable to decode")")
+                completion(.failure(error))
+            }
+        }
+        
+        task.resume()
+    }
+    
+    private func processRealData(entries: [JournalEntry], timeframe: TimeFrame) -> TrendsData {
+        // Process real journal entries to create trends data
+        let nutritionData = processNutritionData(entries: entries)
+        let symptomData = processSymptomData(entries: entries)
+        let healthMetricsData = processHealthMetricsData(entries: entries)
+        
+        return TrendsData(
+            nutrition: nutritionData,
+            symptoms: symptomData,
+            healthMetrics: healthMetricsData,
+            insights: generateInsights(from: nutritionData, symptomData: symptomData),
+            summary: calculateSummary(from: nutritionData, symptomData: symptomData)
+        )
+    }
+    
+    private func processNutritionData(entries: [JournalEntry]) -> [NutritionTrendPoint] {
+        return entries.compactMap { entry in
+            guard let meals = entry.meals else { return nil }
+            
+            // Calculate total nutrition from all meals
+            let totalCalories = meals.reduce(0) { $0 + ($1.calories ?? 0) }
+            let totalProtein = meals.reduce(0) { $0 + ($1.protein ?? 0) }
+            let totalFiber = meals.reduce(0) { $0 + ($1.fiber ?? 0) }
+            let totalHydration = entry.hydration ?? 0
+            
+            return NutritionTrendPoint(
+                date: entry.entry_date,
+                calories: totalCalories,
+                protein: totalProtein,
+                fiber: totalFiber,
+                hydration: totalHydration
+            )
+        }
+    }
+    
+    private func processSymptomData(entries: [JournalEntry]) -> [SymptomTrendPoint] {
+        return entries.compactMap { entry in
+            guard let symptoms = entry.symptoms else { return nil }
+            
+            // Calculate average symptom levels
+            let pain = symptoms.first { $0.type == "pain" }?.severity ?? 0
+            let stress = symptoms.first { $0.type == "stress" }?.severity ?? 0
+            let fatigue = symptoms.first { $0.type == "fatigue" }?.severity ?? 0
+            
+            // Calculate flare risk based on symptoms
+            let flareRisk = calculateFlareRisk(symptoms: symptoms)
+            
+            return SymptomTrendPoint(
+                date: entry.entry_date,
+                pain: pain,
+                stress: stress,
+                fatigue: fatigue,
+                flareRisk: flareRisk
+            )
+        }
+    }
+    
+    private func processHealthMetricsData(entries: [JournalEntry]) -> [HealthMetricPoint] {
+        return entries.compactMap { entry in
+            // Calculate medication adherence (simplified - would need medication data)
+            let medicationAdherence = 85.0 // Placeholder - would calculate from medication data
+            
+            // Get bowel health data - use actual bowel_frequency from database
+            let bowelFrequency = entry.bowel_frequency ?? 0
+            let bowelConsistency = entry.bowel_movements?.first?.consistency ?? 4
+            
+            // Weight data (would need to be added to journal entries)
+            let weight = 70.0 // Placeholder
+            let weightChange = 0.0 // Placeholder
+            
+            // Bowel health warning indicators
+            let bloodPresent = entry.blood_present ?? false
+            let mucusPresent = entry.mucus_present ?? false
+            let painSeverity = entry.pain_severity ?? 0
+            let urgencyLevel = entry.urgency_level ?? 0
+            
+            return HealthMetricPoint(
+                date: entry.entry_date,
+                medicationAdherence: medicationAdherence,
+                bowelFrequency: bowelFrequency,
+                bowelConsistency: bowelConsistency,
+                weight: weight,
+                weightChange: weightChange,
+                // Bowel health warning indicators
+                bloodPresent: bloodPresent,
+                mucusPresent: mucusPresent,
+                painSeverity: painSeverity,
+                painLocation: entry.pain_location, // Add pain location
+                urgencyLevel: urgencyLevel
+            )
+        }
+    }
+    
+    private func calculateFlareRisk(symptoms: [Symptom]) -> Int {
+        // Calculate flare risk based on symptom severity
+        let painLevel = symptoms.first { $0.type == "pain" }?.severity ?? 0
+        let stressLevel = symptoms.first { $0.type == "stress" }?.severity ?? 0
+        let fatigueLevel = symptoms.first { $0.type == "fatigue" }?.severity ?? 0
+        
+        // Simple algorithm: higher symptoms = higher flare risk
+        let riskScore = (painLevel * 3) + (stressLevel * 2) + (fatigueLevel * 1)
+        return min(70, max(10, riskScore * 2))
+    }
+    
+    private func generateInsights() -> [Insight] {
+        return []
+    }
+    
+    private func generateInsights(from nutritionData: [NutritionTrendPoint], symptomData: [SymptomTrendPoint]) -> [Insight] {
+        var insights: [Insight] = []
+        
+        guard !nutritionData.isEmpty && !symptomData.isEmpty else {
+            return insights
+        }
+        
+        // Calculate averages
+        let avgCalories = nutritionData.map { $0.calories }.reduce(0, +) / nutritionData.count
+        let avgProtein = nutritionData.map { $0.protein }.reduce(0, +) / nutritionData.count
+        let avgFiber = nutritionData.map { $0.fiber }.reduce(0, +) / nutritionData.count
+        let avgPain = Double(symptomData.map { $0.pain }.reduce(0, +)) / Double(symptomData.count)
+        let avgStress = Double(symptomData.map { $0.stress }.reduce(0, +)) / Double(symptomData.count)
+        
+        // Nutrition insights
+        let ibdTargets = IBDTargets()
+        
+        if avgCalories < Int(Double(ibdTargets.calorieTarget) * 0.9) {
+            insights.append(Insight(
+                type: .nutrition,
+                title: "Calorie Intake",
+                message: "Your average calorie intake is \(avgCalories) kcal/day, which is below the recommended \(ibdTargets.calorieTarget) kcal for IBD management.",
+                severity: .moderate,
+                action: "Increase portion sizes or add healthy snacks"
+            ))
+        } else if avgCalories > Int(Double(ibdTargets.calorieTarget) * 1.1) {
+            insights.append(Insight(
+                type: .nutrition,
+                title: "Calorie Intake",
+                message: "Your average calorie intake is \(avgCalories) kcal/day, which is above typical IBD recommendations.",
+                severity: .low,
+                action: "Monitor portion sizes and weight"
+            ))
+        }
+        
+        if avgProtein < Int(Double(ibdTargets.proteinTarget) * 0.9) {
+            insights.append(Insight(
+                type: .nutrition,
+                title: "Protein Intake",
+                message: "Your average protein intake is \(avgProtein)g/day, which is below the recommended \(ibdTargets.proteinTarget)g for IBD management.",
+                severity: .moderate,
+                action: "Add lean protein sources to meals"
+            ))
+        }
+        
+        if avgFiber < Int(Double(ibdTargets.fiberTarget) * 0.6) {
+            insights.append(Insight(
+                type: .nutrition,
+                title: "Fiber Intake",
+                message: "Your average fiber intake is \(avgFiber)g/day, which is below the recommended \(ibdTargets.fiberTarget)g for IBD management.",
+                severity: .high,
+                action: "Gradually increase soluble fiber intake"
+            ))
+        } else if avgFiber > Int(Double(ibdTargets.fiberTarget) * 1.4) {
+            insights.append(Insight(
+                type: .nutrition,
+                title: "Fiber Intake",
+                message: "Your average fiber intake is \(avgFiber)g/day, which is above typical IBD recommendations.",
+                severity: .moderate,
+                action: "Monitor fiber tolerance and reduce if needed"
+            ))
+        }
+        
+        // Symptom insights
+        if avgPain > 5 {
+            insights.append(Insight(
+                type: .symptom,
+                title: "Pain Levels",
+                message: "Your average pain level is \(String(format: "%.1f", avgPain))/10, which is elevated.",
+                severity: .high,
+                action: "Consult healthcare provider about pain management"
+            ))
+        } else if avgPain < 3 {
+            insights.append(Insight(
+                type: .symptom,
+                title: "Pain Levels",
+                message: "Your average pain level is \(String(format: "%.1f", avgPain))/10, which is well managed. Keep up the good work!",
+                severity: .low,
+                action: "Continue current management strategies"
+            ))
+        }
+        
+        if avgStress > 7 {
+            insights.append(Insight(
+                type: .symptom,
+                title: "Stress Levels",
+                message: "Your average stress level is \(String(format: "%.1f", avgStress))/10, which is high and may impact IBD symptoms.",
+                severity: .moderate,
+                action: "Practice stress management techniques"
+            ))
+        }
+        
+        // Medication adherence insight (simulated based on symptom patterns)
+        let goodDays = symptomData.filter { $0.pain < 4 && $0.stress < 6 }.count
+        let adherenceRate = Int((Double(goodDays) / Double(symptomData.count)) * 100)
+        
+        if adherenceRate < 80 {
+            insights.append(Insight(
+                type: .medication,
+                title: "Medication Adherence",
+                message: "Based on your symptom patterns, medication adherence appears to be around \(adherenceRate)%.",
+                severity: .high,
+                action: "Set daily medication reminders and improve adherence"
+            ))
+        }
+        
+        return insights
+    }
+    
+    private func generateSummary() -> Summary {
+        return Summary(
+            totalEntries: 0,
+            avgCalories: 0,
+            avgPain: 0.0,
+            bloodEpisodes: 0,
+            medicationAdherence: 0
+        )
+    }
+    
+    private func calculateSummary(from nutritionData: [NutritionTrendPoint], symptomData: [SymptomTrendPoint]) -> Summary {
+        let totalEntries = nutritionData.count
+        
+        // Calculate average calories from nutrition data
+        let avgCalories = nutritionData.isEmpty ? 0 : nutritionData.map { $0.calories }.reduce(0, +) / totalEntries
+        
+        // Calculate average pain from symptom data
+        let avgPain = symptomData.isEmpty ? 0.0 : Double(symptomData.map { $0.pain }.reduce(0, +)) / Double(totalEntries)
+        
+        // For now, simulate blood episodes and medication adherence based on symptom data
+        // In a real implementation, these would come from the actual journal entries
+        let bloodEpisodes = symptomData.filter { $0.pain > 5 || $0.flareRisk > 40 }.count
+        let medicationAdherence = symptomData.isEmpty ? 0 : Int((Double(symptomData.filter { $0.pain < 4 && $0.stress < 6 }.count) / Double(totalEntries)) * 100)
+        
+        return Summary(
+            totalEntries: totalEntries,
+            avgCalories: avgCalories,
+            avgPain: avgPain,
+            bloodEpisodes: bloodEpisodes,
+            medicationAdherence: medicationAdherence
+        )
+    }
+    
+    private var dateFormatter: DateFormatter {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MMM d"
+        return formatter
     }
 }
 
-struct CrohnsNutritionChartCard: View {
-    let title: String
-    let subtitle: String
-    let data: [NutritionDataPoint]
-    let timePeriod: TimePeriod
-    
-    // Crohn's Research Benchmarks
-    private let crohnsBenchmarks = CrohnsNutritionBenchmarks()
-    
-    // Convert data to chart series format
-    private var chartData: [NutritionChartPoint] {
-        data.flatMap { point in
-            [
-                NutritionChartPoint(date: point.date, value: point.fiber, type: "Fiber"),
-                NutritionChartPoint(date: point.date, value: point.protein, type: "Protein"),
-                NutritionChartPoint(date: point.date, value: point.calories / 10, type: "Calories")
-            ]
-        }
-    }
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(title)
-                    .font(.headline)
-                    .fontWeight(.semibold)
-                    .foregroundColor(.ibdPrimaryText)
-                
-                Text(subtitle)
-                    .font(.caption)
-                    .foregroundColor(.ibdSecondaryText)
-            }
-            
-            Chart(chartData) { point in
-                LineMark(
-                    x: .value("Date", point.date),
-                    y: .value("Value", point.value)
-                )
-                .foregroundStyle(by: .value("Type", point.type))
-                .lineStyle(StrokeStyle(lineWidth: 3))
-                .symbol(Circle().strokeBorder(lineWidth: 2))
-            }
-            .frame(height: 200)
-            .chartYAxis {
-                AxisMarks(position: .leading)
-            }
-            .chartXAxis {
-                AxisMarks(values: .automatic(desiredCount: data.count))
-            }
-            .chartForegroundStyleScale([
-                "Fiber": .green,
-                "Protein": .blue,
-                "Calories": .orange
-            ])
-            .overlay(
-                // Benchmark lines
-                VStack(spacing: 0) {
-                    // Fiber benchmark line
-                    Rectangle()
-                        .fill(Color.green.opacity(0.3))
-                        .frame(height: 1)
-                        .offset(y: -crohnsBenchmarks.fiberTarget * 2)
-                    
-                    // Protein benchmark line
-                    Rectangle()
-                        .fill(Color.blue.opacity(0.3))
-                        .frame(height: 1)
-                        .offset(y: -crohnsBenchmarks.proteinTarget * 2)
-                    
-                    // Calories benchmark line
-                    Rectangle()
-                        .fill(Color.orange.opacity(0.3))
-                        .frame(height: 1)
-                        .offset(y: -crohnsBenchmarks.calorieTarget / 10 * 2)
-                }
-            )
-            
-            // Legend
-            HStack(spacing: 16) {
-                LegendItem(color: .green, label: "Fiber (\(Int(crohnsBenchmarks.fiberTarget))g)")
-                LegendItem(color: .blue, label: "Protein (\(Int(crohnsBenchmarks.proteinTarget))g)")
-                LegendItem(color: .orange, label: "Calories (\(Int(crohnsBenchmarks.calorieTarget))kcal)")
-            }
-            .font(.caption)
-        }
-        .padding()
-        .background(Color.ibdSurfaceBackground)
-        .cornerRadius(12)
-    }
-}
+// MARK: - Extensions
 
-struct LegendItem: View {
-    let color: Color
-    let label: String
-    
-    var body: some View {
-        HStack(spacing: 4) {
-            Circle()
-                .fill(color)
-                .frame(width: 8, height: 8)
-            Text(label)
-                .foregroundColor(.ibdSecondaryText)
+extension Array where Element: Hashable {
+    func mostFrequent() -> Element? {
+        let counts = self.reduce(into: [:]) { counts, element in
+            counts[element, default: 0] += 1
         }
+        return counts.max(by: { $0.value < $1.value })?.key
     }
 }
 
 // MARK: - Supporting Views
 
-struct TimePeriodButton: View {
-    let period: TimePeriod
+struct TimeFrameButton: View {
+    let timeframe: TimeFrame
     let isSelected: Bool
     let action: () -> Void
     
     var body: some View {
         Button(action: action) {
-            Text(period.displayName)
+            Text(timeframe.displayName)
                 .font(.subheadline)
                 .fontWeight(.medium)
                 .padding(.horizontal, 16)
@@ -425,46 +453,404 @@ struct TimePeriodButton: View {
     }
 }
 
-struct TrendChartCard: View {
+struct SummaryCardsView: View {
+    let summary: Summary
+    
+    var body: some View {
+        LazyVGrid(columns: [
+            GridItem(.flexible()),
+            GridItem(.flexible())
+        ], spacing: 12) {
+            SummaryCard(
+                title: "Avg Calories",
+                value: "\(summary.avgCalories)",
+                unit: "kcal",
+                color: .orange
+            )
+            
+            SummaryCard(
+                title: "Avg Pain",
+                value: String(format: "%.1f", summary.avgPain),
+                unit: "/10",
+                color: .red
+            )
+            
+            SummaryCard(
+                title: "Blood Episodes",
+                value: "\(summary.bloodEpisodes)",
+                unit: "times",
+                color: .red
+            )
+            
+            SummaryCard(
+                title: "Medication",
+                value: "\(summary.medicationAdherence)",
+                unit: "%",
+                color: summary.medicationAdherence >= 80 ? .green : .orange
+            )
+        }
+        .padding(.horizontal)
+    }
+}
+
+struct SummaryCard: View {
     let title: String
-    let subtitle: String
-    let data: [TrendDataPoint]
-    let chartType: ChartType
+    let value: String
+    let unit: String
     let color: Color
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(title)
-                    .font(.headline)
-                    .fontWeight(.semibold)
-                    .foregroundColor(.ibdPrimaryText)
+        VStack(spacing: 8) {
+            Text(title)
+                .font(.caption)
+                .foregroundColor(.ibdSecondaryText)
+            
+            HStack(alignment: .bottom, spacing: 2) {
+                Text(value)
+                    .font(.title2)
+                    .fontWeight(.bold)
+                    .foregroundColor(color)
                 
-                Text(subtitle)
+                Text(unit)
                     .font(.caption)
                     .foregroundColor(.ibdSecondaryText)
             }
+        }
+        .frame(maxWidth: .infinity)
+        .padding()
+        .background(Color.ibdSurfaceBackground)
+        .cornerRadius(12)
+    }
+}
+
+struct NutritionTabsView: View {
+    let data: [NutritionTrendPoint]
+    @Binding var selectedTab: NutritionTab
+    let timeframe: TimeFrame
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Nutrition Breakdown")
+                .font(.headline)
+                .fontWeight(.semibold)
+                .foregroundColor(.ibdPrimaryText)
             
-            Chart(data) { point in
-                if chartType == .line {
+            // Nutrition Tab Selector - Full Width Design
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 4), spacing: 8) {
+                ForEach(NutritionTab.allCases, id: \.self) { tab in
+                    NutritionTabButton(
+                        tab: tab,
+                        isSelected: selectedTab == tab
+                    ) {
+                        selectedTab = tab
+                    }
+                }
+            }
+            
+            // Chart based on selected tab
+            switch selectedTab {
+            case .calories:
+                NutritionChartView(
+                    data: data,
+                    type: .calories,
+                    title: "Daily Calories",
+                    color: .orange,
+                    target: IBDTargets().calorieTarget,
+                    unit: "kcal",
+                    timeframe: timeframe
+                )
+            case .protein:
+                NutritionChartView(
+                    data: data,
+                    type: .protein,
+                    title: "Daily Protein",
+                    color: .blue,
+                    target: IBDTargets().proteinTarget,
+                    unit: "g",
+                    timeframe: timeframe
+                )
+            case .fiber:
+                NutritionChartView(
+                    data: data,
+                    type: .fiber,
+                    title: "Daily Fiber",
+                    color: .green,
+                    target: IBDTargets().fiberTarget,
+                    unit: "g",
+                    timeframe: timeframe
+                )
+            case .hydration:
+                NutritionChartView(
+                    data: data,
+                    type: .hydration,
+                    title: "Daily Hydration",
+                    color: .cyan,
+                    target: IBDTargets().hydrationTarget,
+                    unit: "ml",
+                    timeframe: timeframe
+                )
+            }
+        }
+        .padding()
+        .background(Color.ibdSurfaceBackground)
+        .cornerRadius(12)
+        .padding(.horizontal)
+    }
+}
+
+struct NutritionTabButton: View {
+    let tab: NutritionTab
+    let isSelected: Bool
+    let action: () -> Void
+    
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 4) {
+                Text(tab.displayName)
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+                    .foregroundColor(isSelected ? .white : .ibdPrimaryText)
+                
+                // Small indicator line
+                Rectangle()
+                    .fill(isSelected ? Color.white : Color.clear)
+                    .frame(height: 2)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 12)
+            .background(isSelected ? Color.ibdPrimary : Color.ibdCardBackground)
+            .cornerRadius(8)
+            .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(isSelected ? Color.ibdPrimary : Color.gray.opacity(0.3), lineWidth: 1)
+            )
+        }
+    }
+}
+
+struct NutritionChartView: View {
+    let data: [NutritionTrendPoint]
+    let type: NutritionType
+    let title: String
+    let color: Color
+    let target: Int
+    let unit: String
+    let timeframe: TimeFrame
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(title)
+                .font(.subheadline)
+                .fontWeight(.semibold)
+                .foregroundColor(.ibdPrimaryText)
+            
+            Chart {
+                ForEach(data) { point in
+                    // Actual intake
                     LineMark(
                         x: .value("Date", point.date),
-                        y: .value("Value", point.value)
+                        y: .value("Value", getValue(for: point))
                     )
                     .foregroundStyle(color)
                     .lineStyle(StrokeStyle(lineWidth: 3))
                     
                     AreaMark(
                         x: .value("Date", point.date),
-                        y: .value("Value", point.value)
+                        y: .value("Value", getValue(for: point))
                     )
                     .foregroundStyle(color.opacity(0.1))
-                } else {
-                    BarMark(
+                }
+                
+                // Target line
+                ForEach(data) { point in
+                    LineMark(
                         x: .value("Date", point.date),
-                        y: .value("Value", point.value)
+                        y: .value("Target", target)
                     )
-                    .foregroundStyle(color)
+                    .foregroundStyle(.red)
+                    .lineStyle(StrokeStyle(lineWidth: 2, dash: [8, 4]))
+                }
+            }
+            .frame(height: 180)
+            .chartYAxis {
+                AxisMarks(position: .leading)
+            }
+            .chartXAxis {
+                AxisMarks(values: .automatic(desiredCount: timeframe == .week ? 7 : timeframe == .month ? 5 : 3)) { value in
+                    AxisValueLabel {
+                        if let dateString = value.as(String.self) {
+                            Text(formatDateLabel(dateString, timeframe: timeframe))
+                                .font(.caption2)
+                                .foregroundColor(.ibdSecondaryText)
+                        }
+                    }
+                }
+            }
+            
+            // Legend and performance
+            VStack(spacing: 8) {
+                HStack {
+                    Circle()
+                        .fill(color)
+                        .frame(width: 8, height: 8)
+                    Text("Your \(type.displayName)")
+                        .font(.caption)
+                        .foregroundColor(.ibdSecondaryText)
+                    
+                    Spacer()
+                    
+                    HStack {
+                        Rectangle()
+                            .fill(.red)
+                            .frame(width: 12, height: 2)
+                        Text("Target: \(target) \(unit)")
+                            .font(.caption)
+                            .foregroundColor(.ibdSecondaryText)
+                    }
+                }
+                
+                // Performance indicator
+                let avgValue = data.map { getValue(for: $0) }.reduce(0, +) / max(data.count, 1)
+                let targetThreshold = Int(Double(target) * 0.9)
+                let performance = avgValue >= targetThreshold ? "Good" : "Below Target"
+                let performanceColor = avgValue >= targetThreshold ? Color.green : Color.orange
+                
+                HStack {
+                    Text("Performance:")
+                        .font(.caption)
+                        .foregroundColor(.ibdSecondaryText)
+                    
+                    Text(performance)
+                        .font(.caption)
+                        .fontWeight(.medium)
+                        .foregroundColor(performanceColor)
+                    
+                    Spacer()
+                    
+                    Text("Avg: \(Int(avgValue)) \(unit)")
+                        .font(.caption)
+                        .foregroundColor(.ibdSecondaryText)
+                }
+            }
+        }
+    }
+    
+    private func getValue(for point: NutritionTrendPoint) -> Int {
+        switch type {
+        case .calories:
+            return point.calories
+        case .protein:
+            return point.protein
+        case .fiber:
+            return point.fiber
+        case .hydration:
+            return point.hydration
+        }
+    }
+    
+    private func formatDateLabel(_ dateString: String, timeframe: TimeFrame) -> String {
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "MMM dd"
+        
+        guard let date = dateFormatter.date(from: dateString) else {
+            return dateString
+        }
+        
+        switch timeframe {
+        case .week:
+            // Show day names for week view
+            let dayFormatter = DateFormatter()
+            dayFormatter.dateFormat = "E"
+            return dayFormatter.string(from: date)
+        case .month:
+            // Show dates for month view
+            let monthFormatter = DateFormatter()
+            monthFormatter.dateFormat = "dd"
+            return monthFormatter.string(from: date)
+        case .threeMonths:
+            // Show month names for 3-month view
+            let threeMonthFormatter = DateFormatter()
+            threeMonthFormatter.dateFormat = "MMM"
+            return threeMonthFormatter.string(from: date)
+        }
+    }
+}
+
+struct SimpleSymptomChart: View {
+    let data: [SymptomTrendPoint]
+    let timeframe: TimeFrame
+    
+    // IBD Symptom Management Targets
+    private let symptomTargets = SymptomTargets()
+    
+    // Calculate smoothed trend data
+    private var smoothedPainData: [SymptomTrendPoint] {
+        calculateSmoothedTrend(for: data.map { $0.pain }, originalData: data)
+    }
+    
+    private var smoothedStressData: [SymptomTrendPoint] {
+        calculateSmoothedTrend(for: data.map { $0.stress }, originalData: data)
+    }
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Symptom Management")
+                .font(.headline)
+                .fontWeight(.semibold)
+                .foregroundColor(.ibdPrimaryText)
+            
+            Chart {
+                // Raw data points (smaller, less prominent)
+                ForEach(data) { point in
+                    PointMark(
+                        x: .value("Date", point.date),
+                        y: .value("Pain Raw", point.pain)
+                    )
+                    .foregroundStyle(.red.opacity(0.3))
+                    .symbolSize(20)
+                    
+                    PointMark(
+                        x: .value("Date", point.date),
+                        y: .value("Stress Raw", point.stress)
+                    )
+                    .foregroundStyle(.blue.opacity(0.3))
+                    .symbolSize(20)
+                }
+                
+                // Smoothed trend lines (prominent)
+                ForEach(smoothedPainData) { point in
+                    LineMark(
+                        x: .value("Date", point.date),
+                        y: .value("Pain Trend", point.pain)
+                    )
+                    .foregroundStyle(.red)
+                    .lineStyle(StrokeStyle(lineWidth: 4))
+                }
+                
+                ForEach(smoothedStressData) { point in
+                    LineMark(
+                        x: .value("Date", point.date),
+                        y: .value("Stress Trend", point.stress)
+                    )
+                    .foregroundStyle(.blue)
+                    .lineStyle(StrokeStyle(lineWidth: 4))
+                }
+                
+                // Target lines
+                ForEach(data) { point in
+                    LineMark(
+                        x: .value("Date", point.date),
+                        y: .value("Pain Target", symptomTargets.painTarget)
+                    )
+                    .foregroundStyle(.orange)
+                    .lineStyle(StrokeStyle(lineWidth: 2, dash: [8, 4]))
+                    
+                    LineMark(
+                        x: .value("Date", point.date),
+                        y: .value("Stress Target", symptomTargets.stressTarget)
+                    )
+                    .foregroundStyle(.purple)
+                    .lineStyle(StrokeStyle(lineWidth: 2, dash: [8, 4]))
                 }
             }
             .frame(height: 200)
@@ -472,18 +858,782 @@ struct TrendChartCard: View {
                 AxisMarks(position: .leading)
             }
             .chartXAxis {
-                AxisMarks(values: .automatic(desiredCount: data.count))
+                AxisMarks(values: .automatic(desiredCount: timeframe == .week ? 7 : timeframe == .month ? 5 : 3)) { value in
+                    AxisValueLabel {
+                        if let dateString = value.as(String.self) {
+                            Text(formatDateLabel(dateString, timeframe: timeframe))
+                                .font(.caption2)
+                                .foregroundColor(.ibdSecondaryText)
+                        }
+                    }
+                }
+            }
+            
+            // Enhanced legend with targets
+            VStack(spacing: 8) {
+                HStack {
+                    HStack {
+                        Circle()
+                            .fill(.red)
+                            .frame(width: 8, height: 8)
+                        Text("Pain")
+                            .font(.caption)
+                            .foregroundColor(.ibdSecondaryText)
+                    }
+                    
+                    HStack {
+                        Circle()
+                            .fill(.blue)
+                            .frame(width: 8, height: 8)
+                        Text("Stress")
+                            .font(.caption)
+                            .foregroundColor(.ibdSecondaryText)
+                    }
+                    
+                    Spacer()
+                }
+                
+                // Target indicators
+                HStack {
+                    HStack {
+                        Rectangle()
+                            .fill(.orange)
+                            .frame(width: 8, height: 2)
+                        Text("Target: ≤\(symptomTargets.painTarget)/10")
+                            .font(.caption)
+                            .foregroundColor(.ibdSecondaryText)
+                    }
+                    
+                    HStack {
+                        Rectangle()
+                            .fill(.purple)
+                            .frame(width: 8, height: 2)
+                        Text("Target: ≤\(symptomTargets.stressTarget)/10")
+                            .font(.caption)
+                            .foregroundColor(.ibdSecondaryText)
+                    }
+                    
+                    Spacer()
+                }
+                
+                // Performance summary
+                let avgPain = data.map { $0.pain }.reduce(0, +) / max(data.count, 1)
+                let avgStress = data.map { $0.stress }.reduce(0, +) / max(data.count, 1)
+                let painStatus = avgPain <= symptomTargets.painTarget ? "Good" : "Needs Attention"
+                let stressStatus = avgStress <= symptomTargets.stressTarget ? "Good" : "High"
+                
+                HStack {
+                    Text("Pain: \(painStatus)")
+                        .font(.caption)
+                        .foregroundColor(avgPain <= symptomTargets.painTarget ? .green : .orange)
+                    
+                    Spacer()
+                    
+                    Text("Stress: \(stressStatus)")
+                        .font(.caption)
+                        .foregroundColor(avgStress <= symptomTargets.stressTarget ? .green : .orange)
+                }
             }
         }
         .padding()
         .background(Color.ibdSurfaceBackground)
         .cornerRadius(12)
+        .padding(.horizontal)
+    }
+}
+
+// MARK: - Smoothing Functions
+extension SimpleSymptomChart {
+    // Calculate moving average for smooth trend lines
+    private func calculateSmoothedTrend(for values: [Int], originalData: [SymptomTrendPoint]) -> [SymptomTrendPoint] {
+        guard values.count > 3 else { return originalData }
+        
+        let windowSize = min(7, values.count / 3) // Adaptive window size
+        var smoothedData: [SymptomTrendPoint] = []
+        
+        for i in 0..<originalData.count {
+            let startIndex = max(0, i - windowSize / 2)
+            let endIndex = min(values.count, i + windowSize / 2 + 1)
+            let window = Array(values[startIndex..<endIndex])
+            
+            let average = Double(window.reduce(0, +)) / Double(window.count)
+            let smoothedValue = Int(round(average))
+            
+            smoothedData.append(SymptomTrendPoint(
+                date: originalData[i].date,
+                pain: smoothedValue,
+                stress: smoothedValue,
+                fatigue: originalData[i].fatigue,
+                flareRisk: originalData[i].flareRisk
+            ))
+        }
+        
+        return smoothedData
+    }
+    
+    private func formatDateLabel(_ dateString: String, timeframe: TimeFrame) -> String {
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "MMM dd"
+        
+        guard let date = dateFormatter.date(from: dateString) else {
+            return dateString
+        }
+        
+        switch timeframe {
+        case .week:
+            // Show day names for week view
+            let dayFormatter = DateFormatter()
+            dayFormatter.dateFormat = "E"
+            return dayFormatter.string(from: date)
+        case .month:
+            // Show dates for month view
+            let monthFormatter = DateFormatter()
+            monthFormatter.dateFormat = "dd"
+            return monthFormatter.string(from: date)
+        case .threeMonths:
+            // Show month names for 3-month view
+            let threeMonthFormatter = DateFormatter()
+            threeMonthFormatter.dateFormat = "MMM"
+            return threeMonthFormatter.string(from: date)
+        }
+    }
+}
+
+struct HealthMetricsView: View {
+    let data: [HealthMetricPoint]
+    let selectedTimeframe: TimeFrame
+    
+    // Industry-defined targets (fixed, don't change)
+    private let targets = HealthMetricTargets()
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Health Metrics")
+                .font(.headline)
+                .fontWeight(.semibold)
+                .foregroundColor(.ibdPrimaryText)
+            
+            // Medication Adherence Bar Chart - Smart chart that shows warning when needed
+            if averageMedicationAdherence < medicationAdherenceWarningThreshold {
+                // Show as warning chart
+                WarningBarChartView(
+                    title: "Medication Adherence",
+                    value: averageMedicationAdherence,
+                    threshold: medicationAdherenceWarningThreshold,
+                    unit: "%",
+                    icon: "exclamationmark.triangle.fill"
+                )
+            } else {
+                // Show as normal chart
+                HorizontalBarChartView(
+                    title: "Medication Adherence",
+                    target: targets.medicationAdherenceTarget,
+                    actual: averageMedicationAdherence,
+                    unit: "%",
+                    targetColor: .blue,
+                    actualColor: .green,
+                    icon: "pills.fill"
+                )
+            }
+            
+            // Bowel Frequency Bar Chart - Smart chart that shows warning when needed
+            if averageBowelFrequency > bowelFrequencyWarningThreshold {
+                // Show as warning chart
+                WarningBarChartView(
+                    title: "Bowel Frequency",
+                    value: averageBowelFrequency,
+                    threshold: bowelFrequencyWarningThreshold,
+                    unit: "/day",
+                    icon: "exclamationmark.triangle.fill"
+                )
+            } else {
+                // Show as normal chart
+                HorizontalBarChartView(
+                    title: "Bowel Frequency",
+                    target: targets.bowelFrequencyTarget,
+                    actual: averageBowelFrequency,
+                    unit: "/day",
+                    targetColor: .blue,
+                    actualColor: .green,
+                    icon: "chart.bar.fill"
+                )
+            }
+            
+            // Weight Trend Bar Chart
+            HorizontalBarChartView(
+                title: "Weight Trend",
+                target: targets.weightChangeTarget,
+                actual: weightChangeValue,
+                unit: "kg",
+                targetColor: .blue,
+                actualColor: weightChangeColor,
+                icon: "scalemass.fill"
+            )
+            
+            // Warning Indicators Section
+            if hasWarningIndicators {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Warning Indicators")
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.red)
+                    
+                    // Debug info
+                    Text("Debug: \(selectedTimeframe) - Bowel Freq: \(String(format: "%.1f", averageBowelFrequency))/day (Target: \(String(format: "%.1f", targets.bowelFrequencyTarget)), Warning: \(String(format: "%.1f", bowelFrequencyWarningThreshold)))")
+                        .font(.caption)
+                        .foregroundColor(.gray)
+                    
+                    Text("Debug: Pain: \(String(format: "%.1f", averagePain))/10 (Target: \(String(format: "%.1f", targets.painTarget)), Warning: \(String(format: "%.1f", painWarningThreshold))) | Blood: \(hasBloodPresent ? "Yes" : "No") | Mucus: \(hasMucusPresent ? "Yes" : "No")")
+                        .font(.caption)
+                        .foregroundColor(.gray)
+                    
+                    // High Pain Warning
+                    if averagePain > painWarningThreshold {
+                        WarningBarChartView(
+                            title: "High Pain Level (\(mostCommonPainLocation))",
+                            value: averagePain,
+                            threshold: painWarningThreshold,
+                            unit: "/10",
+                            icon: "exclamationmark.triangle.fill"
+                        )
+                    }
+                    
+                    // Blood Present Warning
+                    if hasBloodPresent {
+                        WarningBarChartView(
+                            title: "Blood Present",
+                            value: 1.0,
+                            threshold: 0.0,
+                            unit: "episodes",
+                            icon: "exclamationmark.triangle.fill"
+                        )
+                    }
+                    
+                    // Mucus Present Warning
+                    if hasMucusPresent {
+                        WarningBarChartView(
+                            title: "Mucus Present",
+                            value: 1.0,
+                            threshold: 0.0,
+                            unit: "episodes",
+                            icon: "exclamationmark.triangle.fill"
+                        )
+                    }
+                    
+                    // High Urgency Level Warning
+                    if averageUrgencyLevel > urgencyWarningThreshold {
+                        WarningBarChartView(
+                            title: "High Urgency Level",
+                            value: averageUrgencyLevel,
+                            threshold: urgencyWarningThreshold,
+                            unit: "/10",
+                            icon: "exclamationmark.triangle.fill"
+                        )
+                    }
+                }
+            } else {
+                // Debug info when no warnings
+                Text("Debug: \(selectedTimeframe) - No warnings - Bowel Freq: \(String(format: "%.1f", averageBowelFrequency))/day (Target: \(String(format: "%.1f", targets.bowelFrequencyTarget))) | Pain: \(String(format: "%.1f", averagePain))/10 (Target: \(String(format: "%.1f", targets.painTarget)))")
+                    .font(.caption)
+                    .foregroundColor(.gray)
+                    .padding(.horizontal)
+            }
+        }
+        .padding()
+        .background(Color.ibdSurfaceBackground)
+        .cornerRadius(12)
+        .padding(.horizontal)
+    }
+    
+    // Computed properties for metrics
+    private var filteredData: [HealthMetricPoint] {
+        let days = selectedTimeframe == .week ? 7 : selectedTimeframe == .month ? 30 : 90
+        return Array(data.suffix(days))
+    }
+    
+    // Industry-defined warning thresholds (fixed, based on medical guidelines)
+    private var medicationAdherenceWarningThreshold: Double {
+        return targets.medicationAdherenceWarning // 80%
+    }
+    
+    private var bowelFrequencyWarningThreshold: Double {
+        return targets.bowelFrequencyWarning // 4.0/day
+    }
+    
+    private var painWarningThreshold: Double {
+        return targets.painWarning // 5.0/10
+    }
+    
+    private var urgencyWarningThreshold: Double {
+        return targets.urgencyWarning // 6.0/10
+    }
+    
+    private var averageMedicationAdherence: Double {
+        guard !filteredData.isEmpty else { return 0 }
+        return filteredData.map { $0.medicationAdherence }.reduce(0, +) / Double(filteredData.count)
+    }
+    
+    private var averageBowelFrequency: Double {
+        guard !filteredData.isEmpty else { return 0 }
+        let average = Double(filteredData.map { $0.bowelFrequency }.reduce(0, +)) / Double(filteredData.count)
+        print("🔧 [DiscoverView] Bowel frequency calculation:")
+        print("   - Timeframe: \(selectedTimeframe)")
+        print("   - Filtered data count: \(filteredData.count)")
+        print("   - Individual frequencies: \(filteredData.map { $0.bowelFrequency })")
+        print("   - Average: \(average)")
+        print("   - Industry Target: \(targets.bowelFrequencyTarget)")
+        print("   - Industry Warning Threshold: \(bowelFrequencyWarningThreshold)")
+        print("   - Should show warning: \(average > bowelFrequencyWarningThreshold)")
+        return average
+    }
+    
+    private var weightChangeValue: Double {
+        guard filteredData.count >= 2 else { return 0 }
+        let firstWeight = filteredData.first?.weight ?? 0
+        let lastWeight = filteredData.last?.weight ?? 0
+        return lastWeight - firstWeight
+    }
+    
+    private var weightChangeColor: Color {
+        let change = weightChangeValue
+        return abs(change) < 0.5 ? .green : change > 0 ? .orange : .red
+    }
+    
+    private var averagePain: Double {
+        guard !filteredData.isEmpty else { return 0 }
+        // Calculate average pain severity from health metrics data
+        let totalPain = filteredData.map { $0.painSeverity }.reduce(0, +)
+        let average = Double(totalPain) / Double(filteredData.count)
+        
+        print("🔧 [DiscoverView] Pain calculation:")
+        print("   - Timeframe: \(selectedTimeframe)")
+        print("   - Filtered data count: \(filteredData.count)")
+        print("   - Individual pain levels: \(filteredData.map { $0.painSeverity })")
+        print("   - Average pain: \(average)")
+        print("   - Industry Target: \(targets.painTarget)")
+        print("   - Industry Warning Threshold: \(painWarningThreshold)")
+        print("   - Should show pain warning: \(average > painWarningThreshold)")
+        
+        return average
+    }
+    
+    private var hasBloodPresent: Bool {
+        // Check if any entry has blood present
+        return filteredData.contains { $0.bloodPresent }
+    }
+    
+    private var hasMucusPresent: Bool {
+        // Check if any entry has mucus present
+        return filteredData.contains { $0.mucusPresent }
+    }
+    
+    private var mostCommonPainLocation: String {
+        let locations = filteredData.compactMap { $0.painLocation }.filter { !$0.isEmpty }
+        
+        if let mostCommon = locations.mostFrequent() {
+            return mostCommon
+        }
+        return "abdomen" // Default
+    }
+    
+    private var averageUrgencyLevel: Double {
+        guard !filteredData.isEmpty else { return 0 }
+        // Calculate average urgency level
+        let totalUrgency = filteredData.map { $0.urgencyLevel }.reduce(0, +)
+        return Double(totalUrgency) / Double(filteredData.count)
+    }
+    
+    private var hasWarningIndicators: Bool {
+        return averagePain > painWarningThreshold || 
+               hasBloodPresent ||
+               hasMucusPresent ||
+               averageUrgencyLevel > urgencyWarningThreshold
+    }
+}
+
+struct MetricCard: View {
+    let title: String
+    let value: String
+    let trend: String
+    let color: Color
+    let icon: String
+    
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: icon)
+                .foregroundColor(color)
+                .font(.title2)
+            
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                    .foregroundColor(.ibdPrimaryText)
+                
+                HStack {
+                    Text(value)
+                        .font(.headline)
+                        .fontWeight(.bold)
+                        .foregroundColor(color)
+                    
+                    Spacer()
+                    
+                    Text(trend)
+                        .font(.caption)
+                        .fontWeight(.medium)
+                        .foregroundColor(trendColor)
+                }
+            }
+            
+            Spacer()
+        }
+        .padding()
+        .background(Color.ibdCardBackground)
+        .cornerRadius(8)
+    }
+    
+    private var trendColor: Color {
+        switch trend.lowercased() {
+        case "improving", "stable": return .green
+        case "declining", "decreasing", "losing": return .red
+        case "increasing", "gaining": return .orange
+        default: return .gray
+        }
+    }
+}
+
+struct HorizontalBarChartView: View {
+    let title: String
+    let target: Double
+    let actual: Double
+    let unit: String
+    let targetColor: Color
+    let actualColor: Color
+    let icon: String
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Image(systemName: icon)
+                    .foregroundColor(actualColor)
+                    .font(.title2)
+                
+                Text(title)
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                    .foregroundColor(.ibdPrimaryText)
+                
+                Spacer()
+                
+                Text("\(Int(actual))\(unit)")
+                    .font(.headline)
+                    .fontWeight(.bold)
+                    .foregroundColor(actualColor)
+            }
+            
+            // Bar chart container
+            VStack(spacing: 4) {
+                // Target bar (blue)
+                HStack {
+                    Text("Target: \(Int(target))\(unit)")
+                        .font(.caption)
+                        .foregroundColor(.ibdSecondaryText)
+                    
+                    Spacer()
+                }
+                
+                Rectangle()
+                    .fill(targetColor)
+                    .frame(height: 8)
+                    .cornerRadius(4)
+                
+                // Actual bar (green)
+                HStack {
+                    Text("Actual: \(Int(actual))\(unit)")
+                        .font(.caption)
+                        .foregroundColor(.ibdSecondaryText)
+                    
+                    Spacer()
+                }
+                
+                Rectangle()
+                    .fill(actualColor)
+                    .frame(height: 8)
+                    .cornerRadius(4)
+            }
+        }
+        .padding()
+        .background(Color.ibdCardBackground)
+        .cornerRadius(8)
+    }
+}
+
+struct WarningBarChartView: View {
+    let title: String
+    let value: Double
+    let threshold: Double
+    let unit: String
+    let icon: String
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Image(systemName: icon)
+                    .foregroundColor(.red)
+                    .font(.title2)
+                
+                Text(title)
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                    .foregroundColor(.ibdPrimaryText)
+                
+                Spacer()
+                
+                Text("\(Int(value))\(unit)")
+                    .font(.headline)
+                    .fontWeight(.bold)
+                    .foregroundColor(.red)
+            }
+            
+            // Bar chart container
+            VStack(spacing: 4) {
+                // Threshold bar (red)
+                HStack {
+                    Text("Threshold: \(Int(threshold))\(unit)")
+                        .font(.caption)
+                        .foregroundColor(.ibdSecondaryText)
+                    
+                    Spacer()
+                }
+                
+                Rectangle()
+                    .fill(.red.opacity(0.3))
+                    .frame(height: 8)
+                    .cornerRadius(4)
+                
+                // Actual value bar (red)
+                HStack {
+                    Text("Current: \(Int(value))\(unit)")
+                        .font(.caption)
+                        .foregroundColor(.ibdSecondaryText)
+                    
+                    Spacer()
+                }
+                
+                Rectangle()
+                    .fill(.red)
+                    .frame(height: 8)
+                    .cornerRadius(4)
+            }
+        }
+        .padding()
+        .background(Color.ibdCardBackground)
+        .cornerRadius(8)
+    }
+}
+
+struct SmallTrendChart: View {
+    let title: String
+    let data: [(String, Double)]
+    let color: Color
+    let target: Double?
+    let timeframe: TimeFrame
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title)
+                .font(.caption)
+                .fontWeight(.medium)
+                .foregroundColor(.ibdPrimaryText)
+            
+            Chart {
+                ForEach(Array(data.enumerated()), id: \.offset) { index, point in
+                    LineMark(
+                        x: .value("Date", point.0),
+                        y: .value("Value", point.1)
+                    )
+                    .foregroundStyle(color)
+                    .lineStyle(StrokeStyle(lineWidth: 2))
+                }
+                
+                if let target = target {
+                    ForEach(Array(data.enumerated()), id: \.offset) { index, point in
+                        LineMark(
+                            x: .value("Date", point.0),
+                            y: .value("Target", target)
+                        )
+                        .foregroundStyle(.gray)
+                        .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 4]))
+                    }
+                }
+            }
+            .frame(height: 60)
+            .chartYAxis {
+                AxisMarks(position: .leading)
+            }
+            .chartXAxis {
+                AxisMarks(values: .automatic(desiredCount: timeframe == .week ? 7 : timeframe == .month ? 5 : 3)) { value in
+                    AxisValueLabel {
+                        if let dateString = value.as(String.self) {
+                            Text(formatDateLabel(dateString, timeframe: timeframe))
+                                .font(.caption2)
+                                .foregroundColor(.ibdSecondaryText)
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    private func formatDateLabel(_ dateString: String, timeframe: TimeFrame) -> String {
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "MMM dd"
+        
+        guard let date = dateFormatter.date(from: dateString) else {
+            return dateString
+        }
+        
+        switch timeframe {
+        case .week:
+            // Show day names for week view
+            let dayFormatter = DateFormatter()
+            dayFormatter.dateFormat = "E"
+            return dayFormatter.string(from: date)
+        case .month:
+            // Show dates for month view
+            let monthFormatter = DateFormatter()
+            monthFormatter.dateFormat = "dd"
+            return monthFormatter.string(from: date)
+        case .threeMonths:
+            // Show month names for 3-month view
+            let threeMonthFormatter = DateFormatter()
+            threeMonthFormatter.dateFormat = "MMM"
+            return threeMonthFormatter.string(from: date)
+        }
+    }
+}
+
+struct InsightsView: View {
+    let insights: [Insight]
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("AI Insights")
+                .font(.headline)
+                .fontWeight(.semibold)
+                .foregroundColor(.ibdPrimaryText)
+            
+            ForEach(insights, id: \.title) { insight in
+                InsightCard(insight: insight)
+            }
+        }
+        .padding()
+        .background(Color.ibdSurfaceBackground)
+        .cornerRadius(12)
+        .padding(.horizontal)
+    }
+}
+
+struct InsightCard: View {
+    let insight: Insight
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text(insight.title)
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.ibdPrimaryText)
+                
+                Spacer()
+                
+                SeverityBadge(severity: insight.severity)
+            }
+            
+            Text(insight.message)
+                .font(.caption)
+                .foregroundColor(.ibdSecondaryText)
+                .lineLimit(3)
+            
+            Text("Action: \(insight.action)")
+                .font(.caption)
+                .fontWeight(.medium)
+                .foregroundColor(insight.severity.color)
+        }
+        .padding()
+        .background(Color.ibdBackground)
+        .cornerRadius(8)
+    }
+}
+
+struct SeverityBadge: View {
+    let severity: InsightSeverity
+    
+    var body: some View {
+        Text(severity.rawValue.capitalized)
+            .font(.caption2)
+            .fontWeight(.medium)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(severity.color.opacity(0.2))
+            .foregroundColor(severity.color)
+            .cornerRadius(12)
+    }
+}
+
+struct ErrorView: View {
+    let message: String
+    let retryAction: () -> Void
+    
+    var body: some View {
+        VStack(spacing: 16) {
+            Image(systemName: "exclamationmark.triangle")
+                .font(.largeTitle)
+                .foregroundColor(.orange)
+            
+            Text("Unable to load trends")
+                .font(.headline)
+                .foregroundColor(.ibdPrimaryText)
+            
+            Text(message)
+                .font(.caption)
+                .foregroundColor(.ibdSecondaryText)
+                .multilineTextAlignment(.center)
+            
+            Button("Try Again") {
+                retryAction()
+            }
+            .buttonStyle(.borderedProminent)
+        }
+        .frame(maxWidth: .infinity, minHeight: 200)
+        .padding()
+    }
+}
+
+struct EmptyStateView: View {
+    var body: some View {
+        VStack(spacing: 16) {
+            Image(systemName: "chart.line.uptrend.xyaxis")
+                .font(.largeTitle)
+                .foregroundColor(.ibdSecondaryText)
+            
+            Text("No Data Available")
+                .font(.headline)
+                .foregroundColor(.ibdPrimaryText)
+            
+            Text("Start logging your daily entries to see personalized trends and insights.")
+                .font(.caption)
+                .foregroundColor(.ibdSecondaryText)
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity, minHeight: 200)
+        .padding()
     }
 }
 
 // MARK: - Data Models
 
-enum TimePeriod: String, CaseIterable {
+enum TimeFrame: String, CaseIterable {
     case week = "week"
     case month = "month"
     case threeMonths = "threeMonths"
@@ -497,49 +1647,163 @@ enum TimePeriod: String, CaseIterable {
     }
 }
 
-enum ChartType {
-    case line
-    case bar
+enum NutritionTab: String, CaseIterable {
+    case calories = "calories"
+    case protein = "protein"
+    case fiber = "fiber"
+    case hydration = "hydration"
+    
+    var displayName: String {
+        switch self {
+        case .calories: return "Cal"
+        case .protein: return "Protein"
+        case .fiber: return "Fiber"
+        case .hydration: return "H2O"
+        }
+    }
 }
 
-struct TrendDataPoint: Identifiable {
+enum NutritionType {
+    case calories
+    case protein
+    case fiber
+    case hydration
+    
+    var displayName: String {
+        switch self {
+        case .calories: return "Calories"
+        case .protein: return "Protein"
+        case .fiber: return "Fiber"
+        case .hydration: return "Hydration"
+        }
+    }
+}
+
+struct TrendsData {
+    let nutrition: [NutritionTrendPoint]
+    let symptoms: [SymptomTrendPoint]
+    let healthMetrics: [HealthMetricPoint]
+    let insights: [Insight]
+    let summary: Summary
+}
+
+struct NutritionTrendPoint: Identifiable {
     let id = UUID()
     let date: String
-    let value: Double
-    let label: String
+    let calories: Int
+    let protein: Int
+    let fiber: Int
+    let hydration: Int
 }
 
-struct NutritionDataPoint: Identifiable {
+struct SymptomTrendPoint: Identifiable {
     let id = UUID()
     let date: String
-    let fiber: Double
-    let protein: Double
-    let calories: Double
+    let pain: Int
+    let stress: Int
+    let fatigue: Int
+    let flareRisk: Int
 }
 
-struct NutritionChartPoint: Identifiable {
+struct HealthMetricPoint: Identifiable {
     let id = UUID()
     let date: String
-    let value: Double
-    let type: String
+    let medicationAdherence: Double // Percentage (0-100)
+    let bowelFrequency: Int // Number of movements per day
+    let bowelConsistency: Int // Bristol scale (1-7)
+    let weight: Double // Weight in kg
+    let weightChange: Double // Change from baseline
+    // Bowel health warning indicators
+    let bloodPresent: Bool // Blood in stool
+    let mucusPresent: Bool // Mucus in stool
+    let painSeverity: Int // Pain level (0-10)
+    let painLocation: String? // Location of pain
+    let urgencyLevel: Int // Urgency level (0-10)
 }
 
-// MARK: - Research-Based Nutrition Benchmarks
-
-struct IBDNutritionBenchmarks {
-    // Based on IBD research studies and FODMAP guidelines
-    let fiberTarget: Double = 25.0 // Lower fiber tolerance in IBD
-    let proteinTarget: Double = 84.0 // 1.2g/kg for 70kg person (higher for IBD)
-    let calorieTarget: Double = 2000.0 // Baseline calorie target
-    let fatTarget: Double = 65.0 // Moderate fat intake
-    let carbTarget: Double = 250.0 // Moderate carb intake
+struct Insight {
+    let type: InsightType
+    let title: String
+    let message: String
+    let severity: InsightSeverity
+    let action: String
 }
 
-struct CrohnsNutritionBenchmarks {
-    // Based on Crohn's-specific research and FODMAP guidelines
-    let fiberTarget: Double = 15.0 // Even lower fiber for Crohn's during flares
-    let proteinTarget: Double = 91.0 // 1.3g/kg for 70kg person (higher for Crohn's)
-    let calorieTarget: Double = 2200.0 // Higher calorie needs for Crohn's
-    let fatTarget: Double = 70.0 // Slightly higher fat for calorie density
-    let carbTarget: Double = 200.0 // Lower carb tolerance in Crohn's
+enum InsightType {
+    case nutrition
+    case symptom
+    case medication
+}
+
+enum InsightSeverity: String {
+    case low = "low"
+    case moderate = "moderate"
+    case high = "high"
+    
+    var color: Color {
+        switch self {
+        case .low: return .green
+        case .moderate: return .orange
+        case .high: return .red
+        }
+    }
+}
+
+struct Summary {
+    let totalEntries: Int
+    let avgCalories: Int
+    let avgPain: Double
+    let bloodEpisodes: Int
+    let medicationAdherence: Int
+}
+
+// MARK: - Industry Standard Targets
+
+struct IBDTargets {
+    // Based on FODMAP and IBD research standards
+    let calorieTarget: Int = 2000 // kcal/day for moderate activity
+    let proteinTarget: Int = 80 // g/day (1.2g/kg for 70kg person)
+    let fiberTarget: Int = 25 // g/day (lower for IBD tolerance)
+    let hydrationTarget: Int = 2000 // ml/day
+    let fatTarget: Int = 65 // g/day (moderate fat)
+    let carbTarget: Int = 250 // g/day (moderate carb)
+    
+    // FODMAP-specific targets
+    let fodmapFiberTarget: Int = 15 // g/day (lower for FODMAP diet)
+    let fodmapCarbTarget: Int = 200 // g/day (lower carb tolerance)
+}
+
+struct HealthMetricTargets {
+    // Based on IBD clinical guidelines and research
+    let medicationAdherenceTarget: Double = 90.0 // % (target for optimal disease control)
+    let bowelFrequencyTarget: Double = 2.0 // times/day (normal range for IBD remission)
+    let painTarget: Double = 3.0 // /10 (target for well-managed IBD)
+    let urgencyTarget: Double = 3.0 // /10 (target for urgency control)
+    let weightChangeTarget: Double = 0.0 // kg (target for stable weight)
+    
+    // Warning thresholds (when to show warnings)
+    let medicationAdherenceWarning: Double = 80.0 // % (below this triggers warning)
+    let bowelFrequencyWarning: Double = 4.0 // times/day (above this triggers warning)
+    let painWarning: Double = 5.0 // /10 (above this triggers warning)
+    let urgencyWarning: Double = 6.0 // /10 (above this triggers warning)
+    let weightChangeWarning: Double = 2.0 // kg (above this triggers warning)
+}
+
+struct SymptomTargets {
+    // Based on IBD symptom management guidelines
+    let painTarget: Int = 3 // /10 (target for well-managed IBD)
+    let stressTarget: Int = 5 // /10 (target for stress management)
+    let fatigueTarget: Int = 4 // /10 (target for energy levels)
+    let bowelFrequencyTarget: Int = 2 // times/day (normal range)
+    let urgencyTarget: Int = 3 // /10 (target for urgency control)
+}
+
+#Preview {
+    DiscoverView(userData: UserData(
+        id: "test",
+        email: "test@example.com",
+        name: "Test User",
+        phoneNumber: nil,
+        token: "test-token"
+    ))
 } 

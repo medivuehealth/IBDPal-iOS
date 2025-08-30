@@ -247,6 +247,7 @@ struct LoginView: View {
                                         id: username,  // Use username as ID
                                         email: userEmail,
                                         name: "\(user["firstName"] as? String ?? "") \(user["lastName"] as? String ?? "")".trimmingCharacters(in: .whitespaces),
+                                        phoneNumber: nil,
                                         token: token
                                     )
                                     

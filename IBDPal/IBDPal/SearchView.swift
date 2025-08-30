@@ -981,5 +981,5 @@ struct WebView: UIViewRepresentable {
 }
 
 #Preview {
-    SearchView(userData: UserData(id: "1", email: "test@example.com", name: "Test User", token: "token"))
+    SearchView(userData: UserData(id: "1", email: "test@example.com", name: "Test User", phoneNumber: nil, token: "token"))
 } 

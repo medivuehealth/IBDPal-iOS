@@ -2,7 +2,7 @@ import Foundation
 
 // Enhanced Food Item with comprehensive nutritional and cultural information
 struct EnhancedFoodItem: Identifiable, Codable {
-    let id = UUID()
+    let id: UUID
     let name: String
     let category: String
     let calories: Double
@@ -29,6 +29,30 @@ struct EnhancedFoodItem: Identifiable, Codable {
     let allergens: [String]
     let dietaryRestrictions: [String] // "vegan", "gluten-free", etc.
     let seasonalAvailability: [String]
+    
+    init(id: UUID = UUID(), name: String, category: String, calories: Double, protein: Double, carbs: Double, fiber: Double, fat: Double, vitamins: [String: Double], minerals: [String: Double], servingSize: String, region: String, cuisine: String, ibdFriendly: Bool, fodmapLevel: String, preparationMethods: [String], benefits: String, tags: [String], allergens: [String], dietaryRestrictions: [String], seasonalAvailability: [String]) {
+        self.id = id
+        self.name = name
+        self.category = category
+        self.calories = calories
+        self.protein = protein
+        self.carbs = carbs
+        self.fiber = fiber
+        self.fat = fat
+        self.vitamins = vitamins
+        self.minerals = minerals
+        self.servingSize = servingSize
+        self.region = region
+        self.cuisine = cuisine
+        self.ibdFriendly = ibdFriendly
+        self.fodmapLevel = fodmapLevel
+        self.preparationMethods = preparationMethods
+        self.benefits = benefits
+        self.tags = tags
+        self.allergens = allergens
+        self.dietaryRestrictions = dietaryRestrictions
+        self.seasonalAvailability = seasonalAvailability
+    }
     
     var displayName: String {
         return "\(name) (\(servingSize))"
@@ -553,6 +577,76 @@ class EnhancedFoodDatabase: ObservableObject {
                 preparationMethods: ["raw", "soaked"],
                 benefits: "Omega-3, fiber, protein, calcium",
                 tags: ["omega3", "fiber", "protein", "calcium"],
+                allergens: ["none"],
+                dietaryRestrictions: ["vegan", "gluten-free"],
+                seasonalAvailability: ["year-round"]
+            ),
+            
+            // BEVERAGES
+            EnhancedFoodItem(
+                name: "Fruit Smoothie",
+                category: "Beverages",
+                calories: 180,
+                protein: 3,
+                carbs: 35,
+                fiber: 4,
+                fat: 1,
+                vitamins: ["C": 45, "A": 120, "B6": 0.3],
+                minerals: ["Potassium": 350, "Magnesium": 25],
+                servingSize: "1 cup",
+                region: "Global",
+                cuisine: "International",
+                ibdFriendly: true,
+                fodmapLevel: "low",
+                preparationMethods: ["blended", "cold"],
+                benefits: "Vitamins, antioxidants, hydration, easy to digest",
+                tags: ["vitamins", "antioxidants", "hydration", "fruit"],
+                allergens: ["none"],
+                dietaryRestrictions: ["vegan", "gluten-free"],
+                seasonalAvailability: ["year-round"]
+            ),
+            
+            EnhancedFoodItem(
+                name: "Berry Smoothie",
+                category: "Beverages",
+                calories: 160,
+                protein: 4,
+                carbs: 30,
+                fiber: 5,
+                fat: 2,
+                vitamins: ["C": 60, "K": 25, "E": 2],
+                minerals: ["Potassium": 280, "Manganese": 0.8],
+                servingSize: "1 cup",
+                region: "Global",
+                cuisine: "International",
+                ibdFriendly: true,
+                fodmapLevel: "low",
+                preparationMethods: ["blended", "cold"],
+                benefits: "Antioxidants, fiber, vitamins, anti-inflammatory",
+                tags: ["antioxidants", "fiber", "vitamins", "berries"],
+                allergens: ["none"],
+                dietaryRestrictions: ["vegan", "gluten-free"],
+                seasonalAvailability: ["year-round"]
+            ),
+            
+            EnhancedFoodItem(
+                name: "Green Smoothie",
+                category: "Beverages",
+                calories: 120,
+                protein: 3,
+                carbs: 20,
+                fiber: 6,
+                fat: 1,
+                vitamins: ["C": 35, "K": 150, "A": 200],
+                minerals: ["Iron": 2.5, "Calcium": 80, "Magnesium": 40],
+                servingSize: "1 cup",
+                region: "Global",
+                cuisine: "International",
+                ibdFriendly: true,
+                fodmapLevel: "low",
+                preparationMethods: ["blended", "cold"],
+                benefits: "Chlorophyll, vitamins, minerals, detoxifying",
+                tags: ["chlorophyll", "vitamins", "minerals", "greens"],
                 allergens: ["none"],
                 dietaryRestrictions: ["vegan", "gluten-free"],
                 seasonalAvailability: ["year-round"]

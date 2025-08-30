@@ -458,6 +458,7 @@ struct RegisterView: View {
                                             id: userId,
                                             email: userEmail,
                                             name: displayName,
+                                            phoneNumber: nil,
                                             token: token
                                         )
                                         
@@ -1158,6 +1159,7 @@ struct EmailVerificationView: View {
                                         id: userId,
                                         email: userEmail,
                                         name: displayName,
+                                        phoneNumber: nil,
                                         token: token
                                     )
                                     

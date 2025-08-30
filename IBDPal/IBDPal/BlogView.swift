@@ -968,5 +968,5 @@ struct BlogComment: Identifiable {
 }
 
 #Preview {
-    BlogView(userData: UserData(id: "1", email: "test@example.com", name: "Test User", token: "token"))
+    BlogView(userData: UserData(id: "1", email: "test@example.com", name: "Test User", phoneNumber: nil, token: "token"))
 } 

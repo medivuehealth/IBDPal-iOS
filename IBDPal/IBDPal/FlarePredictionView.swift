@@ -495,7 +495,7 @@ struct DetailRow: View {
 
 #Preview {
     FlarePredictionView(
-        userData: UserData(id: "test-id", email: "test@example.com", name: "Test User", token: "test-token"),
+        userData: UserData(id: "test-id", email: "test@example.com", name: "Test User", phoneNumber: nil, token: "test-token"),
         journalEntries: []
     )
 } 

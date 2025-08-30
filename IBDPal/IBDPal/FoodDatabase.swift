@@ -128,7 +128,9 @@ class FoodDatabase: ObservableObject {
             DatabaseFoodItem(name: "Milk", category: "Dairy", calories: 103, protein: 8, carbs: 12, fiber: 0, fat: 2.4, servingSize: "1 cup", region: "Global"),
             DatabaseFoodItem(name: "Orange Juice", category: "Beverages", calories: 111, protein: 1.7, carbs: 26, fiber: 0.5, fat: 0.5, servingSize: "1 cup", region: "Global"),
             DatabaseFoodItem(name: "Green Tea", category: "Beverages", calories: 2, protein: 0, carbs: 0, fiber: 0, fat: 0, servingSize: "1 cup", region: "Global"),
-            DatabaseFoodItem(name: "Coffee", category: "Beverages", calories: 2, protein: 0.3, carbs: 0, fiber: 0, fat: 0, servingSize: "1 cup", region: "Global")
+            DatabaseFoodItem(name: "Coffee", category: "Beverages", calories: 2, protein: 0.3, carbs: 0, fiber: 0, fat: 0, servingSize: "1 cup", region: "Global"),
+            DatabaseFoodItem(name: "Fruit Smoothie", category: "Beverages", calories: 180, protein: 3, carbs: 35, fiber: 4, fat: 1, servingSize: "1 cup", region: "Global"),
+            DatabaseFoodItem(name: "Berry Smoothie", category: "Beverages", calories: 160, protein: 4, carbs: 30, fiber: 5, fat: 2, servingSize: "1 cup", region: "Global")
         ]
     }
     

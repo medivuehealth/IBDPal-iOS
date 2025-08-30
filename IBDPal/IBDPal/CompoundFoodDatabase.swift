@@ -2,7 +2,7 @@ import Foundation
 
 // Compound Food Item that contains multiple ingredients
 struct CompoundFoodItem: Identifiable, Codable {
-    let id = UUID()
+    let id: UUID
     let name: String
     let category: String
     let ingredients: [FoodIngredient]
@@ -19,6 +19,25 @@ struct CompoundFoodItem: Identifiable, Codable {
     let benefits: String
     let tags: [String]
     
+    init(id: UUID = UUID(), name: String, category: String, ingredients: [FoodIngredient], totalCalories: Double, totalProtein: Double, totalCarbs: Double, totalFiber: Double, totalFat: Double, servingSize: String, cuisine: String, ibdFriendly: Bool, fodmapLevel: String, preparationMethods: [String], benefits: String, tags: [String]) {
+        self.id = id
+        self.name = name
+        self.category = category
+        self.ingredients = ingredients
+        self.totalCalories = totalCalories
+        self.totalProtein = totalProtein
+        self.totalCarbs = totalCarbs
+        self.totalFiber = totalFiber
+        self.totalFat = totalFat
+        self.servingSize = servingSize
+        self.cuisine = cuisine
+        self.ibdFriendly = ibdFriendly
+        self.fodmapLevel = fodmapLevel
+        self.preparationMethods = preparationMethods
+        self.benefits = benefits
+        self.tags = tags
+    }
+    
     var displayName: String {
         return "\(name) (\(servingSize))"
     }
@@ -30,7 +49,7 @@ struct CompoundFoodItem: Identifiable, Codable {
 
 // Individual food ingredient within a compound dish
 struct FoodIngredient: Identifiable, Codable {
-    let id = UUID()
+    let id: UUID
     let name: String
     let quantity: Double
     let unit: String
@@ -40,6 +59,19 @@ struct FoodIngredient: Identifiable, Codable {
     let fiber: Double
     let fat: Double
     let category: String
+    
+    init(id: UUID = UUID(), name: String, quantity: Double, unit: String, calories: Double, protein: Double, carbs: Double, fiber: Double, fat: Double, category: String) {
+        self.id = id
+        self.name = name
+        self.quantity = quantity
+        self.unit = unit
+        self.calories = calories
+        self.protein = protein
+        self.carbs = carbs
+        self.fiber = fiber
+        self.fat = fat
+        self.category = category
+    }
 }
 
 class CompoundFoodDatabase: ObservableObject {

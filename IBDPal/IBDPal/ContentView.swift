@@ -48,13 +48,13 @@ struct MainTabView: View {
             DiscoverView(userData: userData)
                 .tabItem {
                     Image(systemName: "safari.fill")
-                    Text("Discover")
+                    Text("Trends")
                 }
             
             SearchView(userData: userData)
                 .tabItem {
                     Image(systemName: "magnifyingglass")
-                    Text("Search")
+                    Text("Connect")
                 }
             
             MoreView(userData: userData, onSignOut: onSignOut)
@@ -71,6 +71,7 @@ struct UserData: Codable {
     let id: String  // Changed from Int to String to match server UUID format
     let email: String
     let name: String?
+    let phoneNumber: String?
     let token: String
 }
 
