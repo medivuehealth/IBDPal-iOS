@@ -223,40 +223,6 @@ struct BlogView: View {
         }.resume()
     }
     
-    private func toggleLike(for story: BlogStory) {
-        guard let userData = userData else { return }
-        
-        let apiBaseURL = AppConfig.apiBaseURL
-        let urlString = "\(apiBaseURL)/blogs/stories/\(story.id)/like"
-        
-        guard let url = URL(string: urlString) else { return }
-        
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("Bearer \(userData.token)", forHTTPHeaderField: "Authorization")
-        
-        URLSession.shared.dataTask(with: request) { data, response, error in
-            DispatchQueue.main.async {
-                if let error = error {
-                    print("🔍 BlogView: Error toggling like: \(error)")
-                    return
-                }
-                
-                if let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 {
-                    // Update the story in the list
-                    if let index = stories.firstIndex(where: { $0.id == story.id }) {
-                        stories[index].isLiked.toggle()
-                        if stories[index].isLiked {
-                            stories[index].likes += 1
-                        } else {
-                            stories[index].likes = max(0, stories[index].likes - 1)
-                        }
-                    }
-                }
-            }
-        }.resume()
-    }
-    
     private func getSampleStories() -> [BlogStory] {
         return [
             BlogStory(
@@ -404,7 +370,20 @@ struct ReadStoriesView: View {
                 ScrollView {
                     LazyVStack(spacing: 16) {
                         ForEach(filteredStories) { story in
-                            StoryCard(story: story)
+                            StoryCard(
+                                story: story, 
+                                userData: userData, 
+                                onLikeToggled: { storyId, isLiked in
+                                    if let index = stories.firstIndex(where: { $0.id == storyId }) {
+                                        stories[index].isLiked = isLiked
+                                        if isLiked {
+                                            stories[index].likes += 1
+                                        } else {
+                                            stories[index].likes = max(0, stories[index].likes - 1)
+                                        }
+                                    }
+                                }
+                            )
                         }
                     }
                     .padding()
@@ -419,11 +398,17 @@ struct ReadStoriesView: View {
 
 struct StoryCard: View {
     let story: BlogStory
+    let userData: UserData?
+    let onLikeToggled: (String, Bool) -> Void
+    
     @State private var showingFullStory = false
+    @State private var showingComments = false
     @State private var isLiked: Bool
     
-    init(story: BlogStory) {
+    init(story: BlogStory, userData: UserData?, onLikeToggled: @escaping (String, Bool) -> Void) {
         self.story = story
+        self.userData = userData
+        self.onLikeToggled = onLikeToggled
         self._isLiked = State(initialValue: story.isLiked)
     }
     
@@ -501,12 +486,12 @@ struct StoryCard: View {
             // Actions
             HStack {
                 Button(action: {
-                    toggleLike(for: story)
+                    toggleLike()
                 }) {
                     HStack(spacing: 4) {
-                        Image(systemName: story.isLiked ? "heart.fill" : "heart")
-                            .foregroundColor(story.isLiked ? .red : .ibdSecondaryText)
-                        Text("\(story.likes)")
+                        Image(systemName: isLiked ? "heart.fill" : "heart")
+                            .foregroundColor(isLiked ? .red : .ibdSecondaryText)
+                        Text("\(story.likes + (isLiked ? 1 : 0))")
                             .font(.caption)
                             .foregroundColor(.ibdSecondaryText)
                     }
@@ -539,8 +524,38 @@ struct StoryCard: View {
         .background(Color.ibdSurfaceBackground)
         .cornerRadius(12)
         .sheet(isPresented: $showingFullStory) {
-            StoryDetailView(story: story)
+            StoryDetailView(story: story, userData: userData)
         }
+        .sheet(isPresented: $showingComments) {
+            CommentsView(storyId: story.id, userData: userData)
+        }
+    }
+    
+    private func toggleLike() {
+        guard let userData = userData else { return }
+        
+        let apiBaseURL = AppConfig.apiBaseURL
+        let urlString = "\(apiBaseURL)/blogs/stories/\(story.id)/like"
+        
+        guard let url = URL(string: urlString) else { return }
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(userData.token)", forHTTPHeaderField: "Authorization")
+        
+        URLSession.shared.dataTask(with: request) { data, response, error in
+            DispatchQueue.main.async {
+                if let error = error {
+                    print("🔍 StoryCard: Error toggling like: \(error)")
+                    return
+                }
+                
+                if let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 {
+                    isLiked.toggle()
+                    onLikeToggled(story.id, isLiked)
+                }
+            }
+        }.resume()
     }
     
     private func timeAgoString(from date: Date) -> String {
@@ -605,7 +620,7 @@ struct CreateStoryView: View {
                         }
                     }
                     .pickerStyle(SegmentedPickerStyle())
-                    .onChange(of: selectedDiseaseType) { newValue in
+                    .onChange(of: selectedDiseaseType) { _, newValue in
                         print("🔍 CreateStoryView: Disease type changed to \(newValue.rawValue)")
                     }
                 }
@@ -622,7 +637,7 @@ struct CreateStoryView: View {
                     
                     TextField("Enter a compelling title for your story...", text: $title)
                         .textFieldStyle(RoundedBorderTextFieldStyle())
-                        .onChange(of: title) { newValue in
+                        .onChange(of: title) { _, newValue in
                             print("🔍 CreateStoryView: Title changed to '\(newValue)'")
                         }
                         .onTapGesture {
@@ -647,7 +662,7 @@ struct CreateStoryView: View {
                     TextField("Write your story here...", text: $content, axis: .vertical)
                         .textFieldStyle(RoundedBorderTextFieldStyle())
                         .lineLimit(8...15)
-                        .onChange(of: content) { newValue in
+                        .onChange(of: content) { _, newValue in
                             print("🔍 CreateStoryView: Content changed, length: \(newValue.count)")
                         }
                         .onTapGesture {
@@ -673,7 +688,7 @@ struct CreateStoryView: View {
                     HStack {
                         TextField("Add a tag...", text: $newTag)
                             .textFieldStyle(RoundedBorderTextFieldStyle())
-                            .onChange(of: newTag) { newValue in
+                            .onChange(of: newTag) { _, newValue in
                                 print("🔍 CreateStoryView: New tag changed to '\(newValue)'")
                             }
                             .onTapGesture {
@@ -924,12 +939,15 @@ struct CreateStoryView: View {
 
 struct StoryDetailView: View {
     let story: BlogStory
+    let userData: UserData?
+    
     @Environment(\.dismiss) private var dismiss
     @State private var isLiked: Bool
     @State private var showingComments = false
     
-    init(story: BlogStory) {
+    init(story: BlogStory, userData: UserData?) {
         self.story = story
+        self.userData = userData
         self._isLiked = State(initialValue: story.isLiked)
     }
     
@@ -996,7 +1014,7 @@ struct StoryDetailView: View {
                     // Actions
                     HStack {
                         Button(action: {
-                            isLiked.toggle()
+                            toggleLike()
                         }) {
                             HStack(spacing: 4) {
                                 Image(systemName: isLiked ? "heart.fill" : "heart")
@@ -1047,6 +1065,32 @@ struct StoryDetailView: View {
                 CommentsView(storyId: story.id, userData: userData)
             }
         }
+    }
+    
+    private func toggleLike() {
+        guard let userData = userData else { return }
+        
+        let apiBaseURL = AppConfig.apiBaseURL
+        let urlString = "\(apiBaseURL)/blogs/stories/\(story.id)/like"
+        
+        guard let url = URL(string: urlString) else { return }
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(userData.token)", forHTTPHeaderField: "Authorization")
+        
+        URLSession.shared.dataTask(with: request) { data, response, error in
+            DispatchQueue.main.async {
+                if let error = error {
+                    print("🔍 StoryDetailView: Error toggling like: \(error)")
+                    return
+                }
+                
+                if let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 {
+                    isLiked.toggle()
+                }
+            }
+        }.resume()
     }
     
     private func timeAgoString(from date: Date) -> String {
@@ -1395,10 +1439,10 @@ struct BlogStory: Identifiable {
     let title: String
     let content: String
     let tags: [String]
-    let likes: Int
+    var likes: Int
     let comments: Int
     let createdAt: Date
-    let isLiked: Bool
+    var isLiked: Bool
 }
 
 struct BlogComment: Identifiable {
