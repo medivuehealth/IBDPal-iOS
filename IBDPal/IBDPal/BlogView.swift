@@ -496,6 +496,8 @@ struct StoryCard: View {
                             .foregroundColor(.ibdSecondaryText)
                     }
                 }
+                .disabled(story.userId == userData?.id) // Disable for story author
+                .opacity(story.userId == userData?.id ? 0.5 : 1.0) // Dim for story author
                 
                 Button(action: {
                     showingComments = true
@@ -1023,6 +1025,8 @@ struct StoryDetailView: View {
                                     .foregroundColor(.ibdSecondaryText)
                             }
                         }
+                        .disabled(story.userId == userData?.id) // Disable for story author
+                        .opacity(story.userId == userData?.id ? 0.5 : 1.0) // Dim for story author
                         
                         Button(action: {
                             showingComments = true
