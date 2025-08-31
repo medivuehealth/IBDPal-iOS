@@ -93,6 +93,7 @@ class FoodDatabase: ObservableObject {
             // European Foods
             DatabaseFoodItem(name: "Bread", category: "Grains", calories: 80, protein: 3, carbs: 15, fiber: 1, fat: 1, servingSize: "1 slice", region: "Europe"),
             DatabaseFoodItem(name: "Pasta", category: "Grains", calories: 200, protein: 7, carbs: 40, fiber: 2, fat: 1, servingSize: "1 cup cooked", region: "Europe"),
+            DatabaseFoodItem(name: "Pizza", category: "Fast Food", calories: 285, protein: 12, carbs: 36, fiber: 2, fat: 10, servingSize: "1 slice", region: "Europe"),
             DatabaseFoodItem(name: "Cheese", category: "Dairy", calories: 110, protein: 7, carbs: 1, fiber: 0, fat: 9, servingSize: "1 oz", region: "Europe"),
             DatabaseFoodItem(name: "Butter", category: "Fats", calories: 102, protein: 0.1, carbs: 0, fiber: 0, fat: 12, servingSize: "1 tbsp", region: "Europe"),
             

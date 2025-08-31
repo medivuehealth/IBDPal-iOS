@@ -234,12 +234,19 @@ struct DailyLogView: View {
         
         switch entryType {
         case .meals:
-            return (entry.breakfast?.isEmpty == false) ||
-                   (entry.lunch?.isEmpty == false) ||
-                   (entry.dinner?.isEmpty == false) ||
-                   (entry.breakfastCalories?.isEmpty == false) ||
-                   (entry.lunchCalories?.isEmpty == false) ||
-                   (entry.dinnerCalories?.isEmpty == false)
+            // Count how many main meals are filled (breakfast, lunch, dinner)
+            var mealCount = 0
+            if (entry.breakfast?.isEmpty == false) || (entry.breakfastCalories?.isEmpty == false) {
+                mealCount += 1
+            }
+            if (entry.lunch?.isEmpty == false) || (entry.lunchCalories?.isEmpty == false) {
+                mealCount += 1
+            }
+            if (entry.dinner?.isEmpty == false) || (entry.dinnerCalories?.isEmpty == false) {
+                mealCount += 1
+            }
+            // Complete if at least 2 out of 3 main meals are filled
+            return mealCount >= 2
         case .bowelHealth:
             return (entry.bowelFrequency ?? 0) > 0 ||
                    (entry.bristolScale ?? 0) > 0 ||
