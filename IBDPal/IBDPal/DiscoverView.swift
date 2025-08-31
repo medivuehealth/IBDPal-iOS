@@ -68,8 +68,7 @@ struct DiscoverView: View {
                 .padding(.vertical)
             }
             .background(Color.ibdBackground)
-            .navigationTitle("Discover")
-            .navigationBarTitleDisplayMode(.large)
+            .navigationBarTitleDisplayMode(.inline)
             .onAppear {
                 loadTrendsData()
             }
@@ -646,19 +645,13 @@ struct NutritionChartView: View {
             
             Chart {
                 ForEach(data) { point in
-                    // Actual intake
-                    LineMark(
+                    // Actual intake - using dots instead of lines
+                    PointMark(
                         x: .value("Date", point.date),
                         y: .value("Value", getValue(for: point))
                     )
                     .foregroundStyle(color)
-                    .lineStyle(StrokeStyle(lineWidth: 3))
-                    
-                    AreaMark(
-                        x: .value("Date", point.date),
-                        y: .value("Value", getValue(for: point))
-                    )
-                    .foregroundStyle(color.opacity(0.1))
+                    .symbolSize(16)
                 }
                 
                 // Target line
@@ -676,14 +669,9 @@ struct NutritionChartView: View {
                 AxisMarks(position: .leading)
             }
             .chartXAxis {
-                AxisMarks(values: .automatic(desiredCount: timeframe == .week ? 7 : timeframe == .month ? 5 : 3)) { value in
-                    AxisValueLabel {
-                        if let dateString = value.as(String.self) {
-                            Text(formatDateLabel(dateString, timeframe: timeframe))
-                                .font(.caption2)
-                                .foregroundColor(.ibdSecondaryText)
-                        }
-                    }
+                // Remove x-axis labels for cleaner look
+                AxisMarks(values: .automatic(desiredCount: timeframe == .week ? 7 : timeframe == .month ? 5 : 3)) { _ in
+                    // No labels
                 }
             }
             
@@ -1078,15 +1066,6 @@ struct HealthMetricsView: View {
                         .fontWeight(.semibold)
                         .foregroundColor(.red)
                     
-                    // Debug info
-                    Text("Debug: \(selectedTimeframe) - Bowel Freq: \(String(format: "%.1f", averageBowelFrequency))/day (Target: \(String(format: "%.1f", targets.bowelFrequencyTarget)), Warning: \(String(format: "%.1f", bowelFrequencyWarningThreshold)))")
-                        .font(.caption)
-                        .foregroundColor(.gray)
-                    
-                    Text("Debug: Pain: \(String(format: "%.1f", averagePain))/10 (Target: \(String(format: "%.1f", targets.painTarget)), Warning: \(String(format: "%.1f", painWarningThreshold))) | Blood: \(hasBloodPresent ? "Yes" : "No") | Mucus: \(hasMucusPresent ? "Yes" : "No")")
-                        .font(.caption)
-                        .foregroundColor(.gray)
-                    
                     // High Pain Warning
                     if averagePain > painWarningThreshold {
                         WarningBarChartView(
@@ -1104,7 +1083,7 @@ struct HealthMetricsView: View {
                             title: "Blood Present",
                             value: 1.0,
                             threshold: 0.0,
-                            unit: "episodes",
+                            unit: " episodes",
                             icon: "exclamationmark.triangle.fill"
                         )
                     }
@@ -1115,7 +1094,7 @@ struct HealthMetricsView: View {
                             title: "Mucus Present",
                             value: 1.0,
                             threshold: 0.0,
-                            unit: "episodes",
+                            unit: " episodes",
                             icon: "exclamationmark.triangle.fill"
                         )
                     }
@@ -1389,7 +1368,7 @@ struct WarningBarChartView: View {
                 
                 Spacer()
                 
-                Text("\(Int(value))\(unit)")
+                Text("\(Int(value)) \(unit)")
                     .font(.headline)
                     .fontWeight(.bold)
                     .foregroundColor(.red)
@@ -1399,7 +1378,7 @@ struct WarningBarChartView: View {
             VStack(spacing: 4) {
                 // Threshold bar (red)
                 HStack {
-                    Text("Threshold: \(Int(threshold))\(unit)")
+                    Text("Threshold: \(Int(threshold)) \(unit)")
                         .font(.caption)
                         .foregroundColor(.ibdSecondaryText)
                     
@@ -1413,7 +1392,7 @@ struct WarningBarChartView: View {
                 
                 // Actual value bar (red)
                 HStack {
-                    Text("Current: \(Int(value))\(unit)")
+                    Text("Current: \(Int(value)) \(unit)")
                         .font(.caption)
                         .foregroundColor(.ibdSecondaryText)
                     

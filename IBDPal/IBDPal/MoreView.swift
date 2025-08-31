@@ -63,8 +63,12 @@ struct MoreView: View {
                         MoreRow(icon: "questionmark.circle.fill", title: "Help & FAQ", subtitle: "Get help and answers")
                     }
                     
-                    NavigationLink(destination: Text("Contact Support")) {
+                    NavigationLink(destination: ContactSupportView()) {
                         MoreRow(icon: "envelope.fill", title: "Contact Support", subtitle: "Get in touch with us")
+                    }
+                    
+                    NavigationLink(destination: FeedbackView(userData: userData)) {
+                        MoreRow(icon: "star.fill", title: "Feedback", subtitle: "Share your experience and suggestions")
                     }
                     
                     NavigationLink(destination: AboutView()) {
@@ -1073,167 +1077,134 @@ struct FAQItem: View {
 struct AboutView: View {
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 25) {
-                // Header
-                VStack(alignment: .leading, spacing: 12) {
-                    HStack {
-                        Image(systemName: "heart.fill")
-                            .font(.largeTitle)
-                            .foregroundColor(.blue)
-                        
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("IBDPal")
-                                .font(.title)
-                                .fontWeight(.bold)
-                                .foregroundColor(Color(red: 0.1, green: 0.1, blue: 0.1))
-                            
-                            Text("Your IBD Management Companion")
-                                .font(.subheadline)
-                                .foregroundColor(.gray)
-                        }
-                    }
+            VStack(alignment: .leading, spacing: 24) {
+                // App Header
+                VStack(spacing: 16) {
+                    Image(systemName: "heart.fill")
+                        .font(.system(size: 60))
+                        .foregroundColor(.ibdPrimary)
                     
-                    Text("Version 1.0.0")
-                        .font(.caption)
-                        .foregroundColor(.gray)
+                    Text("IBDPal")
+                        .font(.largeTitle)
+                        .fontWeight(.bold)
+                        .foregroundColor(.ibdPrimaryText)
+                    
+                    Text("Your Personal IBD Management Companion")
+                        .font(.title3)
+                        .foregroundColor(.ibdSecondaryText)
+                        .multilineTextAlignment(.center)
                 }
+                .frame(maxWidth: .infinity)
+                .padding(.top)
                 
-                // Mission Statement
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("Our Mission")
-                        .font(.headline)
+                // App Description
+                VStack(alignment: .leading, spacing: 16) {
+                    Text("About IBDPal")
+                        .font(.title2)
                         .fontWeight(.semibold)
-                        .foregroundColor(Color(red: 0.1, green: 0.1, blue: 0.1))
+                        .foregroundColor(.ibdPrimaryText)
                     
-                    Text("IBDPal is dedicated to empowering individuals with Inflammatory Bowel Disease (IBD) to take control of their health journey. We believe that comprehensive monitoring, personalized insights, and informed decision-making are the keys to achieving and maintaining remission.")
+                    Text("IBDPal is a comprehensive mobile application designed to help individuals with Inflammatory Bowel Disease (IBD) manage their condition effectively. Our app provides tools for tracking symptoms, monitoring nutrition, managing medications, and connecting with the IBD community.")
                         .font(.body)
-                        .foregroundColor(Color(red: 0.1, green: 0.1, blue: 0.1))
+                        .foregroundColor(.ibdSecondaryText)
+                        .lineSpacing(4)
                 }
-                .padding()
-                .background(Color.white)
-                .cornerRadius(12)
-                .shadow(color: .black.opacity(0.1), radius: 5, x: 0, y: 2)
                 
-                // What We Do
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("What We Do")
-                        .font(.headline)
+                // Features
+                VStack(alignment: .leading, spacing: 16) {
+                    Text("Key Features")
+                        .font(.title2)
                         .fontWeight(.semibold)
-                        .foregroundColor(Color(red: 0.1, green: 0.1, blue: 0.1))
+                        .foregroundColor(.ibdPrimaryText)
                     
-                    VStack(alignment: .leading, spacing: 8) {
-                        FeatureRow(
-                            icon: "calendar.badge.plus",
-                            title: "Daily Monitoring",
-                            description: "Comprehensive tracking of meals, symptoms, medications, and lifestyle factors"
-                        )
-                        
-                        FeatureRow(
-                            icon: "chart.line.uptrend.xyaxis",
-                            title: "Health Analytics",
-                            description: "Advanced analytics in the Trends tab to identify patterns and correlations in your health data"
-                        )
-                        
-                        FeatureRow(
-                            icon: "magnifyingglass",
-                            title: "Nutrition Guidance",
-                            description: "Intelligent food database in the Connect tab with FODMAP filtering and nutrition analysis"
-                        )
-                        
-                        FeatureRow(
-                            icon: "brain.head.profile",
-                            title: "AI-Powered Insights",
-                            description: "Machine learning algorithms to predict flare risks and provide personalized recommendations"
-                        )
-                        
-                        FeatureRow(
-                            icon: "lock.shield",
-                            title: "Privacy First",
-                            description: "Enterprise-grade security and privacy protection for your sensitive health data"
-                        )
+                    VStack(alignment: .leading, spacing: 12) {
+                        FeatureRow(icon: "chart.line.uptrend.xyaxis", title: "Symptom Tracking", description: "Monitor your daily symptoms and track patterns over time")
+                        FeatureRow(icon: "fork.knife", title: "Nutrition Management", description: "Track your meals and analyze nutritional intake")
+                        FeatureRow(icon: "pills.fill", title: "Medication Reminders", description: "Never miss your medications with smart reminders")
+                        FeatureRow(icon: "brain.head.profile", title: "Stress & Sleep Tracking", description: "Monitor lifestyle factors that affect your IBD")
+                        FeatureRow(icon: "chart.bar.fill", title: "Trends & Insights", description: "Visualize your data and gain insights into your condition")
+                        FeatureRow(icon: "person.3.fill", title: "Community Support", description: "Connect with others and access educational resources")
                     }
                 }
-                .padding()
-                .background(Color.white)
-                .cornerRadius(12)
-                .shadow(color: .black.opacity(0.1), radius: 5, x: 0, y: 2)
                 
-                // Our Approach
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("Our Approach")
-                        .font(.headline)
+                // Company Information
+                VStack(alignment: .leading, spacing: 16) {
+                    Text("About Medivue")
+                        .font(.title2)
                         .fontWeight(.semibold)
-                        .foregroundColor(Color(red: 0.1, green: 0.1, blue: 0.1))
+                        .foregroundColor(.ibdPrimaryText)
                     
-                    Text("We combine cutting-edge technology with evidence-based medical knowledge to create a comprehensive IBD management platform. Our approach is rooted in the understanding that every IBD journey is unique, and personalized care is essential for success.")
+                    Text("IBDPal is developed by Medivue, a registered nonprofit organization in the State of North Carolina. Our mission is to improve the quality of life for individuals living with chronic health conditions through innovative technology solutions.")
                         .font(.body)
-                        .foregroundColor(Color(red: 0.1, green: 0.1, blue: 0.1))
-                    
-                    Text("By providing you with the tools to track, analyze, and understand your health patterns, we empower you to work collaboratively with your healthcare team to achieve the best possible outcomes.")
-                        .font(.body)
-                        .foregroundColor(Color(red: 0.1, green: 0.1, blue: 0.1))
+                        .foregroundColor(.ibdSecondaryText)
+                        .lineSpacing(4)
                 }
-                .padding()
-                .background(Color.white)
-                .cornerRadius(12)
-                .shadow(color: .black.opacity(0.1), radius: 5, x: 0, y: 2)
+                
+                // Legal Information
+                VStack(alignment: .leading, spacing: 16) {
+                    Text("Legal Information")
+                        .font(.title2)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.ibdPrimaryText)
+                    
+                    VStack(alignment: .leading, spacing: 12) {
+                        LegalSection(title: "Copyright", content: "© 2024 Medivue. All rights reserved.\n\nIBDPal and all associated content, features, and functionality are owned by Medivue, a registered nonprofit organization in the State of North Carolina.")
+                        
+                        LegalSection(title: "Patent Rights", content: "This application and its underlying technology may be protected by various patents and patent applications. All patent rights are owned by Medivue.")
+                        
+                        LegalSection(title: "Trademarks", content: "IBDPal is a trademark of Medivue. All other trademarks and service marks are the property of their respective owners.")
+                        
+                        LegalSection(title: "Privacy & Terms", content: "Your privacy is important to us. Please review our Privacy Policy and Terms of Service for information about how we collect, use, and protect your data.")
+                    }
+                }
                 
                 // Contact Information
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("Get in Touch")
-                        .font(.headline)
+                VStack(alignment: .leading, spacing: 16) {
+                    Text("Contact Information")
+                        .font(.title2)
                         .fontWeight(.semibold)
-                        .foregroundColor(Color(red: 0.1, green: 0.1, blue: 0.1))
+                        .foregroundColor(.ibdPrimaryText)
                     
                     VStack(alignment: .leading, spacing: 8) {
-                        ContactRow(
-                            icon: "envelope.fill",
-                            title: "Support",
-                            detail: "support@ibdpal.com"
-                        )
-                        
-                        ContactRow(
-                            icon: "globe",
-                            title: "Website",
-                            detail: "www.ibdpal.com"
-                        )
-                        
-                        ContactRow(
-                            icon: "phone.fill",
-                            title: "Emergency",
-                            detail: "Contact your healthcare provider"
-                        )
+                        ContactRow(icon: "building.2.fill", text: "Medivue")
+                        ContactRow(icon: "location.fill", text: "North Carolina, USA")
+                        ContactRow(icon: "envelope.fill", text: "support@medivue.org")
+                        ContactRow(icon: "globe", text: "www.medivue.org")
                     }
                 }
-                .padding()
-                .background(Color.white)
-                .cornerRadius(12)
-                .shadow(color: .black.opacity(0.1), radius: 5, x: 0, y: 2)
                 
-                // Disclaimer
+                // Version Information
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("Medical Disclaimer")
-                        .font(.subheadline)
+                    Text("Version Information")
+                        .font(.headline)
                         .fontWeight(.semibold)
-                        .foregroundColor(Color(red: 0.1, green: 0.1, blue: 0.1))
+                        .foregroundColor(.ibdPrimaryText)
                     
-                    Text("IBDPal is designed to support your IBD management journey but is not a substitute for professional medical advice, diagnosis, or treatment. Always consult with your healthcare provider for medical decisions and emergency situations.")
+                    Text("Version 1.0.0")
+                        .font(.subheadline)
+                        .foregroundColor(.ibdSecondaryText)
+                    
+                    Text("Build Date: \(getBuildDate())")
                         .font(.caption)
-                        .foregroundColor(.gray)
+                        .foregroundColor(.ibdSecondaryText)
                 }
-                .padding()
-                .background(Color(red: 0.97, green: 0.97, blue: 0.97))
-                .cornerRadius(8)
+                
+                Spacer(minLength: 50)
             }
             .padding()
         }
-        .background(Color(red: 0.98, green: 0.98, blue: 0.98))
+        .background(Color.ibdBackground)
         .navigationTitle("About")
         .navigationBarTitleDisplayMode(.inline)
     }
+    
+    private func getBuildDate() -> String {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        return formatter.string(from: Date())
+    }
 }
 
-// MARK: - Feature Row Component
 struct FeatureRow: View {
     let icon: String
     let title: String
@@ -1242,19 +1213,20 @@ struct FeatureRow: View {
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
             Image(systemName: icon)
-                .font(.title3)
-                .foregroundColor(.blue)
+                .font(.title2)
+                .foregroundColor(.ibdPrimary)
                 .frame(width: 24)
             
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 4) {
                 Text(title)
                     .font(.subheadline)
-                    .fontWeight(.medium)
-                    .foregroundColor(Color(red: 0.1, green: 0.1, blue: 0.1))
+                    .fontWeight(.semibold)
+                    .foregroundColor(.ibdPrimaryText)
                 
                 Text(description)
                     .font(.caption)
-                    .foregroundColor(.gray)
+                    .foregroundColor(.ibdSecondaryText)
+                    .lineLimit(3)
             }
             
             Spacer()
@@ -1262,32 +1234,394 @@ struct FeatureRow: View {
     }
 }
 
-// MARK: - Contact Row Component
+struct LegalSection: View {
+    let title: String
+    let content: String
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title)
+                .font(.subheadline)
+                .fontWeight(.semibold)
+                .foregroundColor(.ibdPrimaryText)
+            
+            Text(content)
+                .font(.caption)
+                .foregroundColor(.ibdSecondaryText)
+                .lineSpacing(2)
+        }
+        .padding()
+        .background(Color.ibdSurfaceBackground)
+        .cornerRadius(8)
+    }
+}
+
 struct ContactRow: View {
     let icon: String
-    let title: String
-    let detail: String
+    let text: String
     
     var body: some View {
         HStack(spacing: 12) {
             Image(systemName: icon)
-                .font(.title3)
-                .foregroundColor(.blue)
-                .frame(width: 24)
+                .font(.subheadline)
+                .foregroundColor(.ibdPrimary)
+                .frame(width: 20)
             
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
+            Text(text)
+                .font(.subheadline)
+                .foregroundColor(.ibdSecondaryText)
+            
+            Spacer()
+        }
+    }
+}
+
+// MARK: - Contact Support View
+struct ContactSupportView: View {
+    @State private var showingEmailComposer = false
+    @State private var showingPhoneCall = false
+    
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 24) {
+                // Header
+                VStack(spacing: 16) {
+                    Image(systemName: "envelope.fill")
+                        .font(.system(size: 60))
+                        .foregroundColor(.ibdPrimary)
+                    
+                    Text("Contact Support")
+                        .font(.largeTitle)
+                        .fontWeight(.bold)
+                        .foregroundColor(.ibdPrimaryText)
+                    
+                    Text("We're here to help you with any questions or concerns about IBDPal")
+                        .font(.title3)
+                        .foregroundColor(.ibdSecondaryText)
+                        .multilineTextAlignment(.center)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.top)
+                
+                // Support Options
+                VStack(alignment: .leading, spacing: 16) {
+                    Text("How Can We Help?")
+                        .font(.title2)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.ibdPrimaryText)
+                    
+                    VStack(spacing: 12) {
+                        SupportOptionCard(
+                            icon: "envelope.fill",
+                            title: "Email Support",
+                            description: "Send us an email for general inquiries, bug reports, or feature requests",
+                            action: "Send Email",
+                            color: .blue
+                        ) {
+                            showingEmailComposer = true
+                        }
+                        
+                        SupportOptionCard(
+                            icon: "phone.fill",
+                            title: "Phone Support",
+                            description: "Call us for urgent issues or if you prefer to speak with someone directly",
+                            action: "Call Now",
+                            color: .green
+                        ) {
+                            showingPhoneCall = true
+                        }
+                        
+                        SupportOptionCard(
+                            icon: "questionmark.circle.fill",
+                            title: "Help & FAQ",
+                            description: "Browse our frequently asked questions and help documentation",
+                            action: "View FAQ",
+                            color: .orange
+                        ) {
+                            // This will be handled by the existing Help & FAQ navigation
+                        }
+                    }
+                }
+                
+                // Company Information
+                VStack(alignment: .leading, spacing: 16) {
+                    Text("About Medivue")
+                        .font(.title2)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.ibdPrimaryText)
+                    
+                    Text("IBDPal is developed by Medivue, a registered nonprofit organization in the State of North Carolina. Our mission is to improve the quality of life for individuals living with chronic health conditions through innovative technology solutions.")
+                        .font(.body)
+                        .foregroundColor(.ibdSecondaryText)
+                        .lineSpacing(4)
+                }
+                
+                // Contact Information
+                VStack(alignment: .leading, spacing: 16) {
+                    Text("Contact Information")
+                        .font(.title2)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.ibdPrimaryText)
+                    
+                    VStack(alignment: .leading, spacing: 12) {
+                        ContactInfoCard(
+                            icon: "building.2.fill",
+                            title: "Company",
+                            detail: "Medivue",
+                            subtitle: "Registered Nonprofit Organization"
+                        )
+                        
+                        ContactInfoCard(
+                            icon: "location.fill",
+                            title: "Location",
+                            detail: "North Carolina, USA",
+                            subtitle: "State of North Carolina"
+                        )
+                        
+                        ContactInfoCard(
+                            icon: "envelope.fill",
+                            title: "Email",
+                            detail: "support@medivue.org",
+                            subtitle: "General inquiries and support"
+                        )
+                        
+                        ContactInfoCard(
+                            icon: "globe",
+                            title: "Website",
+                            detail: "www.medivue.org",
+                            subtitle: "Learn more about our organization"
+                        )
+                    }
+                }
+                
+                // Response Time
+                VStack(alignment: .leading, spacing: 16) {
+                    Text("Response Times")
+                        .font(.title2)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.ibdPrimaryText)
+                    
+                    VStack(alignment: .leading, spacing: 12) {
+                        ResponseTimeCard(
+                            type: "Email Support",
+                            time: "24-48 hours",
+                            description: "We typically respond to emails within 1-2 business days"
+                        )
+                        
+                        ResponseTimeCard(
+                            type: "Urgent Issues",
+                            time: "Same day",
+                            description: "Critical issues are prioritized and addressed as quickly as possible"
+                        )
+                        
+                        ResponseTimeCard(
+                            type: "Feature Requests",
+                            time: "1-2 weeks",
+                            description: "We review all feature requests and provide updates on implementation"
+                        )
+                    }
+                }
+                
+                // Support Hours
+                VStack(alignment: .leading, spacing: 16) {
+                    Text("Support Hours")
+                        .font(.title2)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.ibdPrimaryText)
+                    
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            Image(systemName: "clock.fill")
+                                .foregroundColor(.ibdPrimary)
+                                .frame(width: 20)
+                            
+                            Text("Monday - Friday: 9:00 AM - 6:00 PM EST")
+                                .font(.subheadline)
+                                .foregroundColor(.ibdSecondaryText)
+                            
+                            Spacer()
+                        }
+                        
+                        HStack {
+                            Image(systemName: "clock.fill")
+                                .foregroundColor(.ibdPrimary)
+                                .frame(width: 20)
+                            
+                            Text("Saturday: 10:00 AM - 4:00 PM EST")
+                                .font(.subheadline)
+                                .foregroundColor(.ibdSecondaryText)
+                            
+                            Spacer()
+                        }
+                        
+                        HStack {
+                            Image(systemName: "clock.fill")
+                                .foregroundColor(.ibdPrimary)
+                                .frame(width: 20)
+                            
+                            Text("Sunday: Closed")
+                                .font(.subheadline)
+                                .foregroundColor(.ibdSecondaryText)
+                            
+                            Spacer()
+                        }
+                    }
+                    .padding()
+                    .background(Color.ibdSurfaceBackground)
+                    .cornerRadius(8)
+                }
+                
+                Spacer(minLength: 50)
+            }
+            .padding()
+        }
+        .background(Color.ibdBackground)
+        .navigationTitle("Contact Support")
+        .navigationBarTitleDisplayMode(.inline)
+        .alert("Email Support", isPresented: $showingEmailComposer) {
+            Button("Open Mail App") {
+                openEmailApp()
+            }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("Would you like to open your email app to send us a message?")
+        }
+        .alert("Phone Support", isPresented: $showingPhoneCall) {
+            Button("Call Support") {
+                openPhoneApp()
+            }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("Would you like to call our support line?")
+        }
+    }
+    
+    private func openEmailApp() {
+        if let url = URL(string: "mailto:support@medivue.org") {
+            UIApplication.shared.open(url)
+        }
+    }
+    
+    private func openPhoneApp() {
+        // For now, we'll use a placeholder number
+        // In production, this would be the actual support phone number
+        if let url = URL(string: "tel:+1-800-MEDIVUE") {
+            UIApplication.shared.open(url)
+        }
+    }
+}
+
+struct SupportOptionCard: View {
+    let icon: String
+    let title: String
+    let description: String
+    let action: String
+    let color: Color
+    let onTap: () -> Void
+    
+    var body: some View {
+        Button(action: onTap) {
+            HStack(spacing: 16) {
+                Image(systemName: icon)
+                    .font(.title2)
+                    .foregroundColor(color)
+                    .frame(width: 30)
+                
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(title)
+                        .font(.headline)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.ibdPrimaryText)
+                    
+                    Text(description)
+                        .font(.caption)
+                        .foregroundColor(.ibdSecondaryText)
+                        .lineLimit(2)
+                }
+                
+                Spacer()
+                
+                Text(action)
                     .font(.subheadline)
                     .fontWeight(.medium)
-                    .foregroundColor(Color(red: 0.1, green: 0.1, blue: 0.1))
+                    .foregroundColor(color)
+            }
+            .padding()
+            .background(Color.ibdSurfaceBackground)
+            .cornerRadius(12)
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(color.opacity(0.3), lineWidth: 1)
+            )
+        }
+        .buttonStyle(PlainButtonStyle())
+    }
+}
+
+struct ContactInfoCard: View {
+    let icon: String
+    let title: String
+    let detail: String
+    let subtitle: String
+    
+    var body: some View {
+        HStack(spacing: 16) {
+            Image(systemName: icon)
+                .font(.title2)
+                .foregroundColor(.ibdPrimary)
+                .frame(width: 30)
+            
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.ibdPrimaryText)
                 
                 Text(detail)
+                    .font(.headline)
+                    .foregroundColor(.ibdPrimaryText)
+                
+                Text(subtitle)
                     .font(.caption)
-                    .foregroundColor(.gray)
+                    .foregroundColor(.ibdSecondaryText)
             }
             
             Spacer()
         }
+        .padding()
+        .background(Color.ibdSurfaceBackground)
+        .cornerRadius(12)
+    }
+}
+
+struct ResponseTimeCard: View {
+    let type: String
+    let time: String
+    let description: String
+    
+    var body: some View {
+        HStack(spacing: 16) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(type)
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.ibdPrimaryText)
+                
+                Text(description)
+                    .font(.caption)
+                    .foregroundColor(.ibdSecondaryText)
+            }
+            
+            Spacer()
+            
+            Text(time)
+                .font(.headline)
+                .fontWeight(.bold)
+                .foregroundColor(.ibdPrimary)
+        }
+        .padding()
+        .background(Color.ibdSurfaceBackground)
+        .cornerRadius(8)
     }
 }
 
@@ -1941,6 +2275,380 @@ struct UserReminder: Codable, Identifiable {
 
 struct RemindersResponse: Codable {
     let reminders: [UserReminder]
+}
+
+// MARK: - Feedback View
+struct FeedbackView: View {
+    let userData: UserData?
+    
+    @Environment(\.dismiss) private var dismiss
+    @State private var isLoading = false
+    @State private var showingSuccessAlert = false
+    @State private var showingErrorAlert = false
+    @State private var errorMessage = ""
+    
+    // Feedback form data
+    @State private var nutritionFeaturesRating = 3
+    @State private var nutritionHelpfulManagingSymptoms = true
+    @State private var nutritionHelpfulManagingSymptomsNotes = ""
+    @State private var flareupMonitoringHelpful = true
+    @State private var flareupMonitoringHelpfulNotes = ""
+    @State private var appRecommendations = ""
+    @State private var overallRating = 3
+    @State private var overallRatingNotes = ""
+    
+    private let apiBaseURL = AppConfig.apiBaseURL
+    
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 24) {
+                // Header
+                VStack(spacing: 16) {
+                    Image(systemName: "star.fill")
+                        .font(.system(size: 60))
+                        .foregroundColor(.ibdPrimary)
+                    
+                    Text("Share Your Feedback")
+                        .font(.largeTitle)
+                        .fontWeight(.bold)
+                        .foregroundColor(.ibdPrimaryText)
+                    
+                    Text("Help us improve IBDPal by sharing your experience")
+                        .font(.title3)
+                        .foregroundColor(.ibdSecondaryText)
+                        .multilineTextAlignment(.center)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.top)
+                
+                // Nutrition Features Rating
+                VStack(alignment: .leading, spacing: 16) {
+                    Text("1. Nutrition Features")
+                        .font(.title2)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.ibdPrimaryText)
+                    
+                    Text("How would you rate the nutrition tracking features provided by the app?")
+                        .font(.body)
+                        .foregroundColor(.ibdSecondaryText)
+                    
+                    HStack {
+                        Text("Poor")
+                            .font(.caption)
+                            .foregroundColor(.ibdSecondaryText)
+                        
+                        Spacer()
+                        
+                        ForEach(1...5, id: \.self) { rating in
+                            Button(action: {
+                                nutritionFeaturesRating = rating
+                            }) {
+                                Image(systemName: rating <= nutritionFeaturesRating ? "star.fill" : "star")
+                                    .font(.title2)
+                                    .foregroundColor(rating <= nutritionFeaturesRating ? .yellow : .gray)
+                            }
+                        }
+                        
+                        Spacer()
+                        
+                        Text("Excellent")
+                            .font(.caption)
+                            .foregroundColor(.ibdSecondaryText)
+                    }
+                    .padding()
+                    .background(Color.ibdSurfaceBackground)
+                    .cornerRadius(12)
+                }
+                
+                // Nutrition Helpful for Managing Symptoms
+                VStack(alignment: .leading, spacing: 16) {
+                    Text("2. Symptom Management")
+                        .font(.title2)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.ibdPrimaryText)
+                    
+                    Text("Were the nutrition features helpful in managing your IBD symptoms?")
+                        .font(.body)
+                        .foregroundColor(.ibdSecondaryText)
+                    
+                    HStack(spacing: 20) {
+                        Button(action: {
+                            nutritionHelpfulManagingSymptoms = true
+                        }) {
+                            HStack {
+                                Image(systemName: nutritionHelpfulManagingSymptoms ? "checkmark.circle.fill" : "circle")
+                                    .foregroundColor(nutritionHelpfulManagingSymptoms ? .green : .gray)
+                                Text("Yes")
+                                    .fontWeight(.medium)
+                            }
+                            .foregroundColor(nutritionHelpfulManagingSymptoms ? .green : .ibdSecondaryText)
+                        }
+                        
+                        Button(action: {
+                            nutritionHelpfulManagingSymptoms = false
+                        }) {
+                            HStack {
+                                Image(systemName: !nutritionHelpfulManagingSymptoms ? "checkmark.circle.fill" : "circle")
+                                    .foregroundColor(!nutritionHelpfulManagingSymptoms ? .red : .gray)
+                                Text("No")
+                                    .fontWeight(.medium)
+                            }
+                            .foregroundColor(!nutritionHelpfulManagingSymptoms ? .red : .ibdSecondaryText)
+                        }
+                    }
+                    .padding()
+                    .background(Color.ibdSurfaceBackground)
+                    .cornerRadius(12)
+                    
+                    if nutritionHelpfulManagingSymptoms {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("How did it help? (Optional)")
+                                .font(.subheadline)
+                                .fontWeight(.medium)
+                                .foregroundColor(.ibdPrimaryText)
+                            
+                            TextField("Share your experience...", text: $nutritionHelpfulManagingSymptomsNotes, axis: .vertical)
+                                .textFieldStyle(RoundedBorderTextFieldStyle())
+                                .lineLimit(3...6)
+                        }
+                    }
+                }
+                
+                // Flareup Monitoring
+                VStack(alignment: .leading, spacing: 16) {
+                    Text("3. Flareup Monitoring")
+                        .font(.title2)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.ibdPrimaryText)
+                    
+                    Text("Was the app helpful in monitoring and predicting flareups?")
+                        .font(.body)
+                        .foregroundColor(.ibdSecondaryText)
+                    
+                    HStack(spacing: 20) {
+                        Button(action: {
+                            flareupMonitoringHelpful = true
+                        }) {
+                            HStack {
+                                Image(systemName: flareupMonitoringHelpful ? "checkmark.circle.fill" : "circle")
+                                    .foregroundColor(flareupMonitoringHelpful ? .green : .gray)
+                                Text("Yes")
+                                    .fontWeight(.medium)
+                            }
+                            .foregroundColor(flareupMonitoringHelpful ? .green : .ibdSecondaryText)
+                        }
+                        
+                        Button(action: {
+                            flareupMonitoringHelpful = false
+                        }) {
+                            HStack {
+                                Image(systemName: !flareupMonitoringHelpful ? "checkmark.circle.fill" : "circle")
+                                    .foregroundColor(!flareupMonitoringHelpful ? .red : .gray)
+                                Text("No")
+                                    .fontWeight(.medium)
+                            }
+                            .foregroundColor(!flareupMonitoringHelpful ? .red : .ibdSecondaryText)
+                        }
+                    }
+                    .padding()
+                    .background(Color.ibdSurfaceBackground)
+                    .cornerRadius(12)
+                    
+                    if flareupMonitoringHelpful {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("How did it help? (Optional)")
+                                .font(.subheadline)
+                                .fontWeight(.medium)
+                                .foregroundColor(.ibdPrimaryText)
+                            
+                            TextField("Share your experience...", text: $flareupMonitoringHelpfulNotes, axis: .vertical)
+                                .textFieldStyle(RoundedBorderTextFieldStyle())
+                                .lineLimit(3...6)
+                        }
+                    }
+                }
+                
+                // App Recommendations
+                VStack(alignment: .leading, spacing: 16) {
+                    Text("4. Recommendations")
+                        .font(.title2)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.ibdPrimaryText)
+                    
+                    Text("What recommendations do you have to help improve the app?")
+                        .font(.body)
+                        .foregroundColor(.ibdSecondaryText)
+                    
+                    TextField("Share your suggestions...", text: $appRecommendations, axis: .vertical)
+                        .textFieldStyle(RoundedBorderTextFieldStyle())
+                        .lineLimit(3...6)
+                        .padding()
+                        .background(Color.ibdSurfaceBackground)
+                        .cornerRadius(12)
+                }
+                
+                // Overall Rating
+                VStack(alignment: .leading, spacing: 16) {
+                    Text("5. Overall Rating")
+                        .font(.title2)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.ibdPrimaryText)
+                    
+                    Text("How would you rate your overall experience with IBDPal?")
+                        .font(.body)
+                        .foregroundColor(.ibdSecondaryText)
+                    
+                    HStack {
+                        Text("Poor")
+                            .font(.caption)
+                            .foregroundColor(.ibdSecondaryText)
+                        
+                        Spacer()
+                        
+                        ForEach(1...5, id: \.self) { rating in
+                            Button(action: {
+                                overallRating = rating
+                            }) {
+                                Image(systemName: rating <= overallRating ? "star.fill" : "star")
+                                    .font(.title2)
+                                    .foregroundColor(rating <= overallRating ? .yellow : .gray)
+                            }
+                        }
+                        
+                        Spacer()
+                        
+                        Text("Excellent")
+                            .font(.caption)
+                            .foregroundColor(.ibdSecondaryText)
+                    }
+                    .padding()
+                    .background(Color.ibdSurfaceBackground)
+                    .cornerRadius(12)
+                    
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Additional comments (Optional)")
+                            .font(.subheadline)
+                            .fontWeight(.medium)
+                            .foregroundColor(.ibdPrimaryText)
+                        
+                        TextField("Share your overall experience...", text: $overallRatingNotes, axis: .vertical)
+                            .textFieldStyle(RoundedBorderTextFieldStyle())
+                            .lineLimit(3...6)
+                    }
+                }
+                
+                // Submit Button
+                Button(action: submitFeedback) {
+                    HStack {
+                        if isLoading {
+                            ProgressView()
+                                .scaleEffect(0.8)
+                                .foregroundColor(.white)
+                        } else {
+                            Image(systemName: "paperplane.fill")
+                        }
+                        
+                        Text(isLoading ? "Submitting..." : "Submit Feedback")
+                            .fontWeight(.semibold)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .background(Color.ibdPrimary)
+                    .foregroundColor(.white)
+                    .cornerRadius(12)
+                }
+                .disabled(isLoading)
+                .padding(.top)
+                
+                Spacer(minLength: 50)
+            }
+            .padding()
+        }
+        .background(Color.ibdBackground)
+        .navigationTitle("Feedback")
+        .navigationBarTitleDisplayMode(.inline)
+        .alert("Feedback Submitted!", isPresented: $showingSuccessAlert) {
+            Button("OK") {
+                dismiss()
+            }
+        } message: {
+            Text("Thank you for your feedback! Your input helps us improve IBDPal for everyone.")
+        }
+        .alert("Error", isPresented: $showingErrorAlert) {
+            Button("OK") { }
+        } message: {
+            Text(errorMessage)
+        }
+    }
+    
+    private func submitFeedback() {
+        guard let userData = userData else {
+            errorMessage = "User data not available"
+            showingErrorAlert = true
+            return
+        }
+        
+        isLoading = true
+        
+        let feedbackData: [String: Any] = [
+            "nutrition_features_rating": nutritionFeaturesRating,
+            "nutrition_helpful_managing_symptoms": nutritionHelpfulManagingSymptoms,
+            "nutrition_helpful_managing_symptoms_notes": nutritionHelpfulManagingSymptomsNotes.isEmpty ? nil : nutritionHelpfulManagingSymptomsNotes,
+            "flareup_monitoring_helpful": flareupMonitoringHelpful,
+            "flareup_monitoring_helpful_notes": flareupMonitoringHelpfulNotes.isEmpty ? nil : flareupMonitoringHelpfulNotes,
+            "app_recommendations": appRecommendations.isEmpty ? nil : appRecommendations,
+            "overall_rating": overallRating,
+            "overall_rating_notes": overallRatingNotes.isEmpty ? nil : overallRatingNotes
+        ]
+        
+        guard let url = URL(string: "\(apiBaseURL)/feedback") else {
+            errorMessage = "Invalid URL"
+            showingErrorAlert = true
+            isLoading = false
+            return
+        }
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("Bearer \(userData.token)", forHTTPHeaderField: "Authorization")
+        
+        do {
+            request.httpBody = try JSONSerialization.data(withJSONObject: feedbackData)
+        } catch {
+            errorMessage = "Failed to prepare request data"
+            showingErrorAlert = true
+            isLoading = false
+            return
+        }
+        
+        URLSession.shared.dataTask(with: request) { data, response, error in
+            DispatchQueue.main.async {
+                isLoading = false
+                
+                if let error = error {
+                    errorMessage = error.localizedDescription
+                    showingErrorAlert = true
+                    return
+                }
+                
+                if let httpResponse = response as? HTTPURLResponse {
+                    if httpResponse.statusCode == 201 {
+                        showingSuccessAlert = true
+                    } else {
+                        if let data = data,
+                           let errorResponse = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                           let message = errorResponse["error"] as? String {
+                            errorMessage = message
+                        } else {
+                            errorMessage = "Failed to submit feedback"
+                        }
+                        showingErrorAlert = true
+                    }
+                }
+            }
+        }.resume()
+    }
 }
 
 #Preview {

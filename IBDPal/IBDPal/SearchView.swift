@@ -218,16 +218,13 @@ struct SearchView: View {
                                 }
                             }
                         }
-                        
-                        // Quick Tips Section
-                        QuickTipsSection()
                     }
                     .padding(.horizontal)
                 }
                 .padding(.vertical)
             }
             .background(Color.ibdBackground)
-            .navigationTitle("Search & Discover")
+            .navigationTitle("Search")
             .navigationBarTitleDisplayMode(.large)
             .onAppear {
                 print("SearchView appeared, loading articles...")
@@ -563,54 +560,6 @@ struct ArticleCard: View {
             .cornerRadius(12)
         }
         .buttonStyle(PlainButtonStyle())
-    }
-}
-
-struct QuickTipsSection: View {
-    var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("Quick Tips")
-                .font(.title2)
-                .fontWeight(.bold)
-                .foregroundColor(.ibdPrimaryText)
-            
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 12) {
-                    QuickTipCard(title: "Stay Hydrated", description: "Drink plenty of water throughout the day", icon: "drop.fill", color: .blue)
-                    QuickTipCard(title: "Track Symptoms", description: "Keep a daily log of your symptoms", icon: "chart.line.uptrend.xyaxis", color: .green)
-                    QuickTipCard(title: "Exercise Regularly", description: "Gentle exercise can help manage symptoms", icon: "figure.walk", color: .orange)
-                }
-            }
-        }
-    }
-}
-
-struct QuickTipCard: View {
-    let title: String
-    let description: String
-    let icon: String
-    let color: Color
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Image(systemName: icon)
-                .font(.title2)
-                .foregroundColor(color)
-            
-            Text(title)
-                .font(.headline)
-                .fontWeight(.semibold)
-                .foregroundColor(.ibdPrimaryText)
-            
-            Text(description)
-                .font(.caption)
-                .foregroundColor(.ibdSecondaryText)
-                .lineLimit(2)
-        }
-        .frame(width: 140)
-        .padding()
-        .background(Color.ibdSurfaceBackground)
-        .cornerRadius(12)
     }
 }
 
