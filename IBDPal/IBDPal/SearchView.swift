@@ -383,7 +383,7 @@ struct SearchView: View {
         isLoadingCommunity = true
         
         let apiBaseURL = AppConfig.apiBaseURL
-        let urlString = "\(apiBaseURL)/community/hospitals?latitude=\(location.latitude)&longitude=\(location.longitude)&radius=50&limit=20"
+        let urlString = "\(apiBaseURL)/community/hospitals?latitude=\(location.latitude)&longitude=\(location.longitude)&radius=32.2&limit=20" // 20 miles = 32.2 km
         
         guard let url = URL(string: urlString) else {
             isLoadingCommunity = false
@@ -470,7 +470,7 @@ struct SearchView: View {
         isLoadingCommunity = true
         
         let apiBaseURL = AppConfig.apiBaseURL
-        let urlString = "\(apiBaseURL)/community/specialists?latitude=\(location.latitude)&longitude=\(location.longitude)&radius=50&limit=20"
+        let urlString = "\(apiBaseURL)/community/specialists?latitude=\(location.latitude)&longitude=\(location.longitude)&radius=32.2&limit=20" // 20 miles = 32.2 km
         
         guard let url = URL(string: urlString) else {
             isLoadingCommunity = false
@@ -1341,7 +1341,7 @@ struct HospitalCard: View {
                 Spacer()
                 
                 if let distance = hospital.distance {
-                    Text(String(format: "%.1f km", distance))
+                    Text(String(format: "%.1f miles", distance * 0.621371)) // Convert km to miles
                         .font(.caption)
                         .foregroundColor(.ibdSecondaryText)
                 }
@@ -1431,7 +1431,7 @@ struct SpecialistCard: View {
                 Spacer()
                 
                 if let distance = specialist.distance {
-                    Text(String(format: "%.1f km", distance))
+                    Text(String(format: "%.1f miles", distance * 0.621371)) // Convert km to miles
                         .font(.caption)
                         .foregroundColor(.ibdSecondaryText)
                 }
