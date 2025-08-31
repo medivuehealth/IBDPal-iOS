@@ -405,29 +405,51 @@ struct StoryCard: View {
 
 struct CreateStoryView: View {
     let userData: UserData?
-    @Environment(\.dismiss) private var dismiss
     
+    @Environment(\.dismiss) private var dismiss
     @State private var title = ""
     @State private var content = ""
     @State private var selectedDiseaseType: IBDDiseaseType = .crohns
     @State private var tags: [String] = []
     @State private var newTag = ""
-    @State private var isAnonymous = false
     @State private var isLoading = false
+    @State private var showingSuccessAlert = false
+    @State private var showingErrorAlert = false
+    @State private var errorMessage = ""
+    
+    private let apiBaseURL = AppConfig.apiBaseURL
     
     var body: some View {
         NavigationView {
             ScrollView {
-                VStack(spacing: 20) {
+                VStack(alignment: .leading, spacing: 20) {
+                    // Header
+                    VStack(spacing: 8) {
+                        Text("Share Your Story")
+                            .font(.largeTitle)
+                            .fontWeight(.bold)
+                            .foregroundColor(.ibdPrimaryText)
+                        
+                        Text("Help others by sharing your IBD journey and experiences")
+                            .font(.title3)
+                            .foregroundColor(.ibdSecondaryText)
+                            .multilineTextAlignment(.center)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.top)
+                    
                     // Disease Type Selection
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("IBD Type")
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Your IBD Type")
                             .font(.headline)
+                            .fontWeight(.semibold)
                             .foregroundColor(.ibdPrimaryText)
                         
                         Picker("Disease Type", selection: $selectedDiseaseType) {
-                            ForEach(IBDDiseaseType.allCases.filter { $0 != .all }, id: \.self) { diseaseType in
-                                Text(diseaseType.displayName).tag(diseaseType)
+                            ForEach(IBDDiseaseType.allCases, id: \.self) { diseaseType in
+                                if diseaseType != .all {
+                                    Text(diseaseType.displayName).tag(diseaseType)
+                                }
                             }
                         }
                         .pickerStyle(SegmentedPickerStyle())
@@ -437,9 +459,10 @@ struct CreateStoryView: View {
                     VStack(alignment: .leading, spacing: 8) {
                         Text("Story Title")
                             .font(.headline)
+                            .fontWeight(.semibold)
                             .foregroundColor(.ibdPrimaryText)
                         
-                        TextField("Enter your story title...", text: $title)
+                        TextField("Enter a compelling title for your story...", text: $title)
                             .textFieldStyle(RoundedBorderTextFieldStyle())
                     }
                     
@@ -447,65 +470,96 @@ struct CreateStoryView: View {
                     VStack(alignment: .leading, spacing: 8) {
                         Text("Your Story")
                             .font(.headline)
+                            .fontWeight(.semibold)
                             .foregroundColor(.ibdPrimaryText)
                         
-                        TextField("Share your experience, tips, or journey...", text: $content, axis: .vertical)
+                        Text("Share your experiences, challenges, victories, and insights that could help others.")
+                            .font(.caption)
+                            .foregroundColor(.ibdSecondaryText)
+                        
+                        TextField("Write your story here...", text: $content, axis: .vertical)
                             .textFieldStyle(RoundedBorderTextFieldStyle())
                             .lineLimit(8...15)
                     }
                     
                     // Tags
-                    VStack(alignment: .leading, spacing: 8) {
+                    VStack(alignment: .leading, spacing: 12) {
                         Text("Tags")
                             .font(.headline)
+                            .fontWeight(.semibold)
                             .foregroundColor(.ibdPrimaryText)
                         
+                        Text("Add relevant tags to help others find your story")
+                            .font(.caption)
+                            .foregroundColor(.ibdSecondaryText)
+                        
+                        // Add new tag
                         HStack {
                             TextField("Add a tag...", text: $newTag)
                                 .textFieldStyle(RoundedBorderTextFieldStyle())
                             
                             Button("Add") {
-                                if !newTag.isEmpty && !tags.contains(newTag) {
-                                    tags.append(newTag)
-                                    newTag = ""
-                                }
+                                addTag()
                             }
-                            .disabled(newTag.isEmpty)
+                            .disabled(newTag.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                             .foregroundColor(.ibdPrimary)
                         }
                         
+                        // Display existing tags
                         if !tags.isEmpty {
                             LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 3), spacing: 8) {
                                 ForEach(tags, id: \.self) { tag in
                                     HStack {
-                                        Text("#\(tag)")
+                                        Text(tag)
                                             .font(.caption)
+                                            .padding(.horizontal, 8)
+                                            .padding(.vertical, 4)
+                                            .background(Color.ibdPrimary.opacity(0.1))
                                             .foregroundColor(.ibdPrimary)
+                                            .cornerRadius(8)
                                         
                                         Button(action: {
-                                            tags.removeAll { $0 == tag }
+                                            removeTag(tag)
                                         }) {
                                             Image(systemName: "xmark.circle.fill")
                                                 .font(.caption)
                                                 .foregroundColor(.red)
                                         }
                                     }
-                                    .padding(.horizontal, 8)
-                                    .padding(.vertical, 4)
-                                    .background(Color.ibdPrimary.opacity(0.1))
-                                    .cornerRadius(12)
                                 }
                             }
                         }
                     }
                     
-                    // Anonymous Option
-                    Toggle("Post Anonymously", isOn: $isAnonymous)
-                        .foregroundColor(.ibdPrimaryText)
+                    // Submit Button
+                    Button(action: submitStory) {
+                        HStack {
+                            if isLoading {
+                                ProgressView()
+                                    .scaleEffect(0.8)
+                                    .foregroundColor(.white)
+                            } else {
+                                Image(systemName: "paperplane.fill")
+                            }
+                            
+                            Text(isLoading ? "Publishing..." : "Publish Story")
+                                .fontWeight(.semibold)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(Color.ibdPrimary)
+                        .foregroundColor(.white)
+                        .cornerRadius(12)
+                    }
+                    .disabled(isLoading || title.isEmpty || content.isEmpty)
+                    .padding(.top)
+                    
+                    Spacer(minLength: 50)
                 }
                 .padding()
             }
-            .navigationTitle("Share Your Story")
+            .background(Color.ibdBackground)
+            .navigationTitle("Write Story")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
@@ -513,24 +567,109 @@ struct CreateStoryView: View {
                         dismiss()
                     }
                 }
-                
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Post") {
-                        postStory()
-                    }
-                    .disabled(title.isEmpty || content.isEmpty || isLoading)
+            }
+            .alert("Story Published!", isPresented: $showingSuccessAlert) {
+                Button("OK") {
+                    dismiss()
                 }
+            } message: {
+                Text("Your story has been published successfully. Thank you for sharing your experience with the IBD community!")
+            }
+            .alert("Error", isPresented: $showingErrorAlert) {
+                Button("OK") { }
+            } message: {
+                Text(errorMessage)
             }
         }
     }
     
-    private func postStory() {
-        isLoading = true
-        // TODO: Post story to API
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-            isLoading = false
-            dismiss()
+    private func addTag() {
+        let trimmedTag = newTag.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmedTag.isEmpty && !tags.contains(trimmedTag) {
+            tags.append(trimmedTag)
+            newTag = ""
         }
+    }
+    
+    private func removeTag(_ tag: String) {
+        tags.removeAll { $0 == tag }
+    }
+    
+    private func submitStory() {
+        guard let userData = userData else {
+            errorMessage = "User data not available"
+            showingErrorAlert = true
+            return
+        }
+        
+        guard !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            errorMessage = "Please enter a title for your story"
+            showingErrorAlert = true
+            return
+        }
+        
+        guard !content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            errorMessage = "Please write your story content"
+            showingErrorAlert = true
+            return
+        }
+        
+        isLoading = true
+        
+        let storyData: [String: Any] = [
+            "title": title.trimmingCharacters(in: .whitespacesAndNewlines),
+            "content": content.trimmingCharacters(in: .whitespacesAndNewlines),
+            "disease_type": selectedDiseaseType.rawValue,
+            "tags": tags
+        ]
+        
+        guard let url = URL(string: "\(apiBaseURL)/blogs") else {
+            errorMessage = "Invalid URL"
+            showingErrorAlert = true
+            isLoading = false
+            return
+        }
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("Bearer \(userData.token)", forHTTPHeaderField: "Authorization")
+        
+        do {
+            request.httpBody = try JSONSerialization.data(withJSONObject: storyData)
+        } catch {
+            errorMessage = "Failed to prepare request data"
+            showingErrorAlert = true
+            isLoading = false
+            return
+        }
+        
+        URLSession.shared.dataTask(with: request) { data, response, error in
+            DispatchQueue.main.async {
+                isLoading = false
+                
+                if let error = error {
+                    errorMessage = error.localizedDescription
+                    showingErrorAlert = true
+                    return
+                }
+                
+                if let httpResponse = response as? HTTPURLResponse {
+                    if httpResponse.statusCode == 201 {
+                        showingSuccessAlert = true
+                    } else {
+                        if let data = data,
+                           let errorResponse = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                           let message = errorResponse["error"] as? String {
+                            errorMessage = message
+                        } else {
+                            errorMessage = "Failed to publish story"
+                        }
+                        showingErrorAlert = true
+                    }
+                }
+            }
+        }.resume()
     }
 }
 

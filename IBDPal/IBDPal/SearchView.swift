@@ -19,7 +19,7 @@ struct SearchView: View {
     var body: some View {
         NavigationView {
             ScrollView {
-                VStack(spacing: 24) {
+                VStack(spacing: 16) {
                     // Food Search Section
                     VStack(alignment: .leading, spacing: 16) {
                         // Search Bar
