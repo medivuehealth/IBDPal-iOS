@@ -5,10 +5,12 @@ struct DailyLogView: View {
     
     @State private var selectedDate = Date()
     @State private var showingDatePicker = false
-    @State private var isLoading = false
-    @State private var entries: [LogEntry] = []
     @State private var showingEntryForm = false
     @State private var selectedEntryType: EntryType = .meals
+    @State private var entries: [LogEntry] = []
+    @State private var isLoading = false
+    @State private var showingMissingEntriesAlert = false
+    @State private var missingEntryTypes: [EntryType] = []
     
     private let apiBaseURL = AppConfig.apiBaseURL
     
@@ -138,6 +140,14 @@ struct DailyLogView: View {
             .onAppear {
                 loadEntries()
             }
+            .alert("Missing Journal Entries", isPresented: $showingMissingEntriesAlert) {
+                Button("OK") {
+                    showingMissingEntriesAlert = false
+                }
+            } message: {
+                let missingTypes = missingEntryTypes.map { $0.displayName }.joined(separator: ", ")
+                Text("You have missing entries for: \(missingTypes). Please add them to complete your daily log.")
+            }
         }
     }
     
@@ -148,12 +158,7 @@ struct DailyLogView: View {
     }
     
     private func loadEntries() {
-        guard let userData = userData else { 
-            NetworkLogger.shared.log("❌ No user data available for loading entries", level: .error, category: .journal)
-            return 
-        }
-        
-        NetworkLogger.shared.log("🔄 Loading entries for user: \(userData.id)", level: .info, category: .journal)
+        guard let userData = userData else { return }
         
         isLoading = true
         
@@ -161,14 +166,9 @@ struct DailyLogView: View {
         dateFormatter.dateFormat = "yyyy-MM-dd"
         let dateString = dateFormatter.string(from: selectedDate)
         
-        NetworkLogger.shared.log("📅 Loading entries for date: \(dateString)", level: .info, category: .journal)
+        guard let url = URL(string: "\(apiBaseURL)/journal/entries/\(userData.id)?date=\(dateString)") else { return }
         
-        guard let url = URL(string: "\(apiBaseURL)/journal/entries/\(userData.id)?date=\(dateString)") else { 
-            NetworkLogger.shared.log("❌ Invalid URL for loading entries", level: .error, category: .journal)
-            return 
-        }
-        
-        NetworkLogger.shared.log("🌐 Making GET request to: \(url.absoluteString)", level: .info, category: .journal)
+        NetworkLogger.shared.log("🔄 Loading entries for date: \(dateString)", level: .info, category: .journal)
         
         URLSession.shared.dataTask(with: url) { data, response, error in
             DispatchQueue.main.async {
@@ -179,21 +179,9 @@ struct DailyLogView: View {
                     return
                 }
                 
-                NetworkLogger.shared.log("📥 Received response for entries", level: .info, category: .journal)
-                
-                if let httpResponse = response as? HTTPURLResponse {
-                    NetworkLogger.shared.log("📊 HTTP Status: \(httpResponse.statusCode)", level: .info, category: .journal)
-                    
-                    if httpResponse.statusCode == 200 {
-                        NetworkLogger.shared.log("✅ Entries loaded successfully", level: .info, category: .journal)
-                    } else {
-                        NetworkLogger.shared.log("❌ Server error loading entries: \(httpResponse.statusCode)", level: .error, category: .journal)
-                    }
-                }
-                
-                guard let data = data else { 
-                    NetworkLogger.shared.log("❌ No data received for entries", level: .error, category: .journal)
-                    return 
+                guard let data = data else {
+                    NetworkLogger.shared.log("❌ No data received", level: .error, category: .journal)
+                    return
                 }
                 
                 if let responseString = String(data: data, encoding: .utf8) {
@@ -204,6 +192,9 @@ struct DailyLogView: View {
                     if let jsonEntries = try JSONSerialization.jsonObject(with: data) as? [[String: Any]] {
                         NetworkLogger.shared.log("✅ Parsed \(jsonEntries.count) entries", level: .info, category: .journal)
                         self.entries = jsonEntries.compactMap { LogEntry(from: $0) }
+                        
+                        // Check for missing entries after loading
+                        self.checkForMissingEntries()
                     } else {
                         NetworkLogger.shared.log("❌ Failed to parse entries as array", level: .error, category: .journal)
                     }
@@ -214,6 +205,30 @@ struct DailyLogView: View {
         }.resume()
     }
     
+    private func checkForMissingEntries() {
+        let calendar = Calendar.current
+        let now = Date()
+        let isToday = calendar.isDate(selectedDate, inSameDayAs: now)
+        let isYesterday = calendar.isDate(selectedDate, inSameDayAs: calendar.date(byAdding: .day, value: -1, to: now) ?? now)
+        let currentHour = calendar.component(.hour, from: now)
+        
+        // Only show alert for today (after 6 PM) or yesterday
+        guard (isToday && currentHour >= 18) || isYesterday else { return }
+        
+        var missingTypes: [EntryType] = []
+        
+        for entryType in EntryType.allCases {
+            if !hasDataForEntryType(entryType) {
+                missingTypes.append(entryType)
+            }
+        }
+        
+        if !missingTypes.isEmpty {
+            missingEntryTypes = missingTypes
+            showingMissingEntriesAlert = true
+        }
+    }
+    
     private func hasDataForEntryType(_ entryType: EntryType) -> Bool {
         guard let entry = entries.first else { return false }
         
@@ -222,11 +237,9 @@ struct DailyLogView: View {
             return (entry.breakfast?.isEmpty == false) ||
                    (entry.lunch?.isEmpty == false) ||
                    (entry.dinner?.isEmpty == false) ||
-                   (entry.snacks?.isEmpty == false) ||
                    (entry.breakfastCalories?.isEmpty == false) ||
                    (entry.lunchCalories?.isEmpty == false) ||
-                   (entry.dinnerCalories?.isEmpty == false) ||
-                   (entry.snackCalories?.isEmpty == false)
+                   (entry.dinnerCalories?.isEmpty == false)
         case .bowelHealth:
             return (entry.bowelFrequency ?? 0) > 0 ||
                    (entry.bristolScale ?? 0) > 0 ||
@@ -644,8 +657,8 @@ struct EntryFormView: View {
             // Populate stress data
             DispatchQueue.main.async {
                 self.stressData.stressLevel = entry["stress_level"] as? Int ?? 3
-                self.stressData.stressSource = entry["stress_source"] as? String ?? ""
-                self.stressData.copingStrategies = entry["coping_strategies"] as? String ?? ""
+                self.stressData.stressSource = ""  // Always empty for user to fill
+                self.stressData.copingStrategies = ""  // Always empty for user to fill
                 self.stressData.mood = entry["mood_level"] as? Int ?? 3
                 self.stressData.notes = ""  // Always empty for user to fill
             }
@@ -655,7 +668,7 @@ struct EntryFormView: View {
             DispatchQueue.main.async {
                 self.sleepData.sleepHours = entry["sleep_hours"] as? Int ?? 8
                 self.sleepData.sleepQuality = entry["sleep_quality"] as? Int ?? 5
-                self.sleepData.sleepNotes = entry["sleep_notes"] as? String ?? ""
+                self.sleepData.sleepNotes = ""  // Always empty for user to fill
                 self.sleepData.notes = ""  // Always empty for user to fill
             }
             
