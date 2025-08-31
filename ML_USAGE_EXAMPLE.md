@@ -24,7 +24,7 @@ struct ContentView: View {
         TabView {
             // Add Flare Prediction Tab
             FlarePredictionView(
-                userData: userData ?? UserData(id: "", email: "", name: "", token: ""),
+                userData: userData ?? UserData(id: "", email: "", name: "", phoneNumber: nil, token: ""),
                 journalEntries: journalEntries
             )
             .tabItem {
@@ -50,7 +50,7 @@ struct HomeView: View {
             VStack(spacing: 20) {
                 // Add Flare Prediction Card
                 FlarePredictionView(
-                    userData: userData ?? UserData(id: "", email: "", name: "", token: ""),
+                    userData: userData ?? UserData(id: "", email: "", name: "", phoneNumber: nil, token: ""),
                     journalEntries: journalEntries
                 )
                 
@@ -94,6 +94,7 @@ struct UserData: Codable {
     let id: String
     let email: String
     let name: String?
+    let phoneNumber: String?
     let token: String
 }
 
