@@ -1,5 +1,6 @@
 import SwiftUI
 import WebKit
+import CoreLocation
 
 struct SearchView: View {
     let userData: UserData?
@@ -13,6 +14,14 @@ struct SearchView: View {
     @State private var showingNutritionResults = false
     @State private var showingArticleViewer = false
     @State private var selectedArticle: Article?
+    
+    // Community features
+    @State private var hospitals: [Hospital] = []
+    @State private var specialists: [IBDSpecialist] = []
+    @State private var userLocation: CLLocationCoordinate2D?
+    @State private var locationManager = CLLocationManager()
+    @State private var showingLocationPermission = false
+    @State private var isLoadingCommunity = false
     
     private let discoverCategories: [DiscoverCategory] = [.nutrition, .medication, .lifestyle, .research, .community, .blogs]
     
@@ -206,6 +215,16 @@ struct SearchView: View {
                                     .padding()
                                     .background(Color.ibdSurfaceBackground)
                                     .cornerRadius(12)
+                                } else if selectedDiscoverCategory == .community {
+                                    CommunitySection(
+                                        hospitals: hospitals,
+                                        specialists: specialists,
+                                        userLocation: userLocation,
+                                        isLoading: isLoadingCommunity,
+                                        onRequestLocation: requestLocationPermission,
+                                        onLoadHospitals: loadNearbyHospitals,
+                                        onLoadSpecialists: loadNearbySpecialists
+                                    )
                                 } else {
                                     LazyVStack(spacing: 16) {
                                         ForEach(articles) { article in
@@ -333,13 +352,208 @@ struct SearchView: View {
     
     private func loadArticles(for category: DiscoverCategory) {
         isLoading = true
-        print("Loading articles for category: \(category.displayName)")
         
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-            articles = getArticles(for: category)
-            print("Loaded \(articles.count) articles for \(category.displayName)")
-            isLoading = false
+        // Simulate API call delay
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+            self.articles = self.getSampleArticles(for: category)
+            self.isLoading = false
         }
+    }
+    
+    // MARK: - Community Functions
+    
+    private func requestLocationPermission() {
+        locationManager.requestWhenInUseAuthorization()
+        
+        switch locationManager.authorizationStatus {
+        case .authorizedWhenInUse, .authorizedAlways:
+            locationManager.startUpdatingLocation()
+        case .denied, .restricted:
+            showingLocationPermission = true
+        case .notDetermined:
+            break
+        @unknown default:
+            break
+        }
+    }
+    
+    private func loadNearbyHospitals() {
+        guard let location = userLocation else { return }
+        
+        isLoadingCommunity = true
+        
+        let apiBaseURL = AppConfig.apiBaseURL
+        let urlString = "\(apiBaseURL)/community/hospitals?latitude=\(location.latitude)&longitude=\(location.longitude)&radius=50&limit=20"
+        
+        guard let url = URL(string: urlString) else {
+            isLoadingCommunity = false
+            return
+        }
+        
+        URLSession.shared.dataTask(with: url) { data, response, error in
+            DispatchQueue.main.async {
+                isLoadingCommunity = false
+                
+                if let error = error {
+                    print("🔍 SearchView: Error loading hospitals: \(error)")
+                    return
+                }
+                
+                if let data = data,
+                   let response = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                   let success = response["success"] as? Bool,
+                   success,
+                   let dataDict = response["data"] as? [String: Any],
+                   let hospitalsData = dataDict["hospitals"] as? [[String: Any]] {
+                    
+                    hospitals = hospitalsData.compactMap { hospitalData in
+                        guard let id = hospitalData["id"] as? Int,
+                              let name = hospitalData["name"] as? String,
+                              let typeString = hospitalData["type"] as? String,
+                              let type = HospitalType(rawValue: typeString),
+                              let address = hospitalData["address"] as? String,
+                              let city = hospitalData["city"] as? String,
+                              let state = hospitalData["state"] as? String,
+                              let zipCode = hospitalData["zip_code"] as? String,
+                              let country = hospitalData["country"] as? String,
+                              let latitude = hospitalData["latitude"] as? Double,
+                              let longitude = hospitalData["longitude"] as? Double else {
+                            return nil
+                        }
+                        
+                        let phone = hospitalData["phone"] as? String
+                        let website = hospitalData["website"] as? String
+                        let email = hospitalData["email"] as? String
+                        let description = hospitalData["description"] as? String
+                        let specialties = hospitalData["specialties"] as? [String] ?? []
+                        let ibdServices = hospitalData["ibd_services"] as? Bool ?? false
+                        let emergencyServices = hospitalData["emergency_services"] as? Bool ?? false
+                        let insuranceAccepted = hospitalData["insurance_accepted"] as? [String] ?? []
+                        let hoursOfOperation = hospitalData["hours_of_operation"] as? [String: String] ?? [:]
+                        let rating = hospitalData["rating"] as? Double
+                        let reviewCount = hospitalData["review_count"] as? Int ?? 0
+                        let distance = hospitalData["distance_km"] as? Double
+                        
+                        return Hospital(
+                            id: id,
+                            name: name,
+                            type: type,
+                            address: address,
+                            city: city,
+                            state: state,
+                            zipCode: zipCode,
+                            country: country,
+                            latitude: latitude,
+                            longitude: longitude,
+                            phone: phone,
+                            website: website,
+                            email: email,
+                            description: description,
+                            specialties: specialties,
+                            ibdServices: ibdServices,
+                            emergencyServices: emergencyServices,
+                            insuranceAccepted: insuranceAccepted,
+                            hoursOfOperation: hoursOfOperation,
+                            rating: rating,
+                            reviewCount: reviewCount,
+                            distance: distance
+                        )
+                    }
+                }
+            }
+        }.resume()
+    }
+    
+    private func loadNearbySpecialists() {
+        guard let location = userLocation else { return }
+        
+        isLoadingCommunity = true
+        
+        let apiBaseURL = AppConfig.apiBaseURL
+        let urlString = "\(apiBaseURL)/community/specialists?latitude=\(location.latitude)&longitude=\(location.longitude)&radius=50&limit=20"
+        
+        guard let url = URL(string: urlString) else {
+            isLoadingCommunity = false
+            return
+        }
+        
+        URLSession.shared.dataTask(with: url) { data, response, error in
+            DispatchQueue.main.async {
+                isLoadingCommunity = false
+                
+                if let error = error {
+                    print("🔍 SearchView: Error loading specialists: \(error)")
+                    return
+                }
+                
+                if let data = data,
+                   let response = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                   let success = response["success"] as? Bool,
+                   success,
+                   let dataDict = response["data"] as? [String: Any],
+                   let specialistsData = dataDict["specialists"] as? [[String: Any]] {
+                    
+                    specialists = specialistsData.compactMap { specialistData in
+                        guard let id = specialistData["id"] as? Int,
+                              let name = specialistData["name"] as? String,
+                              let title = specialistData["title"] as? String,
+                              let specialty = specialistData["specialty"] as? String else {
+                            return nil
+                        }
+                        
+                        let medicalCenterId = specialistData["medical_center_id"] as? Int
+                        let address = specialistData["address"] as? String
+                        let city = specialistData["city"] as? String
+                        let state = specialistData["state"] as? String
+                        let zipCode = specialistData["zip_code"] as? String
+                        let country = specialistData["country"] as? String
+                        let latitude = specialistData["latitude"] as? Double
+                        let longitude = specialistData["longitude"] as? Double
+                        let phone = specialistData["phone"] as? String
+                        let email = specialistData["email"] as? String
+                        let website = specialistData["website"] as? String
+                        let education = specialistData["education"] as? [String] ?? []
+                        let certifications = specialistData["certifications"] as? [String] ?? []
+                        let languages = specialistData["languages"] as? [String] ?? []
+                        let insuranceAccepted = specialistData["insurance_accepted"] as? [String] ?? []
+                        let consultationFee = specialistData["consultation_fee"] as? Double
+                        let rating = specialistData["rating"] as? Double
+                        let reviewCount = specialistData["review_count"] as? Int ?? 0
+                        let yearsExperience = specialistData["years_experience"] as? Int
+                        let ibdFocusAreas = specialistData["ibd_focus_areas"] as? [String] ?? []
+                        let distance = specialistData["distance_km"] as? Double
+                        
+                        return IBDSpecialist(
+                            id: id,
+                            name: name,
+                            title: title,
+                            specialty: specialty,
+                            medicalCenterId: medicalCenterId,
+                            address: address,
+                            city: city,
+                            state: state,
+                            zipCode: zipCode,
+                            country: country,
+                            latitude: latitude,
+                            longitude: longitude,
+                            phone: phone,
+                            email: email,
+                            website: website,
+                            education: education,
+                            certifications: certifications,
+                            languages: languages,
+                            insuranceAccepted: insuranceAccepted,
+                            consultationFee: consultationFee,
+                            rating: rating,
+                            reviewCount: reviewCount,
+                            yearsExperience: yearsExperience,
+                            ibdFocusAreas: ibdFocusAreas,
+                            distance: distance
+                        )
+                    }
+                }
+            }
+        }.resume()
     }
     
     private func getArticles(for category: DiscoverCategory) -> [Article] {
@@ -397,6 +611,41 @@ struct SearchView: View {
                 Article(id: "34", title: "Diet Success Stories", excerpt: "Real stories from people who found relief through dietary changes.", category: .blogs, readTime: "7 min read", imageName: "leaf.arrow.circlepath", url: "https://www.mayoclinic.org/diseases-conditions/inflammatory-bowel-disease/symptoms-causes/syc-20353315"),
                 Article(id: "35", title: "Mental Health and IBD", excerpt: "Personal experiences with managing mental health alongside IBD.", category: .blogs, readTime: "6 min read", imageName: "brain.head.profile", url: "https://www.mayoclinic.org/diseases-conditions/inflammatory-bowel-disease/symptoms-causes/syc-20353315")
             ]
+        }
+    }
+}
+
+// MARK: - CLLocationManagerDelegate
+
+extension SearchView: CLLocationManagerDelegate {
+    func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
+        guard let location = locations.last else { return }
+        
+        userLocation = location.coordinate
+        locationManager.stopUpdatingLocation()
+        
+        // Load nearby hospitals and specialists when location is obtained
+        if selectedDiscoverCategory == .community {
+            loadNearbyHospitals()
+            loadNearbySpecialists()
+        }
+    }
+    
+    func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
+        print("🔍 SearchView: Location error: \(error)")
+        locationManager.stopUpdatingLocation()
+    }
+    
+    func locationManager(_ manager: CLLocationManager, didChangeAuthorization status: CLAuthorizationStatus) {
+        switch status {
+        case .authorizedWhenInUse, .authorizedAlways:
+            locationManager.startUpdatingLocation()
+        case .denied, .restricted:
+            showingLocationPermission = true
+        case .notDetermined:
+            break
+        @unknown default:
+            break
         }
     }
 }
@@ -926,6 +1175,407 @@ struct WebView: UIViewRepresentable {
                 return "Unable to load the article content. Please try opening it in your browser instead."
             }
         }
+    }
+}
+
+// MARK: - Community Section
+
+struct CommunitySection: View {
+    let hospitals: [Hospital]
+    let specialists: [IBDSpecialist]
+    let userLocation: CLLocationCoordinate2D?
+    let isLoading: Bool
+    let onRequestLocation: () -> Void
+    let onLoadHospitals: () -> Void
+    let onLoadSpecialists: () -> Void
+    
+    var body: some View {
+        VStack(spacing: 20) {
+            // Location Permission Section
+            if userLocation == nil {
+                VStack(spacing: 16) {
+                    Image(systemName: "location.circle")
+                        .font(.system(size: 50))
+                        .foregroundColor(.ibdPrimary)
+                    
+                    Text("Enable Location Services")
+                        .font(.headline)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.ibdPrimaryText)
+                    
+                    Text("To find nearby hospitals and specialists, we need your location.")
+                        .font(.subheadline)
+                        .foregroundColor(.ibdSecondaryText)
+                        .multilineTextAlignment(.center)
+                    
+                    Button(action: onRequestLocation) {
+                        HStack {
+                            Image(systemName: "location.fill")
+                                .font(.title3)
+                            Text("Enable Location")
+                                .font(.headline)
+                                .fontWeight(.semibold)
+                        }
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(Color.ibdPrimary)
+                        .cornerRadius(12)
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                }
+                .padding()
+                .background(Color.ibdSurfaceBackground)
+                .cornerRadius(12)
+            } else {
+                // Hospitals Section
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack {
+                        Text("Nearby Hospitals & Medical Centers")
+                            .font(.headline)
+                            .fontWeight(.semibold)
+                            .foregroundColor(.ibdPrimaryText)
+                        
+                        Spacer()
+                        
+                        if isLoading {
+                            ProgressView()
+                                .scaleEffect(0.8)
+                        }
+                    }
+                    
+                    if hospitals.isEmpty && !isLoading {
+                        VStack(spacing: 12) {
+                            Text("No hospitals found nearby")
+                                .font(.subheadline)
+                                .foregroundColor(.ibdSecondaryText)
+                            
+                            Button("Search Again") {
+                                onLoadHospitals()
+                            }
+                            .font(.caption)
+                            .foregroundColor(.ibdPrimary)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(Color.ibdSurfaceBackground.opacity(0.5))
+                        .cornerRadius(8)
+                    } else {
+                        LazyVStack(spacing: 12) {
+                            ForEach(hospitals) { hospital in
+                                HospitalCard(hospital: hospital, userLocation: userLocation)
+                            }
+                        }
+                    }
+                }
+                
+                // Specialists Section
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack {
+                        Text("IBD Specialists")
+                            .font(.headline)
+                            .fontWeight(.semibold)
+                            .foregroundColor(.ibdPrimaryText)
+                        
+                        Spacer()
+                        
+                        if isLoading {
+                            ProgressView()
+                                .scaleEffect(0.8)
+                        }
+                    }
+                    
+                    if specialists.isEmpty && !isLoading {
+                        VStack(spacing: 12) {
+                            Text("No specialists found nearby")
+                                .font(.subheadline)
+                                .foregroundColor(.ibdSecondaryText)
+                            
+                            Button("Search Again") {
+                                onLoadSpecialists()
+                            }
+                            .font(.caption)
+                            .foregroundColor(.ibdPrimary)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(Color.ibdSurfaceBackground.opacity(0.5))
+                        .cornerRadius(8)
+                    } else {
+                        LazyVStack(spacing: 12) {
+                            ForEach(specialists) { specialist in
+                                SpecialistCard(specialist: specialist, userLocation: userLocation)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// MARK: - Hospital Card
+
+struct HospitalCard: View {
+    let hospital: Hospital
+    let userLocation: CLLocationCoordinate2D?
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(hospital.name)
+                        .font(.headline)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.ibdPrimaryText)
+                    
+                    Text(hospital.type.displayName)
+                        .font(.caption)
+                        .foregroundColor(.ibdPrimary)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 2)
+                        .background(Color.ibdPrimary.opacity(0.1))
+                        .cornerRadius(4)
+                }
+                
+                Spacer()
+                
+                if let distance = hospital.distance {
+                    Text(String(format: "%.1f km", distance))
+                        .font(.caption)
+                        .foregroundColor(.ibdSecondaryText)
+                }
+            }
+            
+            Text(hospital.address)
+                .font(.subheadline)
+                .foregroundColor(.ibdSecondaryText)
+            
+            if hospital.ibdServices {
+                HStack {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.caption)
+                        .foregroundColor(.green)
+                    Text("IBD Services Available")
+                        .font(.caption)
+                        .foregroundColor(.green)
+                }
+            }
+            
+            HStack {
+                if let phone = hospital.phone {
+                    Button(action: {
+                        if let url = URL(string: "tel:\(phone)") {
+                            UIApplication.shared.open(url)
+                        }
+                    }) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "phone.fill")
+                                .font(.caption)
+                            Text(phone)
+                                .font(.caption)
+                        }
+                        .foregroundColor(.ibdPrimary)
+                    }
+                }
+                
+                Spacer()
+                
+                if let website = hospital.website {
+                    Button(action: {
+                        if let url = URL(string: website) {
+                            UIApplication.shared.open(url)
+                        }
+                    }) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "globe")
+                                .font(.caption)
+                            Text("Website")
+                                .font(.caption)
+                        }
+                        .foregroundColor(.ibdPrimary)
+                    }
+                }
+            }
+        }
+        .padding()
+        .background(Color.ibdSurfaceBackground)
+        .cornerRadius(12)
+    }
+}
+
+// MARK: - Specialist Card
+
+struct SpecialistCard: View {
+    let specialist: IBDSpecialist
+    let userLocation: CLLocationCoordinate2D?
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("\(specialist.title) \(specialist.name)")
+                        .font(.headline)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.ibdPrimaryText)
+                    
+                    Text(specialist.specialty)
+                        .font(.caption)
+                        .foregroundColor(.ibdPrimary)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 2)
+                        .background(Color.ibdPrimary.opacity(0.1))
+                        .cornerRadius(4)
+                }
+                
+                Spacer()
+                
+                if let distance = specialist.distance {
+                    Text(String(format: "%.1f km", distance))
+                        .font(.caption)
+                        .foregroundColor(.ibdSecondaryText)
+                }
+            }
+            
+            if let address = specialist.address {
+                Text(address)
+                    .font(.subheadline)
+                    .foregroundColor(.ibdSecondaryText)
+            }
+            
+            if let yearsExperience = specialist.yearsExperience {
+                Text("\(yearsExperience) years experience")
+                    .font(.caption)
+                    .foregroundColor(.ibdSecondaryText)
+            }
+            
+            HStack {
+                if let phone = specialist.phone {
+                    Button(action: {
+                        if let url = URL(string: "tel:\(phone)") {
+                            UIApplication.shared.open(url)
+                        }
+                    }) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "phone.fill")
+                                .font(.caption)
+                            Text(phone)
+                                .font(.caption)
+                        }
+                        .foregroundColor(.ibdPrimary)
+                    }
+                }
+                
+                Spacer()
+                
+                if let website = specialist.website {
+                    Button(action: {
+                        if let url = URL(string: website) {
+                            UIApplication.shared.open(url)
+                        }
+                    }) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "globe")
+                                .font(.caption)
+                            Text("Website")
+                                .font(.caption)
+                        }
+                        .foregroundColor(.ibdPrimary)
+                    }
+                }
+            }
+        }
+        .padding()
+        .background(Color.ibdSurfaceBackground)
+        .cornerRadius(12)
+    }
+}
+
+// MARK: - Data Models
+
+struct Hospital: Identifiable, Codable {
+    let id: Int
+    let name: String
+    let type: HospitalType
+    let address: String
+    let city: String
+    let state: String
+    let zipCode: String
+    let country: String
+    let latitude: Double
+    let longitude: Double
+    let phone: String?
+    let website: String?
+    let email: String?
+    let description: String?
+    let specialties: [String]
+    let ibdServices: Bool
+    let emergencyServices: Bool
+    let insuranceAccepted: [String]
+    let hoursOfOperation: [String: String]
+    let rating: Double?
+    let reviewCount: Int
+    let distance: Double?
+    
+    enum CodingKeys: String, CodingKey {
+        case id, name, type, address, city, state, zipCode = "zip_code", country, latitude, longitude
+        case phone, website, email, description, specialties, ibdServices = "ibd_services"
+        case emergencyServices = "emergency_services", insuranceAccepted = "insurance_accepted"
+        case hoursOfOperation = "hours_of_operation", rating, reviewCount = "review_count"
+        case distance = "distance_km"
+    }
+}
+
+enum HospitalType: String, Codable, CaseIterable {
+    case hospital = "hospital"
+    case clinic = "clinic"
+    case medicalCenter = "medical_center"
+    case specialtyCenter = "specialty_center"
+    
+    var displayName: String {
+        switch self {
+        case .hospital: return "Hospital"
+        case .clinic: return "Clinic"
+        case .medicalCenter: return "Medical Center"
+        case .specialtyCenter: return "Specialty Center"
+        }
+    }
+}
+
+struct IBDSpecialist: Identifiable, Codable {
+    let id: Int
+    let name: String
+    let title: String
+    let specialty: String
+    let medicalCenterId: Int?
+    let address: String?
+    let city: String?
+    let state: String?
+    let zipCode: String?
+    let country: String?
+    let latitude: Double?
+    let longitude: Double?
+    let phone: String?
+    let email: String?
+    let website: String?
+    let education: [String]
+    let certifications: [String]
+    let languages: [String]
+    let insuranceAccepted: [String]
+    let consultationFee: Double?
+    let rating: Double?
+    let reviewCount: Int
+    let yearsExperience: Int?
+    let ibdFocusAreas: [String]
+    let distance: Double?
+    
+    enum CodingKeys: String, CodingKey {
+        case id, name, title, specialty, medicalCenterId = "medical_center_id"
+        case address, city, state, zipCode = "zip_code", country, latitude, longitude
+        case phone, email, website, education, certifications, languages
+        case insuranceAccepted = "insurance_accepted", consultationFee = "consultation_fee"
+        case rating, reviewCount = "review_count", yearsExperience = "years_experience"
+        case ibdFocusAreas = "ibd_focus_areas", distance = "distance_km"
     }
 }
 
