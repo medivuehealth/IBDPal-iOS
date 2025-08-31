@@ -15,7 +15,7 @@ struct BlogView: View {
         NavigationView {
             VStack(spacing: 0) {
                 // Header with Tab Selector
-                VStack(spacing: 16) {
+                VStack(spacing: 8) {
                     // Tab Selector
                     HStack(spacing: 0) {
                         ForEach(BlogTab.allCases, id: \.self) { tab in
@@ -66,7 +66,8 @@ struct BlogView: View {
                         }
                     }
                 }
-                .padding()
+                .padding(.horizontal)
+                .padding(.top, 8)
                 .background(Color.ibdBackground)
                 
                 // Content Area
@@ -84,7 +85,10 @@ struct BlogView: View {
             .navigationTitle("IBD Stories")
             .navigationBarTitleDisplayMode(.large)
             .sheet(isPresented: $showingCreatePost) {
-                CreateStoryView(userData: userData)
+                CreateStoryView(userData: userData, onStoryCreated: {
+                    // Refresh stories after creating a new one
+                    loadStories()
+                })
             }
             .onAppear {
                 loadStories()
@@ -405,6 +409,7 @@ struct StoryCard: View {
 
 struct CreateStoryView: View {
     let userData: UserData?
+    let onStoryCreated: (() -> Void)?
     
     @Environment(\.dismiss) private var dismiss
     @State private var title = ""
@@ -571,6 +576,7 @@ struct CreateStoryView: View {
             .alert("Story Published!", isPresented: $showingSuccessAlert) {
                 Button("OK") {
                     dismiss()
+                    onStoryCreated?()
                 }
             } message: {
                 Text("Your story has been published successfully. Thank you for sharing your experience with the IBD community!")
@@ -657,6 +663,7 @@ struct CreateStoryView: View {
                 if let httpResponse = response as? HTTPURLResponse {
                     if httpResponse.statusCode == 201 {
                         showingSuccessAlert = true
+                        onStoryCreated?() // Call the callback
                     } else {
                         if let data = data,
                            let errorResponse = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
