@@ -10,6 +10,7 @@ const userRoutes = require('./routes/users');
 const journalRoutes = require('./routes/journal');
 const diagnosisRoutes = require('./routes/diagnosis');
 const blogRoutes = require('./routes/blogs');
+const communityRoutes = require('./routes/community');
 
 const app = express();
 const PORT = process.env.SERVER_PORT || 3004;
@@ -97,6 +98,7 @@ app.use('/api/users', userRoutes);
 app.use('/api/journal', journalRoutes);
 app.use('/api/diagnosis', diagnosisRoutes);
 app.use('/api/blogs', blogRoutes);
+app.use('/api/community', communityRoutes);
 
 // 404 handler for API routes
 app.use('/api/*', (req, res) => {
