@@ -151,6 +151,8 @@ struct BlogView: View {
                                 
                                 // Parse stories from API response
                                 stories = storiesData.compactMap { storyData in
+                                    print("🔍 BlogView: Parsing story data: \(storyData)")
+                                    
                                     guard let id = storyData["id"] as? Int,
                                           let username = storyData["username"] as? String,
                                           let user_name = storyData["user_name"] as? String,
@@ -160,6 +162,8 @@ struct BlogView: View {
                                         print("🔍 BlogView: Failed to parse story data: \(storyData)")
                                         return nil
                                     }
+                                    
+                                    print("🔍 BlogView: Parsed username: '\(username)', user_name: '\(user_name)'")
                                     
                                     let diseaseType: IBDDiseaseType
                                     switch diseaseTypeString {
@@ -182,7 +186,7 @@ struct BlogView: View {
                                     let isLiked = storyData["is_liked"] as? Bool ?? false
                                     let tags = storyData["tags"] as? [String] ?? []
                                     
-                                    return BlogStory(
+                                    let story = BlogStory(
                                         id: String(id),
                                         userId: username,
                                         userName: user_name,
@@ -196,6 +200,9 @@ struct BlogView: View {
                                         createdAt: createdAt,
                                         isLiked: isLiked
                                     )
+                                    
+                                    print("🔍 BlogView: Created story with userName: '\(story.userName)'")
+                                    return story
                                 }
                                 
                                 print("🔍 BlogView: Successfully parsed \(stories.count) stories")
@@ -525,6 +532,9 @@ struct StoryCard: View {
         .padding()
         .background(Color.ibdSurfaceBackground)
         .cornerRadius(12)
+        .onTapGesture {
+            showingFullStory = true
+        }
         .sheet(isPresented: $showingFullStory) {
             StoryDetailView(story: story, userData: userData)
         }
