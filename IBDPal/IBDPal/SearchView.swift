@@ -674,7 +674,7 @@ struct SearchView: View {
                        let articlesData = dataDict["articles"] as? [[String: Any]] {
                         
                         print("🔍 SearchView: Parsed \(articlesData.count) \(category) articles from API")
-                        let articles = articlesData.compactMap { articleData in
+                        let articles: [Article] = articlesData.compactMap { (articleData: [String: Any]) -> Article? in
                             guard let id = articleData["id"] as? Int,
                                   let title = articleData["title"] as? String,
                                   let excerpt = articleData["excerpt"] as? String,
@@ -686,7 +686,7 @@ struct SearchView: View {
                             }
                             
                             let content = articleData["content"] as? String ?? excerpt
-                            let category = articleData["category"] as? String ?? category.rawValue
+                            let articleCategory = articleData["category"] as? String ?? category.rawValue
                             let publishedDateString = articleData["published_date"] as? String ?? ""
                             
                             // Parse published date
@@ -701,7 +701,7 @@ struct SearchView: View {
                                 title: title,
                                 summary: excerpt,
                                 content: content,
-                                category: category,
+                                category: articleCategory,
                                 author: source,
                                 publishedDate: publishedDate,
                                 readTime: readTimeMinutes,
