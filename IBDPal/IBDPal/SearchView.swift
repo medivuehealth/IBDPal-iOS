@@ -518,11 +518,101 @@ struct SearchView: View {
     private func loadArticles(for category: DiscoverCategory) {
         isLoading = true
         
-        // Simulate API call delay
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-            self.articles = self.getSampleArticles(for: category)
-            self.isLoading = false
+        // For nutrition category, fetch from database API
+        if category == .nutrition {
+            loadNutritionArticlesFromAPI()
+        } else {
+            // For other categories, use sample articles for now
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                self.articles = self.getSampleArticles(for: category)
+                self.isLoading = false
+            }
         }
+    }
+    
+    private func loadNutritionArticlesFromAPI() {
+        let apiBaseURL = AppConfig.apiBaseURL
+        let urlString = "\(apiBaseURL)/community/nutrition-articles?featured=true&limit=10"
+        
+        print("🔍 SearchView: Loading nutrition articles from API: \(urlString)")
+        
+        guard let url = URL(string: urlString) else {
+            print("🔍 SearchView: Invalid nutrition articles URL")
+            self.isLoading = false
+            return
+        }
+        
+        URLSession.shared.dataTask(with: url) { data, response, error in
+            DispatchQueue.main.async {
+                self.isLoading = false
+                
+                if let error = error {
+                    print("🔍 SearchView: Error loading nutrition articles: \(error)")
+                    // Fallback to sample articles
+                    self.articles = self.getSampleArticles(for: .nutrition)
+                    return
+                }
+                
+                if let data = data {
+                    print("🔍 SearchView: Nutrition articles data received: \(String(data: data, encoding: .utf8) ?? "Unable to decode")")
+                    
+                    if let response = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                       let success = response["success"] as? Bool,
+                       success,
+                       let dataDict = response["data"] as? [String: Any],
+                       let articlesData = dataDict["articles"] as? [[String: Any]] {
+                        
+                        print("🔍 SearchView: Parsed \(articlesData.count) nutrition articles from API")
+                        self.articles = articlesData.compactMap { articleData in
+                            guard let id = articleData["id"] as? Int,
+                                  let title = articleData["title"] as? String,
+                                  let excerpt = articleData["excerpt"] as? String,
+                                  let source = articleData["source"] as? String,
+                                  let sourceUrl = articleData["source_url"] as? String,
+                                  let readTimeMinutes = articleData["read_time_minutes"] as? Int else {
+                                print("🔍 SearchView: Failed to parse nutrition article data: \(articleData)")
+                                return nil
+                            }
+                            
+                            let content = articleData["content"] as? String ?? excerpt
+                            let category = articleData["category"] as? String ?? "nutrition"
+                            let publishedDateString = articleData["published_date"] as? String ?? ""
+                            
+                            // Parse published date
+                            let dateFormatter = DateFormatter()
+                            dateFormatter.dateFormat = "yyyy-MM-dd"
+                            let publishedDate = dateFormatter.date(from: publishedDateString) ?? Date()
+                            
+                            print("🔍 SearchView: Successfully parsed nutrition article: \(title)")
+                            
+                            return Article(
+                                id: String(id),
+                                title: title,
+                                summary: excerpt,
+                                content: content,
+                                category: category,
+                                author: source,
+                                publishedDate: publishedDate,
+                                readTime: readTimeMinutes,
+                                imageURL: sourceUrl,
+                                url: sourceUrl
+                            )
+                        }
+                        
+                        if self.articles.isEmpty {
+                            print("🔍 SearchView: No nutrition articles found, using sample articles")
+                            self.articles = self.getSampleArticles(for: .nutrition)
+                        }
+                    } else {
+                        print("🔍 SearchView: Failed to parse nutrition articles response, using sample articles")
+                        self.articles = self.getSampleArticles(for: .nutrition)
+                    }
+                } else {
+                    print("🔍 SearchView: No nutrition articles data received, using sample articles")
+                    self.articles = self.getSampleArticles(for: .nutrition)
+                }
+            }
+        }.resume()
     }
     
     private func getSampleArticles(for category: DiscoverCategory) -> [Article] {
@@ -533,23 +623,25 @@ struct SearchView: View {
                     id: "1",
                     title: "Nutrition Tips for IBD Management",
                     summary: "Learn about the best foods to eat and avoid when managing IBD symptoms.",
-                    content: "Managing nutrition with IBD can be challenging...",
+                    content: "Managing nutrition with IBD can be challenging, but understanding which foods work for your body is crucial for symptom management. During flares, focus on easily digestible foods like white rice, bananas, applesauce, and toast (BRAT diet). Avoid high-fiber foods, dairy, spicy foods, and caffeine. During remission, gradually reintroduce fiber-rich foods, lean proteins, and healthy fats. Always work with your healthcare team to develop a personalized nutrition plan that works for your specific condition and symptoms.",
                     category: "nutrition",
                     author: "IBD Nutrition Team",
                     publishedDate: Date().addingTimeInterval(-86400 * 7),
                     readTime: 5,
-                    imageURL: nil
+                    imageURL: nil,
+                    url: "https://www.crohnscolitisfoundation.org/diet-and-nutrition"
                 ),
                 Article(
                     id: "2",
                     title: "Anti-Inflammatory Diet Guide",
                     summary: "Discover foods that can help reduce inflammation in your digestive system.",
-                    content: "An anti-inflammatory diet focuses on...",
+                    content: "An anti-inflammatory diet focuses on whole, unprocessed foods that can help reduce inflammation in your digestive system. Include plenty of fruits and vegetables, especially leafy greens, berries, and colorful produce rich in antioxidants. Omega-3 fatty acids from fatty fish like salmon and sardines are particularly beneficial. Turmeric, ginger, and green tea contain natural anti-inflammatory compounds. Avoid processed foods, refined sugars, trans fats, and excessive alcohol. This approach may help reduce inflammation and promote gut healing, though individual responses vary.",
                     category: "nutrition",
                     author: "Dr. Sarah Johnson",
                     publishedDate: Date().addingTimeInterval(-86400 * 3),
                     readTime: 8,
-                    imageURL: nil
+                    imageURL: nil,
+                    url: "https://www.health.harvard.edu/staying-healthy/foods-that-fight-inflammation"
                 )
             ]
         case .medication:
@@ -563,7 +655,8 @@ struct SearchView: View {
                     author: "Dr. Michael Chen",
                     publishedDate: Date().addingTimeInterval(-86400 * 5),
                     readTime: 10,
-                    imageURL: nil
+                    imageURL: nil,
+                    url: "https://www.crohnscolitisfoundation.org/treatments/medications"
                 )
             ]
         case .lifestyle:
@@ -577,7 +670,8 @@ struct SearchView: View {
                     author: "Fitness Expert",
                     publishedDate: Date().addingTimeInterval(-86400 * 2),
                     readTime: 6,
-                    imageURL: nil
+                    imageURL: nil,
+                    url: "https://www.crohnscolitisfoundation.org/exercise"
                 )
             ]
         case .research:
@@ -591,7 +685,8 @@ struct SearchView: View {
                     author: "Research Team",
                     publishedDate: Date().addingTimeInterval(-86400 * 1),
                     readTime: 12,
-                    imageURL: nil
+                    imageURL: nil,
+                    url: "https://www.crohnscolitisfoundation.org/research"
                 )
             ]
         case .community:
@@ -605,7 +700,8 @@ struct SearchView: View {
                     author: "Community Team",
                     publishedDate: Date().addingTimeInterval(-86400 * 4),
                     readTime: 7,
-                    imageURL: nil
+                    imageURL: nil,
+                    url: "https://www.crohnscolitisfoundation.org/community"
                 )
             ]
         case .blogs:
@@ -619,7 +715,8 @@ struct SearchView: View {
                     author: "Community Members",
                     publishedDate: Date().addingTimeInterval(-86400 * 6),
                     readTime: 9,
-                    imageURL: nil
+                    imageURL: nil,
+                    url: "https://ibdpal-blogs.vercel.app/stories"
                 )
             ]
         }
@@ -1829,6 +1926,7 @@ struct Article: Identifiable {
     let publishedDate: Date
     let readTime: Int
     let imageURL: String?
+    let url: String? // Source URL for the article
 }
 
 struct SearchCalculatedNutrition {
@@ -1864,10 +1962,59 @@ struct ArticleViewerView: View {
                             .foregroundColor(.ibdSecondaryText)
                     }
                     
+                    // Source attribution
+                    if let url = article.url {
+                        HStack {
+                            Image(systemName: "link")
+                                .font(.caption)
+                                .foregroundColor(.ibdSecondaryText)
+                            
+                            Text("Source: \(article.author)")
+                                .font(.caption)
+                                .foregroundColor(.ibdSecondaryText)
+                            
+                            Spacer()
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .background(Color.ibdSurfaceBackground)
+                        .cornerRadius(8)
+                    }
+                    
                     Text(article.content)
                         .font(.body)
                         .foregroundColor(.ibdPrimaryText)
                         .lineSpacing(4)
+                    
+                    // Footer with source link
+                    if let url = article.url {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Divider()
+                            
+                            Text("Read the full article:")
+                                .font(.caption)
+                                .foregroundColor(.ibdSecondaryText)
+                            
+                            Button(action: {
+                                if let url = URL(string: url) {
+                                    UIApplication.shared.open(url)
+                                }
+                            }) {
+                                HStack {
+                                    Text(url)
+                                        .font(.caption)
+                                        .foregroundColor(.ibdPrimary)
+                                        .lineLimit(1)
+                                    
+                                    Image(systemName: "arrow.up.right.square")
+                                        .font(.caption)
+                                        .foregroundColor(.ibdPrimary)
+                                }
+                            }
+                            .buttonStyle(PlainButtonStyle())
+                        }
+                        .padding(.top, 16)
+                    }
                 }
                 .padding()
             }
