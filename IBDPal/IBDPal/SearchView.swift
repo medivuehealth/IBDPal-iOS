@@ -9,7 +9,11 @@ struct SearchView: View {
     @State private var isLoading = false
     @State private var searchResults: [DatabaseFoodItem] = []
     @State private var selectedDiscoverCategory: DiscoverCategory = .nutrition
-    @State private var articles: [Article] = []
+    @State private var nutritionArticles: [Article] = []
+    @State private var medicationArticles: [Article] = []
+    @State private var lifestyleArticles: [Article] = []
+    @State private var researchArticles: [Article] = []
+    @State private var blogsArticles: [Article] = []
     @State private var calculatedNutrition: SearchCalculatedNutrition?
     @State private var showingNutritionResults = false
     @State private var showingArticleViewer = false
@@ -26,6 +30,24 @@ struct SearchView: View {
     
     private let discoverCategories: [DiscoverCategory] = [.nutrition, .medication, .lifestyle, .research, .community, .blogs]
     
+    // Computed property to get articles for current category
+    private var currentArticles: [Article] {
+        switch selectedDiscoverCategory {
+        case .nutrition:
+            return nutritionArticles
+        case .medication:
+            return medicationArticles
+        case .lifestyle:
+            return lifestyleArticles
+        case .research:
+            return researchArticles
+        case .blogs:
+            return blogsArticles
+        case .community:
+            return []
+        }
+    }
+    
     var body: some View {
         NavigationView {
             VStack(spacing: 0) {
@@ -34,9 +56,11 @@ struct SearchView: View {
                 // Discover Categories
                 DiscoverCategoriesView(selectedCategory: $selectedDiscoverCategory, onCategorySelected: {
                     print("🔍 SearchView: Category selected: \(selectedDiscoverCategory)")
+                    print("🔍 SearchView: Current articles count before loading: \(self.currentArticles.count)")
+                    
                     if selectedDiscoverCategory == .community {
                         print("🔍 SearchView: Community category selected, loading data...")
-                        if let location = userLocation {
+                        if userLocation != nil {
                             loadNearbyHospitals()
                             loadNearbySpecialists()
                             loadNearbySupportOrganizations()
@@ -44,6 +68,8 @@ struct SearchView: View {
                             print("🔍 SearchView: No location available yet for community data")
                         }
                     } else {
+                        print("🔍 SearchView: Loading articles for \(selectedDiscoverCategory)")
+                        // Always load articles when switching to a new category
                         loadArticles(for: selectedDiscoverCategory)
                     }
                 })
@@ -52,8 +78,8 @@ struct SearchView: View {
                 SearchContentView(
                     selectedCategory: selectedDiscoverCategory,
                     searchResults: searchResults,
-                    articles: articles,
-                    isLoading: isLoading,
+                    articles: currentArticles,
+                    isLoading: isLoading || (currentArticles.isEmpty && selectedDiscoverCategory != .community),
                     userData: userData,
                     calculatedNutrition: $calculatedNutrition,
                     showingNutritionResults: $showingNutritionResults,
@@ -69,7 +95,8 @@ struct SearchView: View {
                     onRequestLocation: requestLocationPermission,
                     onLoadHospitals: loadNearbyHospitals,
                     onLoadSpecialists: loadNearbySpecialists,
-                    onLoadSupportOrganizations: loadNearbySupportOrganizations
+                    onLoadSupportOrganizations: loadNearbySupportOrganizations,
+                    onArticleTap: handleArticleTap
                 )
             }
             .navigationBarHidden(true)
@@ -80,12 +107,22 @@ struct SearchView: View {
             }
             .sheet(isPresented: $showingArticleViewer) {
                 if let article = selectedArticle {
-                    ArticleViewerView(article: article)
+                    ArticleViewerView(article: article, onClose: {
+                        showingArticleViewer = false
+                    })
                 }
             }
             .onAppear {
-                // Load articles for the current category
-                loadArticles(for: selectedDiscoverCategory)
+                print("🔍 SearchView: onAppear - selectedDiscoverCategory: \(selectedDiscoverCategory)")
+                print("🔍 SearchView: onAppear - current articles count: \(currentArticles.count)")
+                
+                // Always load articles for the current category when view appears
+                if selectedDiscoverCategory != .community {
+                    print("🔍 SearchView: onAppear - Loading articles for \(selectedDiscoverCategory)")
+                    loadArticles(for: selectedDiscoverCategory)
+                } else {
+                    print("🔍 SearchView: onAppear - Community category, no articles to load")
+                }
                 
                 // Set up location callback
                 locationManager.onLocationObtained = { location in
@@ -121,10 +158,41 @@ struct SearchView: View {
                     locationManager.startUpdatingLocation()
                 }
             }
+            .onChange(of: showingArticleViewer) { oldValue, newValue in
+                print("🔍 SearchView: showingArticleViewer changed from \(oldValue) to: \(newValue)")
+                if newValue {
+                    print("🔍 SearchView: Sheet is being presented")
+                    if let article = selectedArticle {
+                        print("🔍 SearchView: Article for sheet - ID: \(article.id), Title: \(article.title)")
+                    } else {
+                        print("🔍 SearchView: WARNING - No article selected when sheet is being presented!")
+                    }
+                } else {
+                    print("🔍 SearchView: Sheet is being dismissed")
+                }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
+                print("🔍 SearchView: App will enter foreground - reloading articles if needed")
+                // Reload articles when app comes back from background
+                if selectedDiscoverCategory != .community && currentArticles.isEmpty {
+                    print("🔍 SearchView: Reloading articles for \(selectedDiscoverCategory) after background")
+                    loadArticles(for: selectedDiscoverCategory)
+                }
+            }
         }
     }
     
     // MARK: - Helper Functions
+    
+    private func handleArticleTap(_ article: Article) {
+        print("🔍 SearchView: Article tapped - ID: \(article.id), Title: \(article.title)")
+        print("🔍 SearchView: Before setting selectedArticle: \(selectedArticle?.title ?? "nil")")
+        selectedArticle = article
+        print("🔍 SearchView: After setting selectedArticle: \(selectedArticle?.title ?? "nil")")
+        print("🔍 SearchView: Before setting showingArticleViewer: \(showingArticleViewer)")
+        showingArticleViewer = true
+        print("🔍 SearchView: After setting showingArticleViewer: \(showingArticleViewer)")
+    }
     
     private func loadNearbyHospitals() {
         guard let location = userLocation else { 
@@ -210,10 +278,24 @@ struct SearchView: View {
                             
                             // Handle both boolean and integer values for services
                             let ibdServicesRaw = hospitalData["ibd_services"]
-                            let ibdServices = (ibdServicesRaw as? Bool) ?? (ibdServicesRaw as? Int == 1) ?? false
+                            let ibdServices: Bool
+                            if let boolValue = ibdServicesRaw as? Bool {
+                                ibdServices = boolValue
+                            } else if let intValue = ibdServicesRaw as? Int {
+                                ibdServices = intValue == 1
+                            } else {
+                                ibdServices = false
+                            }
                             
                             let emergencyServicesRaw = hospitalData["emergency_services"]
-                            let emergencyServices = (emergencyServicesRaw as? Bool) ?? (emergencyServicesRaw as? Int == 1) ?? false
+                            let emergencyServices: Bool
+                            if let boolValue = emergencyServicesRaw as? Bool {
+                                emergencyServices = boolValue
+                            } else if let intValue = emergencyServicesRaw as? Int {
+                                emergencyServices = intValue == 1
+                            } else {
+                                emergencyServices = false
+                            }
                             
                             // Optional fields with defaults
                             let city = hospitalData["city"] as? String ?? "Unknown"
@@ -338,7 +420,14 @@ struct SearchView: View {
                             
                             // Handle both boolean and integer values for ibd_focus
                             let ibdFocusRaw = specialistData["ibd_focus"]
-                            let ibdFocus = (ibdFocusRaw as? Bool) ?? (ibdFocusRaw as? Int == 1) ?? false
+                            let ibdFocus: Bool
+                            if let boolValue = ibdFocusRaw as? Bool {
+                                ibdFocus = boolValue
+                            } else if let intValue = ibdFocusRaw as? Int {
+                                ibdFocus = intValue == 1
+                            } else {
+                                ibdFocus = false
+                            }
                             
                             // Optional fields with defaults
                             let city = specialistData["city"] as? String ?? "Unknown"
@@ -519,29 +608,48 @@ struct SearchView: View {
     }
     
     private func loadArticles(for category: DiscoverCategory) {
+        print("🔍 SearchView: Loading articles for category: \(category)")
+        print("🔍 SearchView: Current articles count before loading: \(currentArticles.count)")
         isLoading = true
         
-        // For nutrition category, fetch from database API
-        if category == .nutrition {
-            loadNutritionArticlesFromAPI()
+        // For categories that have database articles, fetch from API
+        if category == .nutrition || category == .medication || category == .lifestyle || category == .research {
+            print("🔍 SearchView: Loading \(category) articles from API")
+            loadArticlesFromAPI(for: category)
         } else {
             // For other categories, use sample articles for now
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-                self.articles = self.getSampleArticles(for: category)
+            print("🔍 SearchView: Loading sample articles for \(category)")
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                print("🔍 SearchView: Loading sample articles for \(category)")
+                let sampleArticles = self.getSampleArticles(for: category)
+                
+                // Store articles in the appropriate array
+                switch category {
+                case .blogs:
+                    self.blogsArticles = sampleArticles
+                default:
+                    break
+                }
+                
                 self.isLoading = false
+                print("🔍 SearchView: Loaded \(sampleArticles.count) sample articles for \(category)")
+                print("🔍 SearchView: Current articles count after loading: \(self.currentArticles.count)")
             }
         }
     }
     
-    private func loadNutritionArticlesFromAPI() {
+    private func loadArticlesFromAPI(for category: DiscoverCategory) {
         let apiBaseURL = AppConfig.apiBaseURL
-        let urlString = "\(apiBaseURL)/community/nutrition-articles?featured=true&limit=10"
+        let categoryParam = getCategoryParameter(for: category)
+        let urlString = "\(apiBaseURL)/community/nutrition-articles?category=\(categoryParam)&featured=true&limit=10"
         
-        print("🔍 SearchView: Loading nutrition articles from API: \(urlString)")
+        print("🔍 SearchView: Loading \(category) articles from API: \(urlString)")
         
         guard let url = URL(string: urlString) else {
-            print("🔍 SearchView: Invalid nutrition articles URL")
+            print("🔍 SearchView: Invalid \(category) articles URL")
             self.isLoading = false
+            // Fallback to sample articles
+            loadSampleArticlesForCategory(category)
             return
         }
         
@@ -550,14 +658,14 @@ struct SearchView: View {
                 self.isLoading = false
                 
                 if let error = error {
-                    print("🔍 SearchView: Error loading nutrition articles: \(error)")
+                    print("🔍 SearchView: Error loading \(category) articles: \(error)")
                     // Fallback to sample articles
-                    self.articles = self.getSampleArticles(for: .nutrition)
+                    self.loadSampleArticlesForCategory(category)
                     return
                 }
                 
                 if let data = data {
-                    print("🔍 SearchView: Nutrition articles data received: \(String(data: data, encoding: .utf8) ?? "Unable to decode")")
+                    print("🔍 SearchView: \(category) articles data received: \(String(data: data, encoding: .utf8) ?? "Unable to decode")")
                     
                     if let response = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                        let success = response["success"] as? Bool,
@@ -565,20 +673,20 @@ struct SearchView: View {
                        let dataDict = response["data"] as? [String: Any],
                        let articlesData = dataDict["articles"] as? [[String: Any]] {
                         
-                        print("🔍 SearchView: Parsed \(articlesData.count) nutrition articles from API")
-                        self.articles = articlesData.compactMap { articleData in
+                        print("🔍 SearchView: Parsed \(articlesData.count) \(category) articles from API")
+                        let articles = articlesData.compactMap { articleData in
                             guard let id = articleData["id"] as? Int,
                                   let title = articleData["title"] as? String,
                                   let excerpt = articleData["excerpt"] as? String,
                                   let source = articleData["source"] as? String,
                                   let sourceUrl = articleData["source_url"] as? String,
                                   let readTimeMinutes = articleData["read_time_minutes"] as? Int else {
-                                print("🔍 SearchView: Failed to parse nutrition article data: \(articleData)")
+                                print("🔍 SearchView: Failed to parse \(category) article data: \(articleData)")
                                 return nil
                             }
                             
                             let content = articleData["content"] as? String ?? excerpt
-                            let category = articleData["category"] as? String ?? "nutrition"
+                            let category = articleData["category"] as? String ?? category.rawValue
                             let publishedDateString = articleData["published_date"] as? String ?? ""
                             
                             // Parse published date
@@ -586,7 +694,7 @@ struct SearchView: View {
                             dateFormatter.dateFormat = "yyyy-MM-dd"
                             let publishedDate = dateFormatter.date(from: publishedDateString) ?? Date()
                             
-                            print("🔍 SearchView: Successfully parsed nutrition article: \(title)")
+                            print("🔍 SearchView: Successfully parsed \(category) article: \(title)")
                             
                             return Article(
                                 id: String(id),
@@ -602,21 +710,29 @@ struct SearchView: View {
                             )
                         }
                         
-                        if self.articles.isEmpty {
-                            print("🔍 SearchView: No nutrition articles found, using sample articles")
-                            self.articles = self.getSampleArticles(for: .nutrition)
+                        // Store articles in the appropriate array
+                        self.storeArticlesForCategory(category, articles: articles)
+                        
+                        if articles.isEmpty {
+                            print("🔍 SearchView: No \(category) articles found, using sample articles")
+                            self.loadSampleArticlesForCategory(category)
+                        } else {
+                            print("🔍 SearchView: \(category) articles loading completed. Final count: \(articles.count)")
+                            print("🔍 SearchView: Current articles count after \(category) loading: \(self.currentArticles.count)")
                         }
                     } else {
-                        print("🔍 SearchView: Failed to parse nutrition articles response, using sample articles")
-                        self.articles = self.getSampleArticles(for: .nutrition)
+                        print("🔍 SearchView: Failed to parse \(category) articles response, using sample articles")
+                        self.loadSampleArticlesForCategory(category)
                     }
                 } else {
-                    print("🔍 SearchView: No nutrition articles data received, using sample articles")
-                    self.articles = self.getSampleArticles(for: .nutrition)
+                    print("🔍 SearchView: No \(category) articles data received, using sample articles")
+                    self.loadSampleArticlesForCategory(category)
                 }
             }
         }.resume()
     }
+    
+
     
     private func getSampleArticles(for category: DiscoverCategory) -> [Article] {
         switch category {
@@ -770,6 +886,47 @@ struct SearchView: View {
             break
         }
     }
+    
+    private func getCategoryParameter(for category: DiscoverCategory) -> String {
+        switch category {
+        case .nutrition:
+            return "nutrition"
+        case .medication:
+            return "medication"
+        case .lifestyle:
+            return "lifestyle"
+        case .research:
+            return "research"
+        default:
+            return "nutrition" // fallback
+        }
+    }
+    
+    private func storeArticlesForCategory(_ category: DiscoverCategory, articles: [Article]) {
+        switch category {
+        case .nutrition:
+            self.nutritionArticles = articles
+        case .medication:
+            self.medicationArticles = articles
+        case .lifestyle:
+            self.lifestyleArticles = articles
+        case .research:
+            self.researchArticles = articles
+        default:
+            break
+        }
+    }
+    
+    private func loadSampleArticlesForCategory(_ category: DiscoverCategory) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            print("🔍 SearchView: Loading sample articles for \(category)")
+            let sampleArticles = self.getSampleArticles(for: category)
+            self.storeArticlesForCategory(category, articles: sampleArticles)
+            self.isLoading = false
+            print("🔍 SearchView: Loaded \(sampleArticles.count) sample articles for \(category)")
+            print("🔍 SearchView: Current articles count after loading: \(self.currentArticles.count)")
+        }
+    }
 }
 
 // MARK: - Search Header
@@ -893,6 +1050,7 @@ struct SearchContentView: View {
     let onLoadHospitals: () -> Void
     let onLoadSpecialists: () -> Void
     let onLoadSupportOrganizations: () -> Void
+    let onArticleTap: (Article) -> Void
     
     var body: some View {
         ScrollView {
@@ -908,8 +1066,7 @@ struct SearchContentView: View {
                             
                             ForEach(articles) { article in
                                 ArticleCard(article: article, onTap: {
-                                    selectedArticle = article
-                                    showingArticleViewer = true
+                                    onArticleTap(article)
                                 })
                             }
                         }
@@ -981,8 +1138,7 @@ struct SearchContentView: View {
                             
                             ForEach(articles) { article in
                                 ArticleCard(article: article, onTap: {
-                                    selectedArticle = article
-                                    showingArticleViewer = true
+                                    onArticleTap(article)
                                 })
                             }
                         }
@@ -1961,6 +2117,8 @@ struct SearchCalculatedNutrition {
 
 struct ArticleViewerView: View {
     let article: Article
+    let onClose: () -> Void
+    @State private var isViewReady = false
     
     var body: some View {
         NavigationView {
@@ -1969,42 +2127,42 @@ struct ArticleViewerView: View {
                     Text(article.title)
                         .font(.title)
                         .fontWeight(.bold)
-                        .foregroundColor(.ibdPrimaryText)
+                        .foregroundColor(isViewReady ? .ibdPrimaryText : .primary)
                     
                     HStack {
                         Text("By \(article.author)")
                             .font(.subheadline)
-                            .foregroundColor(.ibdPrimary)
+                            .foregroundColor(isViewReady ? .ibdPrimary : .blue)
                         
                         Spacer()
                         
                         Text("\(article.readTime) min read")
                             .font(.caption)
-                            .foregroundColor(.ibdSecondaryText)
+                            .foregroundColor(isViewReady ? .ibdSecondaryText : .secondary)
                     }
                     
                     // Source attribution
-                    if let url = article.url {
+                    if article.url != nil {
                         HStack {
                             Image(systemName: "link")
                                 .font(.caption)
-                                .foregroundColor(.ibdSecondaryText)
+                                .foregroundColor(isViewReady ? .ibdSecondaryText : .secondary)
                             
                             Text("Source: \(article.author)")
                                 .font(.caption)
-                                .foregroundColor(.ibdSecondaryText)
+                                .foregroundColor(isViewReady ? .ibdSecondaryText : .secondary)
                             
                             Spacer()
                         }
                         .padding(.horizontal, 12)
                         .padding(.vertical, 8)
-                        .background(Color.ibdSurfaceBackground)
+                        .background(isViewReady ? Color.ibdSurfaceBackground : Color.gray.opacity(0.1))
                         .cornerRadius(8)
                     }
                     
                     Text(article.content)
                         .font(.body)
-                        .foregroundColor(.ibdPrimaryText)
+                        .foregroundColor(isViewReady ? .ibdPrimaryText : .primary)
                         .lineSpacing(4)
                     
                     // Footer with source link
@@ -2014,7 +2172,7 @@ struct ArticleViewerView: View {
                             
                             Text("Read the full article:")
                                 .font(.caption)
-                                .foregroundColor(.ibdSecondaryText)
+                                .foregroundColor(isViewReady ? .ibdSecondaryText : .secondary)
                             
                             Button(action: {
                                 if let url = URL(string: url) {
@@ -2024,12 +2182,12 @@ struct ArticleViewerView: View {
                                 HStack {
                                     Text(url)
                                         .font(.caption)
-                                        .foregroundColor(.ibdPrimary)
+                                        .foregroundColor(isViewReady ? .ibdPrimary : .blue)
                                         .lineLimit(1)
                                     
                                     Image(systemName: "arrow.up.right.square")
                                         .font(.caption)
-                                        .foregroundColor(.ibdPrimary)
+                                        .foregroundColor(isViewReady ? .ibdPrimary : .blue)
                                 }
                             }
                             .buttonStyle(PlainButtonStyle())
@@ -2041,6 +2199,22 @@ struct ArticleViewerView: View {
             }
             .navigationTitle("Article")
             .navigationBarTitleDisplayMode(.inline)
+            .navigationBarBackButtonHidden(true)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("Close") {
+                        onClose()
+                    }
+                    .foregroundColor(isViewReady ? .ibdPrimary : .blue)
+                }
+            }
+            .background(isViewReady ? Color.ibdBackground : Color(.systemBackground))
+        }
+        .onAppear {
+            // Delay setting view ready to prevent visual style errors
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                isViewReady = true
+            }
         }
     }
 }
