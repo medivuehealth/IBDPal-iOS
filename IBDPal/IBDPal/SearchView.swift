@@ -892,11 +892,11 @@ struct SearchView: View {
         case .nutrition:
             return "nutrition"
         case .medication:
-            return "medication"
+            return "ibd" // Map medication to ibd category in database
         case .lifestyle:
-            return "lifestyle"
+            return "gut_health" // Map lifestyle to gut_health category in database
         case .research:
-            return "research"
+            return "gut_health" // Map research to gut_health category in database
         default:
             return "nutrition" // fallback
         }
