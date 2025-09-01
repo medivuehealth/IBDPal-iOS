@@ -84,6 +84,9 @@ struct SearchView: View {
                 }
             }
             .onAppear {
+                // Load articles for the current category
+                loadArticles(for: selectedDiscoverCategory)
+                
                 // Set up location callback
                 locationManager.onLocationObtained = { location in
                     DispatchQueue.main.async {
@@ -895,7 +898,36 @@ struct SearchContentView: View {
         ScrollView {
             LazyVStack(spacing: 16) {
                 if selectedCategory == .nutrition {
-                    // Nutrition Search Results
+                    // Nutrition Articles
+                    if !articles.isEmpty {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("Nutrition Articles")
+                                .font(.headline)
+                                .fontWeight(.semibold)
+                                .foregroundColor(.ibdPrimaryText)
+                            
+                            ForEach(articles) { article in
+                                ArticleCard(article: article, onTap: {
+                                    selectedArticle = article
+                                    showingArticleViewer = true
+                                })
+                            }
+                        }
+                        .padding()
+                    } else if isLoading {
+                        VStack {
+                            ProgressView()
+                                .scaleEffect(1.2)
+                            Text("Loading nutrition articles...")
+                                .font(.subheadline)
+                                .foregroundColor(.ibdSecondaryText)
+                                .padding(.top, 8)
+                        }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .padding()
+                    }
+                    
+                    // Nutrition Search Results (if any)
                     if !searchResults.isEmpty {
                         VStack(alignment: .leading, spacing: 12) {
                             Text("Search Results")
@@ -910,17 +942,6 @@ struct SearchContentView: View {
                                 }
                             }
                         }
-                        .padding()
-                    } else if !searchResults.isEmpty && isLoading {
-                        VStack {
-                            ProgressView()
-                                .scaleEffect(1.2)
-                            Text("Searching...")
-                                .font(.subheadline)
-                                .foregroundColor(.ibdSecondaryText)
-                                .padding(.top, 8)
-                        }
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .padding()
                     }
                 } else if selectedCategory == .community {
