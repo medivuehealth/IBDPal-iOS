@@ -40,6 +40,10 @@ struct MoreView: View {
                     NavigationLink(destination: MyDiagnosisView(userData: userData)) {
                         MoreRow(icon: "stethoscope", title: "My Diagnosis", subtitle: "View your IBD diagnosis")
                     }
+                    
+                    NavigationLink(destination: MicronutrientProfileView(userData: userData)) {
+                        MoreRow(icon: "pills.fill", title: "Nutrition Profile", subtitle: "Age, weight & micronutrients for personalized nutrition")
+                    }
                 }
                 
                 // Settings Section
