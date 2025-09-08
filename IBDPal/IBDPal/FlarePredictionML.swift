@@ -1,6 +1,58 @@
 import Foundation
+import SwiftUI
+
+enum FlareRiskLevel: String, CaseIterable {
+    case low = "low"
+    case moderate = "moderate"
+    case high = "high"
+    case veryHigh = "very_high"
+    
+    var color: Color {
+        switch self {
+        case .low: return .green
+        case .moderate: return .yellow
+        case .high: return .orange
+        case .veryHigh: return .red
+        }
+    }
+    
+    var icon: String {
+        switch self {
+        case .low: return "checkmark.circle"
+        case .moderate: return "exclamationmark.triangle"
+        case .high: return "exclamationmark.octagon"
+        case .veryHigh: return "xmark.octagon"
+        }
+    }
+    
+    var title: String {
+        switch self {
+        case .low: return "Low Risk"
+        case .moderate: return "Moderate Risk"
+        case .high: return "High Risk"
+        case .veryHigh: return "Very High Risk"
+        }
+    }
+    
+    var threshold: Double {
+        switch self {
+        case .low: return 0.0
+        case .moderate: return 0.3
+        case .high: return 0.6
+        case .veryHigh: return 0.8
+        }
+    }
+}
 import CoreML
 import Accelerate
+
+// MARK: - Flare Prevention Action
+struct FlarePreventionAction: Codable {
+    let action: String
+    let rationale: String
+    let implementation: String
+    let priority: String
+}
 
 // MARK: - Data Models for API Response
 struct JournalEntry: Codable {
@@ -79,18 +131,6 @@ struct FlarePredictionOutput {
     let nextPredictionDate: Date
 }
 
-// Using existing FlareRiskLevel from HomeView.swift
-// Adding threshold extension for ML predictions
-extension FlareRiskLevel {
-    var threshold: Double {
-        switch self {
-        case .low: return 0.0
-        case .moderate: return 0.25
-        case .high: return 0.5
-        case .veryHigh: return 0.75
-        }
-    }
-}
 
 // MARK: - Feature Structures
 struct NutritionFeatures {
@@ -706,28 +746,28 @@ class FlarePredictionMLEngine: ObservableObject {
                 action: "Immediate Medical Attention",
                 rationale: "High risk of flare detected. Contact your healthcare provider immediately.",
                 implementation: "Call your doctor, monitor symptoms closely, avoid trigger foods",
-                priority: .critical
+                priority: "critical"
             ))
         case .high:
             recommendations.append(FlarePreventionAction(
                 action: "High Risk Alert",
                 rationale: "Elevated risk of flare. Take preventive measures.",
                 implementation: "Increase medication adherence, avoid known triggers, reduce stress",
-                priority: .high
+                priority: "high"
             ))
         case .moderate:
             recommendations.append(FlarePreventionAction(
                 action: "Moderate Risk",
                 rationale: "Some risk factors detected. Monitor closely.",
                 implementation: "Track symptoms daily, maintain healthy diet, get adequate sleep",
-                priority: .medium
+                priority: "moderate"
             ))
         case .low:
             recommendations.append(FlarePreventionAction(
                 action: "Low Risk",
                 rationale: "Risk factors are well managed. Continue current routine.",
                 implementation: "Maintain current routine, continue healthy habits, regular monitoring",
-                priority: .low
+                priority: "low"
             ))
         }
         

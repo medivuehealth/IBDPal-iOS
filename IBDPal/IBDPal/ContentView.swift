@@ -30,13 +30,21 @@ struct ContentView: View {
 struct MainTabView: View {
     @Binding var userData: UserData?
     let onSignOut: () -> Void
+    @State private var selectedTab = 0
+    @State private var homeRefreshTrigger = UUID()
     
     var body: some View {
-        TabView {
-            HomeView(userData: userData)
+        TabView(selection: $selectedTab) {
+            HomeView(userData: userData, refreshTrigger: homeRefreshTrigger)
                 .tabItem {
                     Image(systemName: "house.fill")
                     Text("Home")
+                }
+                .tag(0)
+                .onAppear {
+                    // Refresh HomeView data when Home tab is selected
+                    print("🏠 [MainTabView] Home tab selected - refreshing data")
+                    homeRefreshTrigger = UUID()
                 }
             
             DailyLogView(userData: userData)
@@ -44,26 +52,37 @@ struct MainTabView: View {
                     Image(systemName: "plus.circle.fill")
                     Text("Daily Log")
                 }
+                .tag(1)
             
             DiscoverView(userData: userData)
                 .tabItem {
                     Image(systemName: "safari.fill")
                     Text("Trends")
                 }
+                .tag(2)
             
             SearchView(userData: userData)
                 .tabItem {
                     Image(systemName: "magnifyingglass")
                     Text("Connect")
                 }
+                .tag(3)
             
             MoreView(userData: userData, onSignOut: onSignOut)
                 .tabItem {
                     Image(systemName: "ellipsis.circle.fill")
                     Text("More")
                 }
+                .tag(4)
         }
         .accentColor(.blue)
+        .onChange(of: selectedTab) { newTab in
+            // Refresh HomeView when switching back to Home tab
+            if newTab == 0 {
+                print("🏠 [MainTabView] Switched to Home tab - refreshing data")
+                homeRefreshTrigger = UUID()
+            }
+        }
     }
 }
 
