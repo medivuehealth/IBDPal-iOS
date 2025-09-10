@@ -46,14 +46,6 @@ enum FlareRiskLevel: String, CaseIterable {
 import CoreML
 import Accelerate
 
-// MARK: - Flare Prevention Action
-struct FlarePreventionAction: Codable {
-    let action: String
-    let rationale: String
-    let implementation: String
-    let priority: String
-}
-
 // MARK: - Data Models for API Response
 struct JournalEntry: Codable {
     let entry_id: String
@@ -246,7 +238,7 @@ class FlarePredictionMLEngine: ObservableObject {
             return await predictWithMLModel(input: input, model: model)
         } else {
             print("📊 Using rule-based prediction (ML model not available)")
-            return await predictWithRuleBased(input: input)
+            return predictWithRuleBased(input: input)
         }
     }
     
@@ -346,7 +338,7 @@ class FlarePredictionMLEngine: ObservableObject {
         var fiberIntake = 0.0
         var proteinIntake = 0.0
         var fatIntake = 0.0
-        let fodmapScore = calculateFODMAPScore(entries: recentEntries)
+        let _fodmapScore = calculateFODMAPScore(entries: recentEntries)
         var triggerFoodCount = 0
         var inflammatoryFoodCount = 0
         var hydrationLevel = 0.0
@@ -410,13 +402,13 @@ class FlarePredictionMLEngine: ObservableObject {
         var constipation = 0.0
         var bloating = 0.0
         var fatigue = 0.0
-        let appetite = 7.0 // Default appetite
+        let _appetite = 7.0 // Default appetite
         let weightChange = 0.0 // Not available in current data structure
         var bloodInStool = false
         var urgency = 0.0
         var incompleteEvacuation = false
-        let symptomSeverity = calculateSymptomSeverity(entries: recentEntries)
-        let symptomDuration = calculateSymptomDuration(entries: recentEntries)
+        let _symptomSeverity = calculateSymptomSeverity(entries: recentEntries)
+        let _symptomDuration = calculateSymptomDuration(entries: recentEntries)
         
         for entry in recentEntries {
             if let symptoms = entry.symptoms {
@@ -746,28 +738,28 @@ class FlarePredictionMLEngine: ObservableObject {
                 action: "Immediate Medical Attention",
                 rationale: "High risk of flare detected. Contact your healthcare provider immediately.",
                 implementation: "Call your doctor, monitor symptoms closely, avoid trigger foods",
-                priority: "critical"
+                priority: .critical
             ))
         case .high:
             recommendations.append(FlarePreventionAction(
                 action: "High Risk Alert",
                 rationale: "Elevated risk of flare. Take preventive measures.",
                 implementation: "Increase medication adherence, avoid known triggers, reduce stress",
-                priority: "high"
+                priority: .high
             ))
         case .moderate:
             recommendations.append(FlarePreventionAction(
                 action: "Moderate Risk",
                 rationale: "Some risk factors detected. Monitor closely.",
                 implementation: "Track symptoms daily, maintain healthy diet, get adequate sleep",
-                priority: "moderate"
+                priority: .medium
             ))
         case .low:
             recommendations.append(FlarePreventionAction(
                 action: "Low Risk",
                 rationale: "Risk factors are well managed. Continue current routine.",
                 implementation: "Maintain current routine, continue healthy habits, regular monitoring",
-                priority: "low"
+                priority: .low
             ))
         }
         
@@ -890,6 +882,4 @@ class FlarePredictionMLEngine: ObservableObject {
         // Extract feature importance from ML prediction
         return ["nutrition": 0.3, "symptoms": 0.4, "lifestyle": 0.2, "medication": 0.1]
     }
-}
-
-// Using existing FlarePreventionAction from IBDNutritionAnalyzer.swift 
+} 

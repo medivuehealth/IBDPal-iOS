@@ -2,6 +2,7 @@ import SwiftUI
 
 struct DailyLogView: View {
     let userData: UserData?
+    @ObservedObject var dataRefreshManager: DataRefreshManager
     
     @State private var selectedDate = Date()
     @State private var showingDatePicker = false
@@ -134,7 +135,8 @@ struct DailyLogView: View {
                     onEntrySaved: {
                         showingEntryForm = false
                         loadEntries()
-                    }
+                    },
+                    dataRefreshManager: dataRefreshManager
                 )
             }
             .onAppear {
@@ -314,6 +316,7 @@ struct EntryFormView: View {
     let selectedDate: Date
     let entryType: EntryType
     let onEntrySaved: () -> Void
+    @ObservedObject var dataRefreshManager: DataRefreshManager
     
     @Environment(\.dismiss) private var dismiss
     @State private var isLoading = false
@@ -328,11 +331,12 @@ struct EntryFormView: View {
     @State private var hydrationData = HydrationFormData()
     @State private var dataLoaded = false
     
-    init(userData: UserData?, selectedDate: Date, entryType: EntryType, onEntrySaved: @escaping () -> Void) {
+    init(userData: UserData?, selectedDate: Date, entryType: EntryType, onEntrySaved: @escaping () -> Void, dataRefreshManager: DataRefreshManager) {
         self.userData = userData
         self.selectedDate = selectedDate
         self.entryType = entryType
         self.onEntrySaved = onEntrySaved
+        self.dataRefreshManager = dataRefreshManager
     }
     
     var body: some View {
@@ -3344,7 +3348,7 @@ struct DatePickerView: View {
 }
 
 #Preview {
-    DailyLogView(userData: UserData(id: "1", email: "test@example.com", name: "Test User", phoneNumber: nil, token: "token"))
+    DailyLogView(userData: UserData(id: "1", email: "test@example.com", name: "Test User", phoneNumber: nil, token: "token"), dataRefreshManager: DataRefreshManager())
 }
 
 // MARK: - Lookup Value Mappings

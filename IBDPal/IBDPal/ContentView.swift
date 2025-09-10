@@ -7,13 +7,24 @@
 
 import SwiftUI
 
+// MARK: - Shared Data Manager
+class DataRefreshManager: ObservableObject {
+    @Published var refreshTrigger = UUID()
+    
+    func refreshData() {
+        refreshTrigger = UUID()
+        print("🔄 [DataRefreshManager] Data refresh triggered")
+    }
+}
+
 struct ContentView: View {
     @State private var isAuthenticated = false
     @State private var userData: UserData?
+    @StateObject private var dataRefreshManager = DataRefreshManager()
     
     var body: some View {
         if isAuthenticated {
-            MainTabView(userData: $userData, onSignOut: handleSignOut)
+            MainTabView(userData: $userData, onSignOut: handleSignOut, dataRefreshManager: dataRefreshManager)
         } else {
             LoginView(isAuthenticated: $isAuthenticated, userData: $userData)
         }
@@ -30,12 +41,12 @@ struct ContentView: View {
 struct MainTabView: View {
     @Binding var userData: UserData?
     let onSignOut: () -> Void
+    @ObservedObject var dataRefreshManager: DataRefreshManager
     @State private var selectedTab = 0
-    @State private var homeRefreshTrigger = UUID()
     
     var body: some View {
         TabView(selection: $selectedTab) {
-            HomeView(userData: userData, refreshTrigger: homeRefreshTrigger)
+            HomeView(userData: userData, dataRefreshManager: dataRefreshManager)
                 .tabItem {
                     Image(systemName: "house.fill")
                     Text("Home")
@@ -44,10 +55,10 @@ struct MainTabView: View {
                 .onAppear {
                     // Refresh HomeView data when Home tab is selected
                     print("🏠 [MainTabView] Home tab selected - refreshing data")
-                    homeRefreshTrigger = UUID()
+                    dataRefreshManager.refreshData()
                 }
             
-            DailyLogView(userData: userData)
+            DailyLogView(userData: userData, dataRefreshManager: dataRefreshManager)
                 .tabItem {
                     Image(systemName: "plus.circle.fill")
                     Text("Daily Log")
@@ -80,7 +91,7 @@ struct MainTabView: View {
             // Refresh HomeView when switching back to Home tab
             if newTab == 0 {
                 print("🏠 [MainTabView] Switched to Home tab - refreshing data")
-                homeRefreshTrigger = UUID()
+                dataRefreshManager.refreshData()
             }
         }
     }

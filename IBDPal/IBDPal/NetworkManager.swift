@@ -1,6 +1,7 @@
 import Foundation
+import Combine
 
-class NetworkManager {
+class NetworkManager: ObservableObject {
     static let shared = NetworkManager()
     
     private let session: URLSession
@@ -24,5 +25,12 @@ class NetworkManager {
     func dataTask(with request: URLRequest, completionHandler: @escaping (Data?, URLResponse?, Error?) -> Void) -> URLSessionDataTask {
         print("🔧 NetworkManager [\(id)]: Creating data task for \(request.url?.absoluteString ?? "unknown")")
         return session.dataTask(with: request, completionHandler: completionHandler)
+    }
+    
+    // Add a simple fetch method for journal entries
+    func fetchJournalEntries(userId: String) async throws -> [JournalEntry] {
+        // This is a placeholder implementation
+        // In a real app, this would make an API call
+        return []
     }
 } 

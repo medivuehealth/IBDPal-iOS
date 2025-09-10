@@ -208,13 +208,6 @@ struct FlarePreventionAction {
     let priority: ActionPriority
 }
 
-enum ActionPriority: String, CaseIterable {
-    case critical = "Critical"
-    case high = "High"
-    case medium = "Medium"
-    case low = "Low"
-}
-
 enum RiskLevel: String, CaseIterable {
     case high = "High"
     case medium = "Medium"
@@ -288,8 +281,8 @@ class IBDNutritionAnalyzer: ObservableObject {
         var totalCarbs = 0.0
         var totalFiber = 0.0
         var totalFat = 0.0
-        var vitamins: [String: Double] = [:]
-        var minerals: [String: Double] = [:]
+        let vitamins: [String: Double] = [:]
+        let minerals: [String: Double] = [:]
         var hydration = 0.0
         var fodmapScore = 0.0
         var ibdFriendlyScore = 0.0

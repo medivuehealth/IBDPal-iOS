@@ -9,10 +9,13 @@ struct IBDNutritionAnalysisView: View {
     @State private var foodMicronutrients: [(String, MicronutrientData)] = []
     @State private var isLoading = false
     @State private var errorMessage: String?
+    @State private var userProfile: MicronutrientProfile?
     @Environment(\.dismiss) private var dismiss
     
-    let userProfile: MicronutrientProfile
+    let userData: UserData?
     let journalEntries: [JournalEntry]
+    
+    private let apiBaseURL = AppConfig.apiBaseURL
     
     var body: some View {
         NavigationView {
@@ -133,12 +136,31 @@ struct IBDNutritionAnalysisView: View {
                 .font(.headline)
                 .foregroundColor(.primary)
             
+            // Debug info
+            Text("Debug: \(foodMicronutrients.count) foods found")
+                .font(.caption)
+                .foregroundColor(.secondary)
+            
             if foodMicronutrients.isEmpty {
-                Text("No food data available")
-                    .font(.subheadline)
+                VStack(spacing: 8) {
+                    Text("No food data available")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                    
+                    Text("This could mean:")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("• No journal entries in the last 7 days")
+                        Text("• Journal entries don't contain meal data")
+                        Text("• Food micronutrient calculation failed")
+                    }
+                    .font(.caption)
                     .foregroundColor(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .center)
-                    .padding()
+                }
+                .frame(maxWidth: .infinity, alignment: .center)
+                .padding()
             } else {
                 LazyVStack(spacing: 12) {
                     ForEach(Array(foodMicronutrients.enumerated()), id: \.offset) { index, foodData in
@@ -277,23 +299,101 @@ struct IBDNutritionAnalysisView: View {
         errorMessage = nil
         
         do {
-            // Calculate micronutrient intake from journal entries
-            let dailyIntakeResult = micronutrientCalculator.calculateDailyMicronutrientIntake(
-                from: journalEntries,
-                userProfile: userProfile
+            // First, fetch the user's micronutrient profile
+            guard let userId = userData?.id else {
+                throw NSError(domain: "No user ID", code: 0)
+            }
+            
+            print("🔍 [DEBUG] Starting nutrition analysis for user: \(userId)")
+            
+            // Fetch journal entries directly from API (like MicronutrientAnalysisCard does)
+            let calendar = Calendar.current
+            let endDate = Date()
+            let startDate = calendar.date(byAdding: .day, value: -7, to: endDate) ?? endDate
+            
+            let dateFormatter = DateFormatter()
+            dateFormatter.dateFormat = "yyyy-MM-dd"
+            let startDateString = dateFormatter.string(from: startDate)
+            let endDateString = dateFormatter.string(from: endDate)
+            
+            guard let url = URL(string: "\(apiBaseURL)/journal/entries/\(userId)?startDate=\(startDateString)&endDate=\(endDateString)") else {
+                throw NSError(domain: "Invalid URL", code: 0)
+            }
+            
+            var request = URLRequest(url: url)
+            request.setValue("Bearer \(userData?.token ?? "")", forHTTPHeaderField: "Authorization")
+            
+            print("🔍 [DEBUG] Fetching journal entries from: \(url)")
+            
+            let (data, response) = try await URLSession.shared.data(for: request)
+            
+            if let httpResponse = response as? HTTPURLResponse {
+                print("🔍 [DEBUG] Journal entries HTTP Status: \(httpResponse.statusCode)")
+            }
+            
+            let recentEntries = try JSONDecoder().decode([JournalEntry].self, from: data)
+            print("🔍 [DEBUG] Successfully loaded \(recentEntries.count) journal entries from API")
+            
+            // Debug: Print recent entries
+            for (index, entry) in recentEntries.enumerated() {
+                print("🔍 [DEBUG] Entry \(index + 1): \(entry.entry_date)")
+                if let meals = entry.meals {
+                    print("🔍 [DEBUG]   Meals count: \(meals.count)")
+                    for (mealIndex, meal) in meals.enumerated() {
+                        print("🔍 [DEBUG]   Meal \(mealIndex + 1): \(meal.description)")
+                    }
+                } else {
+                    print("🔍 [DEBUG]   No meals in this entry")
+                }
+            }
+            
+            let profile = try await fetchMicronutrientProfile(userId: userId)
+            
+            // Use the fetched profile or create a default one
+            let profileToUse = profile ?? MicronutrientProfile(
+                userId: userId,
+                age: 30,
+                weight: 70.0,
+                height: 170.0,
+                gender: "Unknown",
+                diseaseActivity: .remission,
+                labResults: [],
+                supplements: []
             )
+            
+            print("🔍 [DEBUG] Using profile: age=\(profileToUse.age), weight=\(profileToUse.weight)")
+            print("🔍 [DEBUG] Profile supplements count: \(profileToUse.supplements.count)")
+            
+            await MainActor.run {
+                self.userProfile = profileToUse
+            }
+            
+            // Calculate micronutrient intake from journal entries (use recent entries)
+            let dailyIntakeResult = micronutrientCalculator.calculateDailyMicronutrientIntake(
+                from: recentEntries,
+                userProfile: profileToUse
+            )
+            
+            print("🔍 [DEBUG] Daily intake result food sources count: \(dailyIntakeResult.foodSources.count)")
+            print("🔍 [DEBUG] Food sources: \(dailyIntakeResult.foodSources.keys)")
             
             let analysis = deficiencyAnalyzer.analyzeMicronutrientStatus(
                 dailyIntakeResult.totalIntake,
                 dailyIntakeResult.requirements,
-                userProfile.labResults
+                profileToUse.labResults
             )
             
             // Process food micronutrients
             var foodData: [(String, MicronutrientData)] = []
             for (foodName, micronutrientData) in dailyIntakeResult.foodSources {
+                print("🔍 [DEBUG] Processing food: \(foodName)")
+                print("🔍 [DEBUG]   Vitamin C: \(micronutrientData.vitaminC) mg")
+                print("🔍 [DEBUG]   Iron: \(micronutrientData.iron) mg")
+                print("🔍 [DEBUG]   Vitamin D: \(micronutrientData.vitaminD) mcg")
                 foodData.append((foodName, micronutrientData))
             }
+            
+            print("🔍 [DEBUG] Final food data count: \(foodData.count)")
             
             await MainActor.run {
                 self.dailyIntake = dailyIntakeResult
@@ -302,10 +402,40 @@ struct IBDNutritionAnalysisView: View {
                 self.isLoading = false
             }
         } catch {
+            print("❌ [ERROR] Nutrition analysis failed: \(error)")
             await MainActor.run {
                 self.errorMessage = error.localizedDescription
                 self.isLoading = false
             }
+        }
+    }
+    
+    // MARK: - API Methods
+    
+    private func fetchMicronutrientProfile(userId: String) async throws -> MicronutrientProfile? {
+        let fullURL = "\(apiBaseURL)/micronutrient/profile"
+        
+        guard let url = URL(string: fullURL) else {
+            throw NSError(domain: "Invalid URL", code: 0)
+        }
+        
+        var request = URLRequest(url: url)
+        request.setValue("Bearer \(userData?.token ?? "")", forHTTPHeaderField: "Authorization")
+        
+        let (data, response) = try await URLSession.shared.data(for: request)
+        
+        if let httpResponse = response as? HTTPURLResponse {
+            print("🔍 [DEBUG] Micronutrient Profile HTTP Status: \(httpResponse.statusCode)")
+        }
+        
+        // Try to decode the response
+        do {
+            let response = try JSONDecoder().decode(MicronutrientProfileResponse.self, from: data)
+            return response.data
+        } catch {
+            print("Decoding error: \(error)")
+            // If decoding fails, return nil (no profile exists yet)
+            return nil
         }
     }
 }
@@ -369,15 +499,12 @@ struct MicronutrientValueItem: View {
 
 #Preview {
     IBDNutritionAnalysisView(
-        userProfile: MicronutrientProfile(
-            userId: "sample",
-            age: 30,
-            weight: 70.0,
-            height: 170.0,
-            gender: "male",
-            diseaseActivity: .remission,
-            labResults: [],
-            supplements: []
+        userData: UserData(
+            id: "sample",
+            email: "sample@example.com",
+            name: "Sample User",
+            phoneNumber: "123-456-7890",
+            token: "sample_token"
         ),
         journalEntries: []
     )

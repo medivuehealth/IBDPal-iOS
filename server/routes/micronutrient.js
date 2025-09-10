@@ -7,7 +7,10 @@ const { authenticateToken } = require('../middleware/auth');
 router.post('/profile', authenticateToken, async (req, res) => {
     try {
         const userId = req.user.userId;
-        const { age, weight, height, gender, micronutrients } = req.body;
+        const { age, weight, height, gender, micronutrients, supplements } = req.body;
+        
+        // Handle both field names for backward compatibility
+        const supplementsData = micronutrients || supplements;
 
         console.log('Creating/updating micronutrient profile for user:', userId);
 
@@ -77,9 +80,9 @@ router.post('/profile', authenticateToken, async (req, res) => {
                 console.log('Created new micronutrient profile for user:', userId);
             }
 
-            // Insert micronutrients if provided
-            if (micronutrients && micronutrients.length > 0) {
-                for (const supplement of micronutrients) {
+            // Insert supplements if provided
+            if (supplementsData && supplementsData.length > 0) {
+                for (const supplement of supplementsData) {
                     await db.query(
                         `INSERT INTO micronutrient_supplements 
                          (profile_id, name, category, dosage, unit, frequency, start_date, notes)
@@ -96,7 +99,7 @@ router.post('/profile', authenticateToken, async (req, res) => {
                         ]
                     );
                 }
-                console.log(`Added ${micronutrients.length} supplements for user:`, userId);
+                console.log(`Added ${supplementsData.length} supplements for user:`, userId);
             }
 
             // Commit transaction
@@ -111,7 +114,7 @@ router.post('/profile', authenticateToken, async (req, res) => {
                     weight,
                     height,
                     gender,
-                    supplementCount: micronutrients ? micronutrients.length : 0
+                    supplementCount: supplementsData ? supplementsData.length : 0
                 }
             });
 
@@ -181,7 +184,7 @@ router.get('/profile/:userId', authenticateToken, async (req, res) => {
             weight: profile.weight,
             height: profile.height,
             gender: profile.gender,
-            micronutrients: supplements,
+            supplements: supplements,
             lastUpdated: profile.updated_at
         };
 

@@ -15,8 +15,8 @@ class IBDMicronutrientCalculator: ObservableObject {
     func calculateMicronutrients(for foodDescription: String, userProfile: MicronutrientProfile) -> MicronutrientData {
         let correctedDescription = correctSpelling(foodDescription)
         
-        // Use intelligent serving size parser
-        let servingSize = IntelligentServingSizeParser.shared.parseServingSize(from: correctedDescription, userProfile: userProfile)
+        // Use simple serving size parsing (remove IntelligentServingSizeParser reference)
+        let servingSize = parseServingSize(from: correctedDescription)
         
         // Use NLP processor for intelligent food recognition
         let nlpResult = FoodNLPProcessor.shared.processFoodDescription(correctedDescription)
@@ -70,18 +70,35 @@ class IBDMicronutrientCalculator: ObservableObject {
         var foodSources: [String: MicronutrientData] = [:]
         var supplementSources: [String: MicronutrientData] = [:]
         
+        print("🔍 [MICRONUTRIENT DEBUG] Starting calculation with \(journalEntries.count) journal entries")
+        
         // Calculate from food intake using intelligent serving size parsing
         for entry in journalEntries {
             if let meals = entry.meals {
+                print("🔍 [MICRONUTRIENT DEBUG] Processing entry with \(meals.count) meals")
                 for meal in meals {
                     let foodName = meal.description
+                    print("🔍 [MICRONUTRIENT DEBUG] Processing food: '\(foodName)'")
+                    
                     // Use intelligent serving size parser instead of hardcoded serving size
                     let micronutrients = calculateMicronutrients(for: foodName, userProfile: userProfile)
+                    
+                    print("🔍 [MICRONUTRIENT DEBUG] Calculated micronutrients for '\(foodName)':")
+                    print("🔍 [MICRONUTRIENT DEBUG]   Vitamin C: \(micronutrients.vitaminC) mg")
+                    print("🔍 [MICRONUTRIENT DEBUG]   Iron: \(micronutrients.iron) mg")
+                    print("🔍 [MICRONUTRIENT DEBUG]   Vitamin D: \(micronutrients.vitaminD) mcg")
+                    print("🔍 [MICRONUTRIENT DEBUG]   Calcium: \(micronutrients.calcium) mg")
+                    
                     totalMicronutrients = addMicronutrients(totalMicronutrients, micronutrients)
                     foodSources[foodName] = micronutrients
                 }
+            } else {
+                print("🔍 [MICRONUTRIENT DEBUG] Entry has no meals")
             }
         }
+        
+        print("🔍 [MICRONUTRIENT DEBUG] Final food sources count: \(foodSources.count)")
+        print("🔍 [MICRONUTRIENT DEBUG] Food sources: \(Array(foodSources.keys))")
         
         // Calculate from supplements
         for supplement in userProfile.supplements where supplement.isActive {
@@ -113,7 +130,9 @@ class IBDMicronutrientCalculator: ObservableObject {
     // MARK: - Private Calculation Methods
     
     private func calculateFromEnhancedFood(_ food: EnhancedFoodItem, servingSize: Double) -> MicronutrientData {
-        return scaleMicronutrients(food.micronutrients, by: servingSize)
+        // Convert vitamins and minerals dictionaries to MicronutrientData
+        let micronutrientData = createMicronutrientDataFromEnhancedFood(food)
+        return scaleMicronutrients(micronutrientData, by: servingSize)
     }
     
     private func calculateFromCompoundFood(_ food: CompoundFoodItem, servingSize: Double) -> MicronutrientData {
@@ -121,7 +140,8 @@ class IBDMicronutrientCalculator: ObservableObject {
         
         for ingredient in food.ingredients {
             if let enhancedFood = findEnhancedFood(in: ingredient.name.lowercased()) {
-                let ingredientMicronutrients = scaleMicronutrients(enhancedFood.micronutrients, by: ingredient.quantity * servingSize)
+                let ingredientMicronutrientData = createMicronutrientDataFromEnhancedFood(enhancedFood)
+                let ingredientMicronutrients = scaleMicronutrients(ingredientMicronutrientData, by: ingredient.quantity * servingSize)
                 totalMicronutrients = addMicronutrients(totalMicronutrients, ingredientMicronutrients)
             }
         }
@@ -453,5 +473,54 @@ class IBDMicronutrientCalculator: ObservableObject {
         default:
             return dosage // No conversion available
         }
+    }
+
+    // Add helper function to convert EnhancedFoodItem to MicronutrientData
+    private func createMicronutrientDataFromEnhancedFood(_ food: EnhancedFoodItem) -> MicronutrientData {
+        return MicronutrientData(
+            vitaminA: food.vitamins["vitaminA"] ?? 0,
+            vitaminB1: food.vitamins["vitaminB1"] ?? 0,
+            vitaminB2: food.vitamins["vitaminB2"] ?? 0,
+            vitaminB3: food.vitamins["vitaminB3"] ?? 0,
+            vitaminB5: food.vitamins["vitaminB5"] ?? 0,
+            vitaminB6: food.vitamins["vitaminB6"] ?? 0,
+            vitaminB7: food.vitamins["vitaminB7"] ?? 0,
+            vitaminB9: food.vitamins["vitaminB9"] ?? 0,
+            vitaminB12: food.vitamins["vitaminB12"] ?? 0,
+            vitaminC: food.vitamins["vitaminC"] ?? 0,
+            vitaminD: food.vitamins["vitaminD"] ?? 0,
+            vitaminE: food.vitamins["vitaminE"] ?? 0,
+            vitaminK: food.vitamins["vitaminK"] ?? 0,
+            calcium: food.minerals["calcium"] ?? 0,
+            iron: food.minerals["iron"] ?? 0,
+            magnesium: food.minerals["magnesium"] ?? 0,
+            phosphorus: food.minerals["phosphorus"] ?? 0,
+            potassium: food.minerals["potassium"] ?? 0,
+            sodium: food.minerals["sodium"] ?? 0,
+            zinc: food.minerals["zinc"] ?? 0,
+            copper: food.minerals["copper"] ?? 0,
+            manganese: food.minerals["manganese"] ?? 0,
+            selenium: food.minerals["selenium"] ?? 0,
+            iodine: food.minerals["iodine"] ?? 0,
+            chromium: food.minerals["chromium"] ?? 0,
+            molybdenum: food.minerals["molybdenum"] ?? 0,
+            boron: food.minerals["boron"] ?? 0,
+            silicon: food.minerals["silicon"] ?? 0
+        )
+    }
+
+    // Add simple serving size parser to replace IntelligentServingSizeParser
+    private func parseServingSize(from description: String) -> Double {
+        // Simple serving size parsing - extract numbers from description
+        let words = description.lowercased().components(separatedBy: .whitespacesAndNewlines)
+        
+        for word in words {
+            if let number = Double(word) {
+                return number
+            }
+        }
+        
+        // Default serving size if no number found
+        return 1.0
     }
 }

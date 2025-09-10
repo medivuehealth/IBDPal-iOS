@@ -1,4 +1,6 @@
 import Foundation
+import Combine
+import SwiftUI
 
 // MARK: - Core Data Models
 
@@ -136,6 +138,61 @@ struct MicronutrientProfile: Codable {
     let createdAt: Date?
     let updatedAt: Date?
     
+    // Custom decoding to handle string values from API
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        
+        userId = try container.decode(String.self, forKey: .userId)
+        age = try container.decode(Int.self, forKey: .age)
+        
+        // Handle weight as either Double or String
+        if let weightDouble = try? container.decode(Double.self, forKey: .weight) {
+            weight = weightDouble
+        } else if let weightString = try? container.decode(String.self, forKey: .weight) {
+            weight = Double(weightString) ?? 0.0
+        } else {
+            weight = 0.0
+        }
+        
+        // Handle height as either Double or String
+        if let heightDouble = try? container.decodeIfPresent(Double.self, forKey: .height) {
+            height = heightDouble
+        } else if let heightString = try? container.decodeIfPresent(String.self, forKey: .height) {
+            height = Double(heightString ?? "0")
+        } else {
+            height = nil
+        }
+        
+        gender = try container.decodeIfPresent(String.self, forKey: .gender)
+        diseaseActivity = try container.decodeIfPresent(DiseaseActivity.self, forKey: .diseaseActivity) ?? .remission
+        medications = try container.decodeIfPresent([String].self, forKey: .medications) ?? []
+        labResults = try container.decodeIfPresent([LabResult].self, forKey: .labResults) ?? []
+        supplements = try container.decodeIfPresent([MicronutrientSupplement].self, forKey: .supplements) ?? []
+        createdAt = try container.decodeIfPresent(Date.self, forKey: .createdAt)
+        updatedAt = try container.decodeIfPresent(Date.self, forKey: .updatedAt)
+    }
+    
+    // Custom encoding
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        
+        try container.encode(userId, forKey: .userId)
+        try container.encode(age, forKey: .age)
+        try container.encode(weight, forKey: .weight)
+        try container.encodeIfPresent(height, forKey: .height)
+        try container.encodeIfPresent(gender, forKey: .gender)
+        try container.encode(diseaseActivity, forKey: .diseaseActivity)
+        try container.encode(medications, forKey: .medications)
+        try container.encode(labResults, forKey: .labResults)
+        try container.encode(supplements, forKey: .supplements)
+        try container.encodeIfPresent(createdAt, forKey: .createdAt)
+        try container.encodeIfPresent(updatedAt, forKey: .updatedAt)
+    }
+    
+    private enum CodingKeys: String, CodingKey {
+        case userId, age, weight, height, gender, diseaseActivity, medications, labResults, supplements, createdAt, updatedAt
+    }
+    
     init(userId: String, age: Int, weight: Double, height: Double? = nil, gender: String? = nil, diseaseActivity: DiseaseActivity = .remission, medications: [String] = [], labResults: [LabResult] = [], supplements: [MicronutrientSupplement] = [], createdAt: Date? = nil, updatedAt: Date? = nil) {
         self.userId = userId
         self.age = age
@@ -171,6 +228,41 @@ struct LabResult: Codable, Identifiable {
         self.testDate = testDate
         self.notes = notes
     }
+    
+    // Custom decoding to handle API response format
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        
+        // Handle id as either String or Int
+        if let idString = try? container.decode(String.self, forKey: .id) {
+            id = idString
+        } else if let idInt = try? container.decode(Int.self, forKey: .id) {
+            id = String(idInt)
+        } else {
+            id = UUID().uuidString
+        }
+        
+        nutrient = try container.decode(String.self, forKey: .nutrient)
+        value = try container.decode(Double.self, forKey: .value)
+        unit = try container.decode(String.self, forKey: .unit)
+        referenceRange = try container.decode(String.self, forKey: .referenceRange)
+        
+        // Handle status as string and convert to enum
+        let statusString = try container.decode(String.self, forKey: .status)
+        status = LabStatus(rawValue: statusString) ?? .normal
+        
+        // Handle testDate as string and convert to Date
+        let dateString = try container.decode(String.self, forKey: .testDate)
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        testDate = formatter.date(from: dateString) ?? Date()
+        
+        notes = try container.decodeIfPresent(String.self, forKey: .notes)
+    }
+    
+    private enum CodingKeys: String, CodingKey {
+        case id, nutrient, value, unit, referenceRange, status, testDate, notes
+    }
 }
 
 struct MicronutrientSupplement: Codable, Identifiable {
@@ -194,6 +286,56 @@ struct MicronutrientSupplement: Codable, Identifiable {
         self.startDate = startDate
         self.isActive = isActive
         self.notes = notes
+    }
+    
+    // Custom decoding to handle API response format
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        
+        // Handle id as either String or Int
+        if let idString = try? container.decode(String.self, forKey: .id) {
+            id = idString
+        } else if let idInt = try? container.decode(Int.self, forKey: .id) {
+            id = String(idInt)
+        } else {
+            id = UUID().uuidString
+        }
+        
+        name = try container.decode(String.self, forKey: .name)
+        
+        // Handle category string and convert to enum
+        let categoryString = try container.decode(String.self, forKey: .category)
+        category = MicronutrientCategory(rawValue: categoryString.lowercased()) ?? .other
+        
+        // Handle dosage as either Double or Int
+        if let dosageDouble = try? container.decode(Double.self, forKey: .dosage) {
+            dosage = dosageDouble
+        } else if let dosageInt = try? container.decode(Int.self, forKey: .dosage) {
+            dosage = Double(dosageInt)
+        } else {
+            dosage = 0.0
+        }
+        
+        // Handle unit string and convert to enum
+        let unitString = try container.decode(String.self, forKey: .unit)
+        unit = DosageUnit(rawValue: unitString.lowercased()) ?? .mg
+        
+        // Handle frequency string and convert to enum
+        let frequencyString = try container.decode(String.self, forKey: .frequency)
+        frequency = SupplementFrequency(rawValue: frequencyString.lowercased()) ?? .daily
+        
+        // Handle startDate as string and convert to Date
+        let dateString = try container.decode(String.self, forKey: .startDate)
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        startDate = formatter.date(from: dateString) ?? Date()
+        
+        isActive = try container.decodeIfPresent(Bool.self, forKey: .isActive) ?? true
+        notes = try container.decodeIfPresent(String.self, forKey: .notes)
+    }
+    
+    private enum CodingKeys: String, CodingKey {
+        case id, name, category, dosage, unit, frequency, startDate, isActive, notes
     }
 }
 
@@ -382,9 +524,9 @@ struct MicronutrientProfileRequest: Codable {
 }
 
 struct MicronutrientProfileResponse: Codable {
-    let success: Bool
+    let success: Bool?
     let data: MicronutrientProfile?
-    let message: String
+    let message: String?
 }
 
 struct LabResultResponse: Codable {
@@ -573,6 +715,24 @@ enum DeficiencySeverity: String, Codable, CaseIterable {
         case .moderate: return "orange"
         case .severe: return "red"
         case .critical: return "red"
+        }
+    }
+    
+    var colorValue: Color {
+        switch self {
+        case .mild: return .yellow
+        case .moderate: return .orange
+        case .severe: return .red
+        case .critical: return .red
+        }
+    }
+    
+    var icon: String {
+        switch self {
+        case .mild: return "exclamationmark.circle.fill"
+        case .moderate: return "exclamationmark.triangle.fill"
+        case .severe: return "exclamationmark.octagon.fill"
+        case .critical: return "xmark.octagon.fill"
         }
     }
     
