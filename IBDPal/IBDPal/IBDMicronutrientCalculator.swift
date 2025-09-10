@@ -107,14 +107,18 @@ class IBDMicronutrientCalculator: ObservableObject {
             supplementSources[supplement.name] = supplementMicronutrients
         }
         
-        // Create requirements based on user profile - Fixed: removed labResults parameter
+        // Create evidence-based requirements with disease type consideration
+        // Determine disease type from user profile or default to IBD
+        let diseaseType = userProfile.diseaseType ?? "IBD"
+        
         let requirements = IBDMicronutrientRequirements(
             age: userProfile.age,
             gender: userProfile.gender ?? "Unknown",
             weight: userProfile.weight,
             height: userProfile.height,
             diseaseActivity: userProfile.diseaseActivity,
-            medications: [] // TODO: Add medications to user profile
+            medications: [], // TODO: Add medications to user profile
+            diseaseType: diseaseType
         )
         
         // Fixed: DailyMicronutrientIntake doesn't accept deficiencies and excesses parameters

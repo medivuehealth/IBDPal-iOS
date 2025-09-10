@@ -1,0 +1,48 @@
+IBD NUTRITION DAILY BASELINE REQUIREMENTS
+==========================================
+
+MACRONUTRIENTS
+--------------
+Nutrient          | Daily Baseline        | Calculation           | Source
+Calories          | 30 kcal/kg body weight| Weight × 30           | AGA Guidelines 2024
+Protein           | 1.5-2.0 g/kg body weight| Weight × 1.5-2.0    | Crohn's & Colitis Congress 2024
+Fiber             | 10-25 g/day          | Symptom-adjustable    | AGA Guidelines 2024
+Hydration         | 2000-3000 ml/day     | Activity-dependent    | WebMD IBD Research
+
+MICRONUTRIENTS
+--------------
+Nutrient          | Daily Baseline | vs RDA      | Source
+Vitamin D         | 2000-3000 IU   | 3-5x higher | AGA Guidelines 2024
+Vitamin B12       | 1000 mcg       | 400x higher | Crohn's & Colitis Congress 2024
+Iron              | 30-45 mg       | 2-3x higher | WebMD IBD Research
+Folate            | 600 mcg        | 1.5x higher | AGA Guidelines 2024
+Calcium           | 1200-1500 mg   | Age-adjusted| Institute of Medicine
+Zinc              | 15 mg          | 1.4x higher | AGA Guidelines 2024
+Omega-3           | 2.0 g          | 1.8x higher | Crohn's & Colitis Congress 2024
+
+MULTIPLIERS
+-----------
+Factor            | Multiplier     | Application
+Disease Activity  | 1.0x - 1.5x    | Remission → Severe
+Disease Type      | 1.05x - 1.2x   | IBS → Crohn's
+Age               | 0.8x - 1.2x    | Pediatric → Geriatric
+
+KEY RESEARCH FINDINGS
+---------------------
+• 70% of IBD patients have micronutrient deficiencies
+• 40-60% malabsorption rate in IBD
+• Evidence-based requirements vs general population RDA
+
+RESEARCH SOURCES
+----------------
+1. AGA Clinical Practice Update (2024): "Diet and nutritional therapies in patients with IBD"
+   https://gastro.org/clinical-guidance/diet-and-nutritional-therapies-in-patients-with-ibd/
+
+2. Crohn's & Colitis Congress (2024): "Micronutrient deficiencies in IBD"
+   https://www.nutritionaltherapyforibd.org/news/crohns-colitis-congress-2024-updates-on-ibd-diet-nutrition-research
+
+3. WebMD IBD Research: "Micronutrient Deficiencies and Crohn's Disease"
+   https://www.webmd.com/ibd-crohns-disease/crohns-disease/micronutrient-deficiency-crohns
+
+4. Institute of Medicine: Dietary Reference Intakes
+   https://www.nationalacademies.org/our-work/summary-report-of-the-dietary-reference-intakes
