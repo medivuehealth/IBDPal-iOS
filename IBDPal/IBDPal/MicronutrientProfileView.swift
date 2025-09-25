@@ -55,6 +55,8 @@ struct MicronutrientProfileView: View {
                         TextField("Enter your age", text: $age)
                             .textFieldStyle(RoundedBorderTextFieldStyle())
                             .keyboardType(.numberPad)
+                            .accessibilityLabel("Age input")
+                            .accessibilityHint("Enter your age in years")
                     }
                     
                     // Weight Input
@@ -66,6 +68,8 @@ struct MicronutrientProfileView: View {
                         TextField("Enter your weight in kg", text: $weight)
                             .textFieldStyle(RoundedBorderTextFieldStyle())
                             .keyboardType(.decimalPad)
+                            .accessibilityLabel("Weight input")
+                            .accessibilityHint("Enter your weight in kilograms")
                     }
                 }
                 .padding()
@@ -89,6 +93,8 @@ struct MicronutrientProfileView: View {
                         TextField("Enter your height in cm", text: $height)
                             .textFieldStyle(RoundedBorderTextFieldStyle())
                             .keyboardType(.decimalPad)
+                            .accessibilityLabel("Height input")
+                            .accessibilityHint("Enter your height in centimeters")
                     }
                     
                     // Gender Selection
@@ -103,6 +109,8 @@ struct MicronutrientProfileView: View {
                             }
                         }
                         .pickerStyle(MenuPickerStyle())
+                        .accessibilityLabel("Gender selection")
+                        .accessibilityValue("Selected: \(gender)")
                         .padding(.horizontal, 12)
                         .padding(.vertical, 8)
                         .background(Color(.systemGray6))

@@ -1739,17 +1739,130 @@ struct Summary {
 // MARK: - Industry Standard Targets
 
 struct IBDTargets {
-    // Based on FODMAP and IBD research standards
-    let calorieTarget: Int = 2000 // kcal/day for moderate activity
-    let proteinTarget: Int = 80 // g/day (1.2g/kg for 70kg person)
-    let fiberTarget: Int = 25 // g/day (lower for IBD tolerance)
-    let hydrationTarget: Int = 2000 // ml/day
-    let fatTarget: Int = 65 // g/day (moderate fat)
-    let carbTarget: Int = 250 // g/day (moderate carb)
+    // Research-driven baseline values based on AGA Guidelines 2024 and Crohn's & Colitis Congress 2024
+    // These are default values - should be personalized based on user profile
     
-    // FODMAP-specific targets
-    let fodmapFiberTarget: Int = 15 // g/day (lower for FODMAP diet)
+    // Macronutrients (Daily Baseline)
+    let calorieTarget: Int = 2100 // 30 kcal/kg × 70kg (default weight)
+    let proteinTarget: Int = 105 // 1.5 g/kg × 70kg (minimum for IBD patients)
+    let fiberTarget: Int = 17 // Mid-range of 10-25 g/day (symptom-adjustable)
+    let hydrationTarget: Int = 2500 // Mid-range of 2000-3000 ml/day (activity-dependent)
+    let fatTarget: Int = 70 // 30% of calories from fat (2100 × 0.3 / 9 kcal/g)
+    let carbTarget: Int = 262 // Remaining calories from carbs (2100 - 420 protein - 630 fat) / 4 kcal/g
+    
+    // Micronutrients (Daily Baseline - vs RDA)
+    let vitaminDTarget: Int = 2500 // IU (3-5x higher than RDA)
+    let vitaminB12Target: Int = 1000 // mcg (400x higher than RDA)
+    let ironTarget: Int = 37 // mg (2-3x higher than RDA)
+    let folateTarget: Int = 600 // mcg (1.5x higher than RDA)
+    let calciumTarget: Int = 1350 // mg (age-adjusted, mid-range)
+    let zincTarget: Int = 15 // mg (1.4x higher than RDA)
+    let omega3Target: Int = 2000 // mg (1.8x higher than RDA)
+    
+    // FODMAP-specific targets (more conservative for symptom management)
+    let fodmapFiberTarget: Int = 10 // g/day (lower end of range for FODMAP diet)
     let fodmapCarbTarget: Int = 200 // g/day (lower carb tolerance)
+    
+    // Multipliers for personalization
+    let diseaseActivityMultiplier: Double = 1.0 // 1.0x - 1.5x (Remission → Severe)
+    let diseaseTypeMultiplier: Double = 1.0 // 1.05x - 1.2x (IBS → Crohn's)
+    let ageMultiplier: Double = 1.0 // 0.8x - 1.2x (Pediatric → Geriatric)
+}
+
+// Personalized nutrition targets based on user profile
+struct PersonalizedIBDTargets {
+    let calorieTarget: Int
+    let proteinTarget: Int
+    let fiberTarget: Int
+    let hydrationTarget: Int
+    let fatTarget: Int
+    let carbTarget: Int
+    
+    // Micronutrients
+    let vitaminDTarget: Int
+    let vitaminB12Target: Int
+    let ironTarget: Int
+    let folateTarget: Int
+    let calciumTarget: Int
+    let zincTarget: Int
+    let omega3Target: Int
+    
+    // Calculate personalized targets based on user profile
+    static func calculate(for userProfile: MicronutrientProfile) -> PersonalizedIBDTargets {
+        let weight = userProfile.weight
+        let age = userProfile.age
+        let diseaseActivity = userProfile.diseaseActivity
+        
+        // Calculate multipliers based on user profile
+        let diseaseActivityMultiplier = diseaseActivityMultiplier(for: diseaseActivity)
+        let ageMultiplier = ageMultiplier(for: age)
+        let diseaseTypeMultiplier = 1.1 // Default for IBD (between IBS and Crohn's)
+        
+        let totalMultiplier = diseaseActivityMultiplier * ageMultiplier * diseaseTypeMultiplier
+        
+        // Macronutrients (weight-based calculations)
+        let calorieTarget = Int(Double(weight * 30) * totalMultiplier) // 30 kcal/kg
+        let proteinTarget = Int(Double(weight * 2) * totalMultiplier) // 2.0 g/kg (upper range for IBD)
+        let fiberTarget = Int(17.0 * totalMultiplier) // Mid-range, symptom-adjustable
+        let hydrationTarget = Int(2500.0 * totalMultiplier) // Activity-dependent
+        
+        // Calculate fat and carb targets based on calorie target
+        let fatTarget = Int(Double(calorieTarget) * 0.3 / 9.0) // 30% of calories from fat
+        let carbTarget = Int((Double(calorieTarget) - Double(proteinTarget * 4) - Double(fatTarget * 9)) / 4.0)
+        
+        // Micronutrients (research-based, with multipliers)
+        let vitaminDTarget = Int(2500.0 * totalMultiplier)
+        let vitaminB12Target = Int(1000.0 * totalMultiplier)
+        let ironTarget = Int(37.0 * totalMultiplier)
+        let folateTarget = Int(600.0 * totalMultiplier)
+        let calciumTarget = Int(1350.0 * totalMultiplier)
+        let zincTarget = Int(15.0 * totalMultiplier)
+        let omega3Target = Int(2000.0 * totalMultiplier)
+        
+        return PersonalizedIBDTargets(
+            calorieTarget: calorieTarget,
+            proteinTarget: proteinTarget,
+            fiberTarget: fiberTarget,
+            hydrationTarget: hydrationTarget,
+            fatTarget: fatTarget,
+            carbTarget: carbTarget,
+            vitaminDTarget: vitaminDTarget,
+            vitaminB12Target: vitaminB12Target,
+            ironTarget: ironTarget,
+            folateTarget: folateTarget,
+            calciumTarget: calciumTarget,
+            zincTarget: zincTarget,
+            omega3Target: omega3Target
+        )
+    }
+    
+    // Disease activity multiplier (1.0x - 1.5x)
+    private static func diseaseActivityMultiplier(for activity: DiseaseActivity) -> Double {
+        switch activity {
+        case .remission:
+            return 1.0
+        case .mild:
+            return 1.1
+        case .moderate:
+            return 1.3
+        case .severe:
+            return 1.5
+        }
+    }
+    
+    // Age multiplier (0.8x - 1.2x)
+    private static func ageMultiplier(for age: Int) -> Double {
+        switch age {
+        case 0..<18:
+            return 1.2 // Pediatric - higher needs
+        case 18..<65:
+            return 1.0 // Adult - standard needs
+        case 65...:
+            return 0.8 // Geriatric - lower needs
+        default:
+            return 1.0
+        }
+    }
 }
 
 struct HealthMetricTargets {

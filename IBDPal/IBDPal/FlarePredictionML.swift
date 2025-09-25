@@ -76,6 +76,9 @@ struct Meal: Codable {
     let carbs: Int?
     let fiber: Int?
     let fat: Int?
+    let serving_size: Double?
+    let serving_unit: String?
+    let serving_description: String?
 }
 
 struct Symptom: Codable {
@@ -881,5 +884,75 @@ class FlarePredictionMLEngine: ObservableObject {
     private func extractContributingFactors(from prediction: MLFeatureProvider, input: FlarePredictionInput) -> [String: Double] {
         // Extract feature importance from ML prediction
         return ["nutrition": 0.3, "symptoms": 0.4, "lifestyle": 0.2, "medication": 0.1]
+    }
+}
+
+// MARK: - Weekly Nutrition Analysis
+struct WeeklyNutritionTotals {
+    var totalCalories: Double = 0
+    var totalProtein: Double = 0
+    var totalCarbs: Double = 0
+    var totalFiber: Double = 0
+    var totalFat: Double = 0
+    
+    // Micronutrients
+    var vitaminD: Double = 0
+    var vitaminB12: Double = 0
+    var iron: Double = 0
+    var calcium: Double = 0
+    var zinc: Double = 0
+    var omega3: Double = 0
+    
+    mutating func addMicronutrients(_ micronutrients: MicronutrientData) {
+        vitaminD += micronutrients.vitaminD
+        vitaminB12 += micronutrients.vitaminB12
+        iron += micronutrients.iron
+        calcium += micronutrients.calcium
+        zinc += micronutrients.zinc
+        omega3 += micronutrients.omega3
+    }
+}
+
+struct NutritionTrend {
+    let nutrient: String
+    let actual: Double
+    let recommended: Double
+    let unit: String
+    
+    var percentage: Double {
+        guard recommended > 0 else { return 0 }
+        return (actual / recommended) * 100
+    }
+    
+    var status: TrendStatus {
+        if percentage >= 100 {
+            return .met
+        } else if percentage >= 80 {
+            return .close
+        } else {
+            return .deficient
+        }
+    }
+}
+
+enum TrendStatus {
+    case met
+    case close
+    case deficient
+    
+    var color: Color {
+        switch self {
+        case .met: return .green
+        case .close: return .orange
+        case .deficient: return .red
+        }
+    }
+    
+    var icon: String {
+        switch self {
+        case .met: return "checkmark.circle.fill"
+        case .close: return "exclamationmark.triangle.fill"
+        case .deficient: return "xmark.circle.fill"
+        }
     }
 } 

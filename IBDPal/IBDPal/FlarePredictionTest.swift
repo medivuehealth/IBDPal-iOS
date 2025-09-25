@@ -79,7 +79,10 @@ class FlarePredictionTest {
             protein: 31,
             carbs: 0,
             fiber: 0,
-            fat: 4
+            fat: 4,
+            serving_size: 1.0,
+            serving_unit: "cup",
+            serving_description: "1 cup"
         )
     }
     

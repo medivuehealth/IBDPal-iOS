@@ -2954,7 +2954,10 @@ struct LogEntry: Identifiable, Codable {
                     protein: mealDict["protein"] as? Int,
                     carbs: mealDict["carbs"] as? Int,
                     fiber: mealDict["fiber"] as? Int,
-                    fat: mealDict["fat"] as? Int
+                    fat: mealDict["fat"] as? Int,
+                    serving_size: mealDict["serving_size"] as? Double,
+                    serving_unit: mealDict["serving_unit"] as? String,
+                    serving_description: mealDict["serving_description"] as? String
                 )
             }
         } else {

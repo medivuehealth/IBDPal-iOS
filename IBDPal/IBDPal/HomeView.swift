@@ -11,6 +11,7 @@ struct HomeView: View {
     @State private var nutritionAnalysis = NutritionAnalysis()
     @State private var loadingNutrition = false
     @State private var showingMicronutrientAnalysis = false
+    @State private var userProfile: MicronutrientProfile?
     
     let userData: UserData?
     @ObservedObject var dataRefreshManager: DataRefreshManager
@@ -26,6 +27,8 @@ struct HomeView: View {
                     MicronutrientAnalysisCard(userData: userData) {
                         showingMicronutrientAnalysis = true
                     }
+                    .accessibilityLabel("Micronutrient analysis for IBD patients")
+                    .accessibilityHint("Double tap to view detailed micronutrient breakdown and recommendations")
                     
                     // 3. Original Comprehensive Nutrition Analysis Section
                     if loadingNutrition {
@@ -38,12 +41,23 @@ struct HomeView: View {
                     } else {
                         // Nutrition Deficiencies Analysis
                         NutritionDeficienciesCard(analysis: nutritionAnalysis)
+                            .accessibilityLabel("Nutrition deficiencies analysis")
+                            .accessibilityHint("Shows potential nutrient deficiencies based on your food intake")
                         
                         // Dietician Recommendations
-                        DieticianRecommendationsCard(analysis: nutritionAnalysis)
+                        DieticianRecommendationsCard(analysis: nutritionAnalysis, userProfile: userProfile)
+                            .accessibilityLabel("Dietician recommendations")
+                            .accessibilityHint("Professional dietary recommendations for IBD management")
+                        
+                        // Weekly Nutrition Trends
+                        WeeklyNutritionTrendsCard(analysis: nutritionAnalysis, userProfile: userProfile)
+                            .accessibilityLabel("Weekly nutrition trends")
+                            .accessibilityHint("Compare your actual intake with recommended daily values")
                         
                         // Nutrition Insights Tab
                         NutritionInsightsCard(analysis: nutritionAnalysis)
+                            .accessibilityLabel("Nutrition insights")
+                            .accessibilityHint("Detailed nutrition analysis and health insights")
                     }
                     
                     // Quick Stats Grid - Now includes both Nutrition and Flare Risk
@@ -210,9 +224,38 @@ struct HomeView: View {
         
         print("🔍 [HomeView DEBUG] Starting to load journal entries for user: \(userData.id)")
         
+        // Fetch journal entries from the last 7 days
+        let calendar = Calendar.current
+        let endDate = Date()
+        let startDate = calendar.date(byAdding: .day, value: -7, to: endDate) ?? endDate
+        
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "yyyy-MM-dd"
+        let startDateString = dateFormatter.string(from: startDate)
+        let endDateString = dateFormatter.string(from: endDate)
+        
+        print("🔍 [HomeView DEBUG] Date range: \(startDateString) to \(endDateString)")
+        
+        guard let url = URL(string: "\(AppConfig.apiBaseURL)/journal/entries/\(userData.id)?startDate=\(startDateString)&endDate=\(endDateString)") else {
+            print("❌ [HomeView DEBUG] Invalid URL")
+            return
+        }
+        
+        var request = URLRequest(url: url)
+        request.setValue("Bearer \(userData.token)", forHTTPHeaderField: "Authorization")
+        
+        print("🌐 [HomeView DEBUG] Fetching journal entries from: \(url)")
+        
         do {
-            let entries = try await networkManager.fetchJournalEntries(userId: userData.id)
-            print("🔍 [HomeView DEBUG] Successfully loaded \(entries.count) journal entries")
+            let (data, response) = try await URLSession.shared.data(for: request)
+            
+            if let httpResponse = response as? HTTPURLResponse {
+                print("🔍 [HomeView DEBUG] Journal entries HTTP Status: \(httpResponse.statusCode)")
+            }
+            
+            let entries = try JSONDecoder().decode([JournalEntry].self, from: data)
+            print("🔍 [HomeView DEBUG] Successfully loaded \(entries.count) journal entries from last 7 days")
+            
             await MainActor.run {
                 self.journalEntries = entries
                 print("🔍 [HomeView DEBUG] Updated HomeView journalEntries to \(self.journalEntries.count) entries")
@@ -223,17 +266,80 @@ struct HomeView: View {
     }
     
     private func loadNutritionAnalysis() async {
+        print("🔍 [HomeView] Starting loadNutritionAnalysis")
+        
         await MainActor.run {
             loadingNutrition = true
         }
         
-        // Simulate analysis loading
-        try? await Task.sleep(nanoseconds: 1_000_000_000) // 1 second
+        guard let userData = userData else {
+            print("❌ [HomeView] No userData available for nutrition analysis")
+            await MainActor.run {
+                loadingNutrition = false
+            }
+            return
+        }
         
-        await MainActor.run {
-            // Generate realistic nutrition analysis
-            nutritionAnalysis = generateNutritionAnalysis()
-            loadingNutrition = false
+        print("🔍 [HomeView] UserData available: \(userData.id)")
+        print("🔍 [HomeView] Journal entries count: \(journalEntries.count)")
+        
+        do {
+            // Fetch user's micronutrient profile
+            print("🔍 [HomeView] Fetching micronutrient profile...")
+            let profile = try await fetchMicronutrientProfile(userId: userData.id)
+            
+            // Use the fetched profile or create a default one
+            let profileToUse = profile ?? MicronutrientProfile(
+                userId: userData.id,
+                age: 30,
+                weight: 70.0,
+                height: 170.0,
+                gender: "Unknown",
+                diseaseActivity: .remission,
+                labResults: [],
+                supplements: []
+            )
+            
+            print("🔍 [HomeView] Using profile: age=\(profileToUse.age), weight=\(profileToUse.weight)")
+            
+            // Store the profile in state for UI components
+            await MainActor.run {
+                self.userProfile = profileToUse
+            }
+            
+            // Calculate real nutrition analysis from journal entries
+            print("🔍 [HomeView] Starting calculateRealNutritionAnalysis...")
+            let analysis = await calculateRealNutritionAnalysis(profile: profileToUse)
+            
+            print("🔍 [HomeView] Analysis completed:")
+            print("🔍 [HomeView]   Calories: \(analysis.calories)")
+            print("🔍 [HomeView]   Protein: \(analysis.protein)")
+            print("🔍 [HomeView]   Carbs: \(analysis.carbs)")
+            print("🔍 [HomeView]   Fiber: \(analysis.fiber)")
+            print("🔍 [HomeView]   Fat: \(analysis.fat)")
+            
+            await MainActor.run {
+                self.nutritionAnalysis = analysis
+                self.loadingNutrition = false
+            }
+            
+            print("✅ [HomeView] Nutrition analysis loaded successfully")
+        } catch {
+            print("❌ [HomeView] Failed to load nutrition analysis: \(error)")
+            print("🔍 [HomeView] Falling back to generateNutritionAnalysis...")
+            
+            await MainActor.run {
+                // Fallback to generated analysis
+                self.nutritionAnalysis = generateNutritionAnalysis()
+                self.loadingNutrition = false
+            }
+            
+            print("🔍 [HomeView] Fallback analysis completed:")
+            print("🔍 [HomeView]   Calories: \(self.nutritionAnalysis.calories)")
+            print("🔍 [HomeView]   Protein: \(self.nutritionAnalysis.protein)")
+            print("🔍 [HomeView]   Carbs: \(self.nutritionAnalysis.carbs)")
+            print("🔍 [HomeView]   Fiber: \(self.nutritionAnalysis.fiber)")
+            print("🔍 [HomeView]   Fat: \(self.nutritionAnalysis.fat)")
         }
     }
     
@@ -241,19 +347,496 @@ struct HomeView: View {
         dataRefreshManager.refreshData()
     }
     
+    // MARK: - Real Nutrition Analysis
+    
+    private func fetchMicronutrientProfile(userId: String) async throws -> MicronutrientProfile? {
+        let apiBaseURL = AppConfig.apiBaseURL
+        let fullURL = "\(apiBaseURL)/micronutrient/profile"
+        
+        guard let url = URL(string: fullURL) else {
+            throw NSError(domain: "Invalid URL", code: 0)
+        }
+        
+        var request = URLRequest(url: url)
+        request.setValue("Bearer \(userData?.token ?? "")", forHTTPHeaderField: "Authorization")
+        
+        let (data, response) = try await URLSession.shared.data(for: request)
+        
+        if let httpResponse = response as? HTTPURLResponse {
+            print("🔍 [HomeView] Micronutrient Profile HTTP Status: \(httpResponse.statusCode)")
+        }
+        
+        // Try to decode the response
+        do {
+            let response = try JSONDecoder().decode(MicronutrientProfileResponse.self, from: data)
+            return response.data
+        } catch {
+            print("🔍 [HomeView] Decoding error: \(error)")
+            // If decoding fails, return nil (no profile exists yet)
+            return nil
+        }
+    }
+    
+    private func calculateRealNutritionAnalysis(profile: MicronutrientProfile) async -> NutritionAnalysis {
+        var analysis = NutritionAnalysis()
+        
+        print("🔍 [HomeView] ===== NUTRITION ANALYSIS DEBUG =====")
+        print("🔍 [HomeView] Total journal entries available: \(journalEntries.count)")
+        
+        // Debug: Print all journal entries
+        for (index, entry) in journalEntries.enumerated() {
+            print("🔍 [HomeView] Entry \(index + 1): \(entry.entry_date)")
+        }
+        
+        // Get last 7 days of journal entries
+        let calendar = Calendar.current
+        let endDate = Date()
+        let startDate = calendar.date(byAdding: .day, value: -7, to: endDate) ?? endDate
+        
+        print("🔍 [HomeView] Date range: \(startDate) to \(endDate)")
+        
+        let recentEntries = journalEntries.filter { entry in
+            let entryDate = Date.fromISOString(entry.entry_date)
+            let isInRange = entryDate >= startDate && entryDate <= endDate
+            print("🔍 [HomeView] Entry \(entry.entry_date) -> \(entryDate) -> In range: \(isInRange)")
+            return isInRange
+        }
+        
+        print("🔍 [HomeView] Analyzing \(recentEntries.count) entries from last 7 days")
+        
+        // Calculate daily micronutrient intake
+        let dailyIntake = micronutrientCalculator.calculateDailyMicronutrientIntake(
+            from: recentEntries,
+            userProfile: profile
+        )
+        
+        // Calculate weekly totals
+        let weeklyTotals = calculateWeeklyTotals(from: recentEntries, profile: profile)
+        
+        print("🔍 [HomeView] Weekly totals calculated:")
+        print("🔍 [HomeView]   Total Calories: \(weeklyTotals.totalCalories)")
+        print("🔍 [HomeView]   Total Protein: \(weeklyTotals.totalProtein)")
+        print("🔍 [HomeView]   Total Carbs: \(weeklyTotals.totalCarbs)")
+        print("🔍 [HomeView]   Total Fiber: \(weeklyTotals.totalFiber)")
+        print("🔍 [HomeView]   Total Fat: \(weeklyTotals.totalFat)")
+        
+        // Calculate averages
+        let daysCount = max(1, recentEntries.count)
+        let averageCalories = weeklyTotals.totalCalories / Double(daysCount)
+        let averageProtein = weeklyTotals.totalProtein / Double(daysCount)
+        let averageCarbs = weeklyTotals.totalCarbs / Double(daysCount)
+        let averageFiber = weeklyTotals.totalFiber / Double(daysCount)
+        let averageFat = weeklyTotals.totalFat / Double(daysCount)
+        
+        print("🔍 [HomeView] Average values:")
+        print("🔍 [HomeView]   Average Calories: \(averageCalories)")
+        print("🔍 [HomeView]   Average Protein: \(averageProtein)")
+        print("🔍 [HomeView]   Average Carbs: \(averageCarbs)")
+        print("🔍 [HomeView]   Average Fiber: \(averageFiber)")
+        print("🔍 [HomeView]   Average Fat: \(averageFat)")
+        
+        // Set calculated values
+        analysis.calories = Int(averageCalories)
+        analysis.protein = Int(averageProtein)
+        analysis.carbs = Int(averageCarbs)
+        analysis.fiber = Int(averageFiber)
+        analysis.fat = Int(averageFat)
+        
+        // Also set the avgXXX properties that the UI components expect
+        analysis.avgCalories = averageCalories
+        analysis.avgProtein = averageProtein
+        analysis.avgCarbs = averageCarbs
+        analysis.avgFiber = averageFiber
+        analysis.avgFat = averageFat
+        
+        print("🔍 [HomeView] Final analysis values:")
+        print("🔍 [HomeView]   Analysis Calories: \(analysis.calories)")
+        print("🔍 [HomeView]   Analysis Protein: \(analysis.protein)")
+        print("🔍 [HomeView]   Analysis Carbs: \(analysis.carbs)")
+        print("🔍 [HomeView]   Analysis Fiber: \(analysis.fiber)")
+        print("🔍 [HomeView]   Analysis Fat: \(analysis.fat)")
+        
+        // Calculate micronutrient analysis
+        let micronutrientAnalysis = deficiencyAnalyzer.analyzeMicronutrientStatus(
+            dailyIntake.totalIntake,
+            dailyIntake.requirements,
+            profile.labResults
+        )
+        
+        // Set micronutrient data
+        analysis.micronutrients = micronutrientAnalysis.ibdSpecificNutrients
+        
+        // Calculate trends
+        analysis.weeklyTrends = calculateWeeklyTrends(
+            actual: weeklyTotals,
+            recommended: getRecommendedWeeklyIntake(profile: profile),
+            daysCount: daysCount
+        )
+        
+        print("🔍 [HomeView] Real analysis - Calories: \(analysis.calories), Protein: \(analysis.protein)")
+        print("🔍 [HomeView] Weekly trends: \(analysis.weeklyTrends.count) trends calculated")
+        
+        // Generate deficiencies, recommendations, and other analysis components
+        analysis.deficiencies = generateDeficiencies(from: analysis)
+        analysis.recommendations = generateRecommendations(from: analysis)
+        analysis.overallScore = calculateOverallScore(from: analysis)
+        analysis.foodPatterns = generateFoodPatterns()
+        analysis.lowNutritionFoods = generateLowNutritionFoods()
+        analysis.enhancementRecommendations = generateEnhancementRecommendations()
+        
+        print("🔍 [HomeView] Analysis completed:")
+        print("🔍 [HomeView]   Calories: \(analysis.calories)")
+        print("🔍 [HomeView]   Protein: \(analysis.protein)")
+        print("🔍 [HomeView]   Carbs: \(analysis.carbs)")
+        print("🔍 [HomeView]   Fiber: \(analysis.fiber)")
+        print("🔍 [HomeView]   Fat: \(analysis.fat)")
+        
+        return analysis
+    }
+    
+    private func calculateWeeklyTotals(from entries: [JournalEntry], profile: MicronutrientProfile) -> WeeklyNutritionTotals {
+        var totals = WeeklyNutritionTotals()
+        
+        print("🔍 [HomeView] ===== CALCULATING WEEKLY TOTALS =====")
+        print("🔍 [HomeView] Processing \(entries.count) entries")
+        
+        for (entryIndex, entry) in entries.enumerated() {
+            print("🔍 [HomeView] --- Entry \(entryIndex + 1): \(entry.entry_date) ---")
+            if let meals = entry.meals {
+                print("🔍 [HomeView] Entry has \(meals.count) meals")
+                for (mealIndex, meal) in meals.enumerated() {
+                    print("🔍 [HomeView]   Meal \(mealIndex + 1): \(meal.description)")
+                    print("🔍 [HomeView]   Stored values - Calories: \(meal.calories ?? 0), Protein: \(meal.protein ?? 0), Carbs: \(meal.carbs ?? 0), Fiber: \(meal.fiber ?? 0), Fat: \(meal.fat ?? 0)")
+                    
+                    // Use stored values if available, otherwise calculate from description
+                    let mealCalories = Double(meal.calories ?? 0)
+                    let mealProtein = Double(meal.protein ?? 0)
+                    let mealCarbs = Double(meal.carbs ?? 0)
+                    let mealFiber = Double(meal.fiber ?? 0)
+                    let mealFat = Double(meal.fat ?? 0)
+                    
+                    // If stored values are zero, try to estimate from food description
+                    if mealCalories == 0 && mealProtein == 0 {
+                        print("🔍 [HomeView]   ⚠️ Stored values are zero, estimating from description")
+                        // Use the micronutrient calculator to get estimated nutrition
+                        let micronutrients = micronutrientCalculator.calculateMicronutrients(for: meal, userProfile: profile)
+                        
+                        print("🔍 [HomeView]   Micronutrients calculated:")
+                        print("🔍 [HomeView]     Vitamin C: \(micronutrients.vitaminC)")
+                        print("🔍 [HomeView]     Iron: \(micronutrients.iron)")
+                        print("🔍 [HomeView]     Vitamin D: \(micronutrients.vitaminD)")
+                        print("🔍 [HomeView]     Calcium: \(micronutrients.calcium)")
+                        
+                        // Estimate all nutrition values from micronutrient data
+                        let estimatedCalories = estimateCaloriesFromMicronutrients(micronutrients)
+                        let estimatedProtein = estimateProteinFromMicronutrients(micronutrients)
+                        let estimatedCarbs = estimateCarbsFromMicronutrients(micronutrients)
+                        let estimatedFiber = estimateFiberFromMicronutrients(micronutrients)
+                        let estimatedFat = estimateFatFromMicronutrients(micronutrients)
+                        
+                        print("🔍 [HomeView]   Estimated nutrition:")
+                        print("🔍 [HomeView]     Calories: \(estimatedCalories)")
+                        print("🔍 [HomeView]     Protein: \(estimatedProtein)")
+                        print("🔍 [HomeView]     Carbs: \(estimatedCarbs)")
+                        print("🔍 [HomeView]     Fiber: \(estimatedFiber)")
+                        print("🔍 [HomeView]     Fat: \(estimatedFat)")
+                        
+                        totals.totalCalories += estimatedCalories
+                        totals.totalProtein += estimatedProtein
+                        totals.totalCarbs += estimatedCarbs
+                        totals.totalFiber += estimatedFiber
+                        totals.totalFat += estimatedFat
+                        
+                        print("🔍 [HomeView]   ✅ Added estimated values to totals")
+                    } else {
+                        print("🔍 [HomeView]   ✅ Using stored values")
+                        totals.totalCalories += mealCalories
+                        totals.totalProtein += mealProtein
+                        totals.totalCarbs += mealCarbs
+                        totals.totalFiber += mealFiber
+                        totals.totalFat += mealFat
+                    }
+                    
+                    // Calculate micronutrients for this meal
+                    let micronutrients = micronutrientCalculator.calculateMicronutrients(for: meal, userProfile: profile)
+                    totals.addMicronutrients(micronutrients)
+                    
+                    print("🔍 [HomeView]   Running totals after this meal:")
+                    print("🔍 [HomeView]     Total Calories: \(totals.totalCalories)")
+                    print("🔍 [HomeView]     Total Protein: \(totals.totalProtein)")
+                    print("🔍 [HomeView]     Total Carbs: \(totals.totalCarbs)")
+                    print("🔍 [HomeView]     Total Fiber: \(totals.totalFiber)")
+                    print("🔍 [HomeView]     Total Fat: \(totals.totalFat)")
+                }
+            } else {
+                print("🔍 [HomeView]   ❌ Entry has no meals")
+            }
+        }
+        
+        print("🔍 [HomeView] ===== FINAL WEEKLY TOTALS =====")
+        print("🔍 [HomeView] Total Calories: \(totals.totalCalories)")
+        print("🔍 [HomeView] Total Protein: \(totals.totalProtein)")
+        print("🔍 [HomeView] Total Carbs: \(totals.totalCarbs)")
+        print("🔍 [HomeView] Total Fiber: \(totals.totalFiber)")
+        print("🔍 [HomeView] Total Fat: \(totals.totalFat)")
+        print("🔍 [HomeView] =================================")
+        
+        return totals
+    }
+    
+    // Helper functions to estimate nutrition from micronutrients
+    private func estimateCaloriesFromMicronutrients(_ micronutrients: MicronutrientData) -> Double {
+        print("🔍 [HomeView] Estimating calories from micronutrients:")
+        print("🔍 [HomeView]   Input micronutrients - C: \(micronutrients.vitaminC), Iron: \(micronutrients.iron), B12: \(micronutrients.vitaminB12), D: \(micronutrients.vitaminD), Ca: \(micronutrients.calcium), Omega3: \(micronutrients.omega3)")
+        
+        // More comprehensive calorie estimation based on micronutrient content
+        let baseCalories = 50.0 // Base calories for any food
+        
+        // Protein-rich foods (high iron, B12) tend to have more calories
+        let proteinCalories = (micronutrients.iron + micronutrients.vitaminB12) * 2.0
+        
+        // Vitamin C rich foods (fruits) have moderate calories
+        let fruitCalories = micronutrients.vitaminC * 0.5
+        
+        // Omega-3 rich foods (fish, nuts) have higher calories
+        let fatCalories = micronutrients.omega3 * 5.0
+        
+        // Calcium rich foods (dairy) have moderate calories
+        let dairyCalories = micronutrients.calcium * 0.1
+        
+        let totalCalories = baseCalories + proteinCalories + fruitCalories + fatCalories + dairyCalories
+        
+        print("🔍 [HomeView]   Calorie calculation breakdown:")
+        print("🔍 [HomeView]     Base: \(baseCalories)")
+        print("🔍 [HomeView]     Protein: \(proteinCalories)")
+        print("🔍 [HomeView]     Fruit: \(fruitCalories)")
+        print("🔍 [HomeView]     Fat: \(fatCalories)")
+        print("🔍 [HomeView]     Dairy: \(dairyCalories)")
+        print("🔍 [HomeView]     Total before cap: \(totalCalories)")
+        
+        // Cap at reasonable maximum (500 calories per meal)
+        let finalCalories = min(totalCalories, 500.0)
+        print("🔍 [HomeView]     Final calories: \(finalCalories)")
+        
+        return finalCalories
+    }
+    
+    private func estimateProteinFromMicronutrients(_ micronutrients: MicronutrientData) -> Double {
+        print("🔍 [HomeView] Estimating protein from micronutrients:")
+        
+        // Protein estimation based on iron and B12 content
+        let baseProtein = 5.0 // Base protein for any food
+        
+        // Iron and B12 are indicators of protein-rich foods
+        let proteinFromIron = micronutrients.iron * 0.5
+        let proteinFromB12 = micronutrients.vitaminB12 * 0.01
+        
+        let totalProtein = baseProtein + proteinFromIron + proteinFromB12
+        
+        print("🔍 [HomeView]   Protein calculation breakdown:")
+        print("🔍 [HomeView]     Base: \(baseProtein)")
+        print("🔍 [HomeView]     From Iron: \(proteinFromIron)")
+        print("🔍 [HomeView]     From B12: \(proteinFromB12)")
+        print("🔍 [HomeView]     Total before cap: \(totalProtein)")
+        
+        // Cap at reasonable maximum (50g protein per meal)
+        let finalProtein = min(totalProtein, 50.0)
+        print("🔍 [HomeView]     Final protein: \(finalProtein)")
+        
+        return finalProtein
+    }
+    
+    private func estimateCarbsFromMicronutrients(_ micronutrients: MicronutrientData) -> Double {
+        // Carbohydrate estimation based on vitamin C (fruits) and other indicators
+        let baseCarbs = 10.0 // Base carbs for any food
+        
+        // Vitamin C rich foods (fruits) have carbs
+        let fruitCarbs = micronutrients.vitaminC * 0.3
+        
+        // Calcium rich foods (dairy) have some carbs
+        let dairyCarbs = micronutrients.calcium * 0.01
+        
+        let totalCarbs = baseCarbs + fruitCarbs + dairyCarbs
+        
+        // Cap at reasonable maximum (100g carbs per meal)
+        return min(totalCarbs, 100.0)
+    }
+    
+    private func estimateFiberFromMicronutrients(_ micronutrients: MicronutrientData) -> Double {
+        // Fiber estimation based on vitamin C (fruits/vegetables)
+        let baseFiber = 2.0 // Base fiber for any food
+        
+        // Vitamin C rich foods (fruits/vegetables) have fiber
+        let fruitFiber = micronutrients.vitaminC * 0.1
+        
+        let totalFiber = baseFiber + fruitFiber
+        
+        // Cap at reasonable maximum (20g fiber per meal)
+        return min(totalFiber, 20.0)
+    }
+    
+    private func estimateFatFromMicronutrients(_ micronutrients: MicronutrientData) -> Double {
+        // Fat estimation based on omega-3 and other indicators
+        let baseFat = 3.0 // Base fat for any food
+        
+        // Omega-3 rich foods have fat
+        let omegaFat = micronutrients.omega3 * 2.0
+        
+        // Calcium rich foods (dairy) have some fat
+        let dairyFat = micronutrients.calcium * 0.01
+        
+        let totalFat = baseFat + omegaFat + dairyFat
+        
+        // Cap at reasonable maximum (30g fat per meal)
+        return min(totalFat, 30.0)
+    }
+    
+    private func getRecommendedWeeklyIntake(profile: MicronutrientProfile) -> WeeklyNutritionTotals {
+        let requirements = IBDMicronutrientRequirements(
+            age: profile.age,
+            gender: profile.gender ?? "Unknown",
+            weight: profile.weight,
+            diseaseActivity: profile.diseaseActivity,
+            diseaseType: profile.diseaseType ?? "IBD"
+        )
+        
+        var recommended = WeeklyNutritionTotals()
+        
+        // Calculate weekly recommendations (7 days worth)
+        recommended.totalCalories = requirements.calories * 7
+        recommended.totalProtein = requirements.protein * 7
+        recommended.totalCarbs = 0 // Not available in IBDMicronutrientRequirements
+        recommended.totalFiber = requirements.fiber * 7
+        recommended.totalFat = 0 // Not available in IBDMicronutrientRequirements
+        
+        // Set micronutrient recommendations
+        recommended.vitaminD = requirements.vitaminD * 7
+        recommended.vitaminB12 = requirements.vitaminB12 * 7
+        recommended.iron = requirements.iron * 7
+        recommended.calcium = requirements.calcium * 7
+        recommended.zinc = requirements.zinc * 7
+        recommended.omega3 = requirements.omega3 * 7
+        
+        return recommended
+    }
+    
+    private func calculateWeeklyTrends(actual: WeeklyNutritionTotals, recommended: WeeklyNutritionTotals, daysCount: Int) -> [NutritionTrend] {
+        var trends: [NutritionTrend] = []
+        
+        // Show cumulative weekly totals instead of daily averages
+        trends.append(NutritionTrend(
+            nutrient: "Calories",
+            actual: actual.totalCalories,
+            recommended: recommended.totalCalories,
+            unit: "kcal/week"
+        ))
+        
+        trends.append(NutritionTrend(
+            nutrient: "Protein",
+            actual: actual.totalProtein,
+            recommended: recommended.totalProtein,
+            unit: "g/week"
+        ))
+        
+        trends.append(NutritionTrend(
+            nutrient: "Fiber",
+            actual: actual.totalFiber,
+            recommended: recommended.totalFiber,
+            unit: "g/week"
+        ))
+        
+        // Micronutrient trends - also show weekly totals
+        trends.append(NutritionTrend(
+            nutrient: "Vitamin D",
+            actual: actual.vitaminD,
+            recommended: recommended.vitaminD,
+            unit: "IU/week"
+        ))
+        
+        trends.append(NutritionTrend(
+            nutrient: "Iron",
+            actual: actual.iron,
+            recommended: recommended.iron,
+            unit: "mg/week"
+        ))
+        
+        trends.append(NutritionTrend(
+            nutrient: "Calcium",
+            actual: actual.calcium,
+            recommended: recommended.calcium,
+            unit: "mg/week"
+        ))
+        
+        return trends
+    }
+    
     // MARK: - Helper Functions
     private func getTodaysMealCount() -> Int {
         let today = Calendar.current.startOfDay(for: Date())
-        return journalEntries.filter { entry in
-            Calendar.current.isDate(Date.fromISOString(entry.entry_date), inSameDayAs: today)
-        }.flatMap { (entry: JournalEntry) in entry.meals ?? [] }.count
+        print("🔍 [HomeView] Today's date: \(today)")
+        print("🔍 [HomeView] Total journal entries: \(journalEntries.count)")
+        
+        let todaysEntries = journalEntries.filter { entry in
+            let entryDate = Date.fromISOString(entry.entry_date)
+            print("🔍 [HomeView] Entry date: \(entry.entry_date) -> \(entryDate)")
+            
+            // Use UTC calendar to avoid timezone issues
+            var utcCalendar = Calendar.current
+            utcCalendar.timeZone = TimeZone(identifier: "UTC")!
+            
+            let todayComponents = utcCalendar.dateComponents([.year, .month, .day], from: today)
+            let entryComponents = utcCalendar.dateComponents([.year, .month, .day], from: entryDate)
+            
+            print("🔍 [HomeView] Today components (UTC): year=\(todayComponents.year), month=\(todayComponents.month), day=\(todayComponents.day)")
+            print("🔍 [HomeView] Entry components (UTC): year=\(entryComponents.year), month=\(entryComponents.month), day=\(entryComponents.day)")
+            
+            let isToday = todayComponents.year == entryComponents.year &&
+                        todayComponents.month == entryComponents.month &&
+                        todayComponents.day == entryComponents.day
+            
+            print("🔍 [HomeView] Is today: \(isToday)")
+            return isToday
+        }
+        
+        let mealCount = todaysEntries.flatMap { (entry: JournalEntry) in entry.meals ?? [] }.count
+        
+        print("🔍 [HomeView] Today's meal count: \(mealCount) from \(todaysEntries.count) entries")
+        
+        return mealCount
     }
     
     private func getTodaysSymptomCount() -> Int {
         let today = Calendar.current.startOfDay(for: Date())
-        return journalEntries.filter { entry in
-            Calendar.current.isDate(Date.fromISOString(entry.entry_date), inSameDayAs: today)
-        }.flatMap { $0.symptoms ?? [] }.count
+        print("🔍 [HomeView] Today's date for symptoms: \(today)")
+        print("🔍 [HomeView] Total journal entries for symptoms: \(journalEntries.count)")
+        
+        let todaysEntries = journalEntries.filter { entry in
+            let entryDate = Date.fromISOString(entry.entry_date)
+            print("🔍 [HomeView] Symptom entry date: \(entry.entry_date) -> \(entryDate)")
+            
+            // Use UTC calendar to avoid timezone issues
+            var utcCalendar = Calendar.current
+            utcCalendar.timeZone = TimeZone(identifier: "UTC")!
+            
+            let todayComponents = utcCalendar.dateComponents([.year, .month, .day], from: today)
+            let entryComponents = utcCalendar.dateComponents([.year, .month, .day], from: entryDate)
+            
+            print("🔍 [HomeView] Symptom today components (UTC): year=\(todayComponents.year), month=\(todayComponents.month), day=\(todayComponents.day)")
+            print("🔍 [HomeView] Symptom entry components (UTC): year=\(entryComponents.year), month=\(entryComponents.month), day=\(entryComponents.day)")
+            
+            let isToday = todayComponents.year == entryComponents.year &&
+                        todayComponents.month == entryComponents.month &&
+                        todayComponents.day == entryComponents.day
+            
+            print("🔍 [HomeView] Symptom is today: \(isToday)")
+            return isToday
+        }
+        
+        let symptomCount = todaysEntries.flatMap { $0.symptoms ?? [] }.count
+        
+        print("🔍 [HomeView] Today's symptom count: \(symptomCount) from \(todaysEntries.count) entries")
+        
+        return symptomCount
     }
     
     private func getRecentReminders() -> [Reminder] {
@@ -280,27 +863,71 @@ struct HomeView: View {
     private func generateNutritionAnalysis() -> NutritionAnalysis {
         var analysis = NutritionAnalysis()
         
-        // Calculate averages from journal entries
-        let recentEntries = journalEntries.prefix(7)
-        let mealsWithNutrition = recentEntries.flatMap { (entry: JournalEntry) in entry.meals ?? [] }.compactMap { (meal: Meal) in 
-    CalculatedNutrition(
-        detectedFoods: [meal.description],
-        totalCalories: Double(meal.calories ?? 0),
-        totalProtein: Double(meal.protein ?? 0),
-        totalCarbs: Double(meal.carbs ?? 0),
-        totalFiber: Double(meal.fiber ?? 0),
-        totalFat: Double(meal.fat ?? 0)
-    )
-}
+        print("🔍 [HomeView] Generating fallback nutrition analysis")
         
-        if !mealsWithNutrition.isEmpty {
-            analysis.avgCalories = mealsWithNutrition.map { $0.totalCalories }.reduce(0, +) / Double(mealsWithNutrition.count)
-            analysis.avgProtein = mealsWithNutrition.map { $0.totalProtein }.reduce(0, +) / Double(mealsWithNutrition.count)
-            analysis.avgCarbs = mealsWithNutrition.map { $0.totalCarbs }.reduce(0, +) / Double(mealsWithNutrition.count)
-            analysis.avgFiber = mealsWithNutrition.map { $0.totalFiber }.reduce(0, +) / Double(mealsWithNutrition.count)
-            analysis.avgFat = mealsWithNutrition.map { $0.totalFat }.reduce(0, +) / Double(mealsWithNutrition.count)
-            analysis.daysWithMeals = Set(recentEntries.map { Calendar.current.startOfDay(for: Date.fromISOString($0.entry_date)) }).count
+        // Get last 7 days of journal entries
+        let calendar = Calendar.current
+        let endDate = Date()
+        let startDate = calendar.date(byAdding: .day, value: -7, to: endDate) ?? endDate
+        
+        let recentEntries = journalEntries.filter { entry in
+            let entryDate = Date.fromISOString(entry.entry_date)
+            return entryDate >= startDate && entryDate <= endDate
         }
+        
+        print("🔍 [HomeView] Fallback: Analyzing \(recentEntries.count) entries from last 7 days")
+        
+        // Create a default profile for estimation
+        let defaultProfile = MicronutrientProfile(
+            userId: userData?.id ?? "unknown",
+            age: 30,
+            weight: 70.0,
+            height: 170.0,
+            gender: "Unknown",
+            diseaseActivity: .remission,
+            labResults: [],
+            supplements: []
+        )
+        
+        // Calculate weekly totals using the same logic as calculateRealNutritionAnalysis
+        let weeklyTotals = calculateWeeklyTotals(from: recentEntries, profile: defaultProfile)
+        
+        print("🔍 [HomeView] Fallback weekly totals:")
+        print("🔍 [HomeView]   Total Calories: \(weeklyTotals.totalCalories)")
+        print("🔍 [HomeView]   Total Protein: \(weeklyTotals.totalProtein)")
+        print("🔍 [HomeView]   Total Carbs: \(weeklyTotals.totalCarbs)")
+        print("🔍 [HomeView]   Total Fiber: \(weeklyTotals.totalFiber)")
+        print("🔍 [HomeView]   Total Fat: \(weeklyTotals.totalFat)")
+        
+        // Calculate averages
+        let daysCount = max(1, recentEntries.count)
+        let averageCalories = weeklyTotals.totalCalories / Double(daysCount)
+        let averageProtein = weeklyTotals.totalProtein / Double(daysCount)
+        let averageCarbs = weeklyTotals.totalCarbs / Double(daysCount)
+        let averageFiber = weeklyTotals.totalFiber / Double(daysCount)
+        let averageFat = weeklyTotals.totalFat / Double(daysCount)
+        
+        // Set both old and new properties for compatibility
+        analysis.calories = Int(averageCalories)
+        analysis.protein = Int(averageProtein)
+        analysis.carbs = Int(averageCarbs)
+        analysis.fiber = Int(averageFiber)
+        analysis.fat = Int(averageFat)
+        
+        analysis.avgCalories = averageCalories
+        analysis.avgProtein = averageProtein
+        analysis.avgCarbs = averageCarbs
+        analysis.avgFiber = averageFiber
+        analysis.avgFat = averageFat
+        
+        analysis.daysWithMeals = Set(recentEntries.map { Calendar.current.startOfDay(for: Date.fromISOString($0.entry_date)) }).count
+        
+        print("🔍 [HomeView] Fallback final values:")
+        print("🔍 [HomeView]   Calories: \(analysis.calories)")
+        print("🔍 [HomeView]   Protein: \(analysis.protein)")
+        print("🔍 [HomeView]   Carbs: \(analysis.carbs)")
+        print("🔍 [HomeView]   Fiber: \(analysis.fiber)")
+        print("🔍 [HomeView]   Fat: \(analysis.fat)")
         
         // Generate deficiencies based on averages
         analysis.deficiencies = generateDeficiencies(from: analysis)
@@ -374,8 +1001,13 @@ struct HomeView: View {
     private func calculateOverallScore(from analysis: NutritionAnalysis) -> Int {
         var score = 100
         
+        print("🔍 [HomeView] Calculating nutrition score - starting with 100")
+        print("🔍 [HomeView] Analysis values - Protein: \(analysis.avgProtein), Fiber: \(analysis.avgFiber), Calories: \(analysis.avgCalories)")
+        print("🔍 [HomeView] Deficiencies count: \(analysis.deficiencies.count)")
+        
         // Deduct points for deficiencies
         for deficiency in analysis.deficiencies {
+            print("🔍 [HomeView] Deficiency: \(deficiency.nutrient), Severity: \(deficiency.severity)")
             switch deficiency.severity {
             case .mild:
                 score -= 10
@@ -390,23 +1022,95 @@ struct HomeView: View {
         
         // Bonus for good nutrition
         if analysis.avgProtein >= 60 && analysis.avgFiber >= 20 && analysis.avgCalories >= 1500 {
+            print("🔍 [HomeView] Adding bonus for good nutrition")
             score += 10
         }
         
-        return max(0, min(100, score))
+        let finalScore = max(0, min(100, score))
+        print("🔍 [HomeView] Final nutrition score: \(finalScore)")
+        
+        return finalScore
     }
     
     private func generateFoodPatterns() -> [NutritionFoodPattern] {
-        let commonFoods = [
-            NutritionFoodPattern(name: "Chicken Breast", frequency: 5, nutritionScore: 85, calories: 165, protein: 31.0, fiber: 0.0, mealType: "Dinner"),
-            NutritionFoodPattern(name: "White Rice", frequency: 4, nutritionScore: 45, calories: 130, protein: 2.7, fiber: 0.4, mealType: "Lunch"),
-            NutritionFoodPattern(name: "Bananas", frequency: 6, nutritionScore: 75, calories: 105, protein: 1.3, fiber: 3.1, mealType: "Snack"),
-            NutritionFoodPattern(name: "Greek Yogurt", frequency: 4, nutritionScore: 80, calories: 130, protein: 23.0, fiber: 0.0, mealType: "Breakfast"),
-            NutritionFoodPattern(name: "Bread", frequency: 3, nutritionScore: 40, calories: 80, protein: 3.0, fiber: 1.0, mealType: "Breakfast"),
-            NutritionFoodPattern(name: "Salmon", frequency: 2, nutritionScore: 90, calories: 208, protein: 25.0, fiber: 0.0, mealType: "Dinner")
-        ]
+        print("🔍 [HomeView] Generating food patterns from \(journalEntries.count) journal entries")
         
-        return commonFoods.sorted { $0.frequency > $1.frequency }
+        var foodFrequency: [String: (count: Int, totalCalories: Double, totalProtein: Double, totalFiber: Double, mealTypes: Set<String>)] = [:]
+        
+        // Analyze journal entries from the last 7 days
+        let calendar = Calendar.current
+        let endDate = Date()
+        let startDate = calendar.date(byAdding: .day, value: -7, to: endDate) ?? endDate
+        
+        print("🔍 [HomeView] Date range for food patterns: \(startDate) to \(endDate)")
+        
+        for entry in journalEntries {
+            let entryDate = Date.fromISOString(entry.entry_date)
+            print("🔍 [HomeView] Checking entry date: \(entry.entry_date) -> \(entryDate)")
+            
+            // Only include entries from the last 7 days
+            if entryDate >= startDate && entryDate <= endDate {
+                print("🔍 [HomeView] Entry is within date range")
+                if let meals = entry.meals {
+                    print("🔍 [HomeView] Entry has \(meals.count) meals")
+                    for meal in meals {
+                        let foodName = meal.description
+                        print("🔍 [HomeView] Processing meal: \(foodName)")
+                        
+                        if foodFrequency[foodName] == nil {
+                            foodFrequency[foodName] = (count: 0, totalCalories: 0, totalProtein: 0, totalFiber: 0, mealTypes: Set<String>())
+                        }
+                        
+                        foodFrequency[foodName]?.count += 1
+                        foodFrequency[foodName]?.totalCalories += Double(meal.calories ?? 0)
+                        foodFrequency[foodName]?.totalProtein += Double(meal.protein ?? 0)
+                        foodFrequency[foodName]?.totalFiber += Double(meal.fiber ?? 0)
+                        foodFrequency[foodName]?.mealTypes.insert(meal.meal_type ?? "Unknown")
+                    }
+                } else {
+                    print("🔍 [HomeView] Entry has no meals")
+                }
+            } else {
+                print("🔍 [HomeView] Entry is outside date range")
+            }
+        }
+        
+        print("🔍 [HomeView] Found \(foodFrequency.count) unique foods")
+        
+        // Convert to NutritionFoodPattern objects
+        var foodPatterns: [NutritionFoodPattern] = []
+        
+        for (foodName, data) in foodFrequency {
+            let avgCalories = data.totalCalories / Double(data.count)
+            let avgProtein = data.totalProtein / Double(data.count)
+            let avgFiber = data.totalFiber / Double(data.count)
+            
+            // Calculate nutrition score based on protein and fiber content
+            let nutritionScore = min(100, max(0, Int((avgProtein * 2) + (avgFiber * 5))))
+            
+            // Determine most common meal type
+            let mostCommonMealType = data.mealTypes.first ?? "Unknown"
+            
+            let pattern = NutritionFoodPattern(
+                name: foodName,
+                frequency: data.count,
+                nutritionScore: nutritionScore,
+                calories: Int(avgCalories),
+                protein: avgProtein,
+                fiber: avgFiber,
+                mealType: mostCommonMealType
+            )
+            
+            foodPatterns.append(pattern)
+            
+            print("🔍 [HomeView] Food: \(foodName), Frequency: \(data.count), Score: \(nutritionScore)")
+        }
+        
+        // Sort by frequency and return top foods
+        let sortedPatterns = foodPatterns.sorted { $0.frequency > $1.frequency }
+        print("🔍 [HomeView] Returning \(sortedPatterns.count) food patterns")
+        
+        return sortedPatterns
     }
     
     private func generateLowNutritionFoods() -> [LowNutritionFood] {
@@ -489,6 +1193,8 @@ struct StatCard: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding()
         .background(Color.ibdCardBackground)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(title): \(value) \(subtitle)")
         .cornerRadius(12)
     }
 }
@@ -724,6 +1430,7 @@ struct DeficiencyRow: View {
 
 struct DieticianRecommendationsCard: View {
     let analysis: NutritionAnalysis
+    let userProfile: MicronutrientProfile?
     
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -769,27 +1476,45 @@ struct DieticianRecommendationsCard: View {
                     .foregroundColor(.ibdPrimaryText)
                 
                 VStack(spacing: 8) {
-                    let ibdTargets = IBDTargets()
+                    // Use personalized targets if available, otherwise fall back to default
+                    let targets = userProfile != nil ? 
+                        PersonalizedIBDTargets.calculate(for: userProfile!) : 
+                        PersonalizedIBDTargets(
+                            calorieTarget: IBDTargets().calorieTarget,
+                            proteinTarget: IBDTargets().proteinTarget,
+                            fiberTarget: IBDTargets().fiberTarget,
+                            hydrationTarget: IBDTargets().hydrationTarget,
+                            fatTarget: IBDTargets().fatTarget,
+                            carbTarget: IBDTargets().carbTarget,
+                            vitaminDTarget: IBDTargets().vitaminDTarget,
+                            vitaminB12Target: IBDTargets().vitaminB12Target,
+                            ironTarget: IBDTargets().ironTarget,
+                            folateTarget: IBDTargets().folateTarget,
+                            calciumTarget: IBDTargets().calciumTarget,
+                            zincTarget: IBDTargets().zincTarget,
+                            omega3Target: IBDTargets().omega3Target
+                        )
                     
+                    // Show weekly targets to match WeeklyNutritionTrendsCard
                     WeeklyGoalRow(
                         title: "Protein Intake",
-                        target: "\(ibdTargets.proteinTarget)g",
-                        current: "\(Int(analysis.avgProtein))g",
-                        progress: min(analysis.avgProtein / Double(ibdTargets.proteinTarget), 1.0)
+                        target: "\(targets.proteinTarget * 7)g/week",
+                        current: "\(Int(analysis.avgProtein * 7))g/week",
+                        progress: min((analysis.avgProtein * 7) / Double(targets.proteinTarget * 7), 1.0)
                     )
                     
                     WeeklyGoalRow(
                         title: "Fiber Intake",
-                        target: "\(ibdTargets.fiberTarget)g",
-                        current: "\(Int(analysis.avgFiber))g",
-                        progress: min(analysis.avgFiber / Double(ibdTargets.fiberTarget), 1.0)
+                        target: "\(targets.fiberTarget * 7)g/week",
+                        current: "\(Int(analysis.avgFiber * 7))g/week",
+                        progress: min((analysis.avgFiber * 7) / Double(targets.fiberTarget * 7), 1.0)
                     )
                     
                     WeeklyGoalRow(
                         title: "Calorie Balance",
-                        target: "\(ibdTargets.calorieTarget) kcal",
-                        current: "\(Int(analysis.avgCalories)) kcal",
-                        progress: min(analysis.avgCalories / Double(ibdTargets.calorieTarget), 1.0)
+                        target: "\(targets.calorieTarget * 7) kcal/week",
+                        current: "\(Int(analysis.avgCalories * 7)) kcal/week",
+                        progress: min((analysis.avgCalories * 7) / Double(targets.calorieTarget * 7), 1.0)
                     )
                 }
             }
@@ -1105,6 +1830,11 @@ struct EnhancementRecommendationRow: View {
 // MARK: - Data Models
 
 struct NutritionAnalysis {
+    var calories: Int = 0
+    var protein: Int = 0
+    var carbs: Int = 0
+    var fiber: Int = 0
+    var fat: Int = 0
     var avgCalories: Double = 0
     var avgProtein: Double = 0
     var avgCarbs: Double = 0
@@ -1118,6 +1848,17 @@ struct NutritionAnalysis {
     var foodPatterns: [NutritionFoodPattern] = []
     var lowNutritionFoods: [LowNutritionFood] = []
     var enhancementRecommendations: [EnhancementRecommendation] = []
+    var micronutrients: IBDSpecificNutrients = IBDSpecificNutrients(
+        vitaminD: NutrientStatus(currentIntake: 0, requiredIntake: 0, status: .deficient, absorptionRate: 0.5, ibdFactors: []),
+        vitaminB12: NutrientStatus(currentIntake: 0, requiredIntake: 0, status: .deficient, absorptionRate: 0.5, ibdFactors: []),
+        iron: NutrientStatus(currentIntake: 0, requiredIntake: 0, status: .deficient, absorptionRate: 0.5, ibdFactors: []),
+        calcium: NutrientStatus(currentIntake: 0, requiredIntake: 0, status: .deficient, absorptionRate: 0.5, ibdFactors: []),
+        zinc: NutrientStatus(currentIntake: 0, requiredIntake: 0, status: .deficient, absorptionRate: 0.5, ibdFactors: []),
+        omega3: NutrientStatus(currentIntake: 0, requiredIntake: 0, status: .deficient, absorptionRate: 0.5, ibdFactors: []),
+        glutamine: NutrientStatus(currentIntake: 0, requiredIntake: 0, status: .deficient, absorptionRate: 0.5, ibdFactors: []),
+        probiotics: NutrientStatus(currentIntake: 0, requiredIntake: 0, status: .deficient, absorptionRate: 0.5, ibdFactors: [])
+    )
+    var weeklyTrends: [NutritionTrend] = []
 }
 
 struct NutritionDeficiency: Identifiable {
@@ -1270,10 +2011,169 @@ func getSuggestedFoods(for analysis: NutritionAnalysis) -> [SuggestedFood] {
     return foods
 }
 
+// MARK: - Weekly Nutrition Trends Card
+struct WeeklyNutritionTrendsCard: View {
+    let analysis: NutritionAnalysis
+    let userProfile: MicronutrientProfile?
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack {
+                Image(systemName: "chart.line.uptrend.xyaxis")
+                    .foregroundColor(.blue)
+                    .font(.title2)
+                
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Weekly Nutrition Trends")
+                        .font(.headline)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.primary)
+                    
+                    Text("Last 7 days vs. Recommended")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                }
+                
+                Spacer()
+            }
+            
+            if analysis.weeklyTrends.isEmpty {
+                VStack(spacing: 8) {
+                    Text("No trend data available")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                    
+                    Text("Log more meals to see your nutrition trends")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                .frame(maxWidth: .infinity)
+                .padding()
+                .background(Color(.systemGray6))
+                .cornerRadius(8)
+            } else {
+                LazyVStack(spacing: 12) {
+                    ForEach(analysis.weeklyTrends, id: \.nutrient) { trend in
+                        NutritionTrendRow(trend: trend)
+                    }
+                }
+            }
+        }
+        .padding()
+        .background(Color.ibdSurfaceBackground)
+        .cornerRadius(12)
+        .padding(.horizontal)
+    }
+}
+
+struct NutritionTrendRow: View {
+    let trend: NutritionTrend
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text(trend.nutrient)
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                    .foregroundColor(.primary)
+                
+                Spacer()
+                
+                Image(systemName: trend.status.icon)
+                    .foregroundColor(trend.status.color)
+                    .font(.caption)
+            }
+            
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Actual")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                    Text("\(String(format: "%.1f", trend.actual)) \(trend.unit)")
+                        .font(.caption)
+                        .fontWeight(.medium)
+                        .foregroundColor(.primary)
+                }
+                
+                Spacer()
+                
+                VStack(alignment: .center, spacing: 2) {
+                    Text("\(String(format: "%.0f", trend.percentage))%")
+                        .font(.caption)
+                        .fontWeight(.semibold)
+                        .foregroundColor(trend.status.color)
+                    Text("of goal")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
+                
+                Spacer()
+                
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text("Recommended")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                    Text("\(String(format: "%.1f", trend.recommended)) \(trend.unit)")
+                        .font(.caption)
+                        .fontWeight(.medium)
+                        .foregroundColor(.primary)
+                }
+            }
+            
+            // Progress bar
+            GeometryReader { geometry in
+                ZStack(alignment: .leading) {
+                    Rectangle()
+                        .fill(Color(.systemGray5))
+                        .frame(height: 4)
+                        .cornerRadius(2)
+                    
+                    Rectangle()
+                        .fill(trend.status.color)
+                        .frame(width: min(geometry.size.width, geometry.size.width * (trend.percentage / 100)), height: 4)
+                        .cornerRadius(2)
+                }
+            }
+            .frame(height: 4)
+        }
+        .padding(12)
+        .background(Color(.systemBackground))
+        .cornerRadius(8)
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(Color(.systemGray4), lineWidth: 1)
+        )
+    }
+}
+
 // MARK: - Date Extension
 extension Date {
     static func fromISOString(_ isoString: String) -> Date {
         let formatter = ISO8601DateFormatter()
-        return formatter.date(from: isoString) ?? Date()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        
+        if let date = formatter.date(from: isoString) {
+            return date
+        }
+        
+        // Fallback: try without fractional seconds
+        let fallbackFormatter = ISO8601DateFormatter()
+        fallbackFormatter.formatOptions = [.withInternetDateTime]
+        
+        if let date = fallbackFormatter.date(from: isoString) {
+            return date
+        }
+        
+        // Last fallback: try with custom formatter
+        let customFormatter = DateFormatter()
+        customFormatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'"
+        customFormatter.timeZone = TimeZone(abbreviation: "UTC")
+        
+        if let date = customFormatter.date(from: isoString) {
+            return date
+        }
+        
+        // If all else fails, return a date far in the past to ensure it's filtered out
+        return Date.distantPast
     }
 }

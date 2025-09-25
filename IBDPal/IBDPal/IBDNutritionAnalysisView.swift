@@ -136,11 +136,6 @@ struct IBDNutritionAnalysisView: View {
                 .font(.headline)
                 .foregroundColor(.primary)
             
-            // Debug info
-            Text("Debug: \(foodMicronutrients.count) foods found")
-                .font(.caption)
-                .foregroundColor(.secondary)
-            
             if foodMicronutrients.isEmpty {
                 VStack(spacing: 8) {
                     Text("No food data available")
@@ -164,7 +159,11 @@ struct IBDNutritionAnalysisView: View {
             } else {
                 LazyVStack(spacing: 12) {
                     ForEach(Array(foodMicronutrients.enumerated()), id: \.offset) { index, foodData in
-                        FoodMicronutrientCard(foodName: foodData.0, micronutrients: foodData.1)
+                        FoodMicronutrientCard(
+                            foodName: foodData.0, 
+                            micronutrients: foodData.1,
+                            servingSize: nil // TODO: Pass serving size from calculation
+                        )
                     }
                 }
             }
@@ -306,7 +305,7 @@ struct IBDNutritionAnalysisView: View {
             
             print("🔍 [DEBUG] Starting nutrition analysis for user: \(userId)")
             
-            // Fetch journal entries directly from API (like MicronutrientAnalysisCard does)
+            // Fetch journal entries from the last 7 days
             let calendar = Calendar.current
             let endDate = Date()
             let startDate = calendar.date(byAdding: .day, value: -7, to: endDate) ?? endDate
@@ -315,6 +314,8 @@ struct IBDNutritionAnalysisView: View {
             dateFormatter.dateFormat = "yyyy-MM-dd"
             let startDateString = dateFormatter.string(from: startDate)
             let endDateString = dateFormatter.string(from: endDate)
+            
+            print("🔍 [IBDNutritionAnalysisView] Date range: \(startDateString) to \(endDateString)")
             
             guard let url = URL(string: "\(apiBaseURL)/journal/entries/\(userId)?startDate=\(startDateString)&endDate=\(endDateString)") else {
                 throw NSError(domain: "Invalid URL", code: 0)
@@ -443,13 +444,28 @@ struct IBDNutritionAnalysisView: View {
 struct FoodMicronutrientCard: View {
     let foodName: String
     let micronutrients: MicronutrientData
+    let servingSize: String?
     
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(foodName)
-                .font(.subheadline)
-                .fontWeight(.semibold)
-                .foregroundColor(.primary)
+            HStack {
+                Text(foodName)
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.primary)
+                
+                Spacer()
+                
+                if let servingSize = servingSize {
+                    Text(servingSize)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Color.blue.opacity(0.1))
+                        .cornerRadius(4)
+                }
+            }
             
             LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 3), spacing: 8) {
                 MicronutrientValueItem(name: "Vitamin C", value: micronutrients.vitaminC, unit: "mg")

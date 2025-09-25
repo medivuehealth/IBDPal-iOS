@@ -14,29 +14,74 @@ class IBDMicronutrientCalculator: ObservableObject {
     /// Calculate micronutrients from a food description with intelligent serving size parsing
     func calculateMicronutrients(for foodDescription: String, userProfile: MicronutrientProfile) -> MicronutrientData {
         let correctedDescription = correctSpelling(foodDescription)
+        print("🔍 [NLP DEBUG] Processing: '\(correctedDescription)'")
         
         // Use simple serving size parsing (remove IntelligentServingSizeParser reference)
         let servingSize = parseServingSize(from: correctedDescription)
+        print("🔍 [NLP DEBUG] Serving size: \(servingSize) cups")
         
-        // Use NLP processor for intelligent food recognition
-        let nlpResult = FoodNLPProcessor.shared.processFoodDescription(correctedDescription)
+        // Enhanced NLP-based food recognition
+        let recognizedFoods = enhancedFoodRecognition(from: correctedDescription)
+        print("🔍 [NLP DEBUG] Recognized foods: \(recognizedFoods)")
         
-        // First, try to find compound dishes
-        for compoundFood in nlpResult.compoundFoods {
-            if let compoundFoodItem = findCompoundFood(in: compoundFood.name.lowercased()) {
+        // Try to find compound dishes first
+        for compoundFood in recognizedFoods.compoundFoods {
+            if let compoundFoodItem = findCompoundFood(in: compoundFood.lowercased()) {
+                print("🔍 [NLP DEBUG] Found compound food: \(compoundFood)")
                 return calculateFromCompoundFood(compoundFoodItem, servingSize: servingSize)
             }
         }
         
         // Then try enhanced individual foods
-        for foodEntity in nlpResult.individualFoods {
-            if let enhancedFood = findEnhancedFood(in: foodEntity.normalizedText) {
+        for foodEntity in recognizedFoods.individualFoods {
+            if let enhancedFood = findEnhancedFood(in: foodEntity.lowercased()) {
+                print("🔍 [NLP DEBUG] Found enhanced food: \(foodEntity)")
                 return calculateFromEnhancedFood(enhancedFood, servingSize: servingSize)
             }
         }
         
-        // Fallback to estimated micronutrients based on food category
-        return estimateMicronutrients(for: correctedDescription, servingSize: servingSize)
+        // Enhanced fallback with better categorization
+        return enhancedEstimateMicronutrients(for: correctedDescription, servingSize: servingSize)
+    }
+    
+    /// Calculate micronutrients from a meal with actual serving size data
+    func calculateMicronutrients(for meal: Meal, userProfile: MicronutrientProfile) -> MicronutrientData {
+        let correctedDescription = correctSpelling(meal.description)
+        print("🔍 [MEAL NLP DEBUG] Processing: '\(correctedDescription)'")
+        
+        // Use actual serving size from meal data if available
+        let servingSize: Double
+        if let mealServingSize = meal.serving_size, let mealServingUnit = meal.serving_unit {
+            servingSize = convertServingSize(mealServingSize, from: mealServingUnit)
+            print("🔍 [MEAL SERVING SIZE] Using meal data: \(mealServingSize) \(mealServingUnit) = \(servingSize) cups")
+        } else {
+            // Fallback to parsing from description
+            servingSize = parseServingSize(from: correctedDescription)
+            print("🔍 [MEAL SERVING SIZE] Parsed from description: \(servingSize) cups")
+        }
+        
+        // Enhanced NLP-based food recognition
+        let recognizedFoods = enhancedFoodRecognition(from: correctedDescription)
+        print("🔍 [MEAL NLP DEBUG] Recognized foods: \(recognizedFoods)")
+        
+        // Try to find compound dishes first
+        for compoundFood in recognizedFoods.compoundFoods {
+            if let compoundFoodItem = findCompoundFood(in: compoundFood.lowercased()) {
+                print("🔍 [MEAL NLP DEBUG] Found compound food: \(compoundFood)")
+                return calculateFromCompoundFood(compoundFoodItem, servingSize: servingSize)
+            }
+        }
+        
+        // Then try enhanced individual foods
+        for foodEntity in recognizedFoods.individualFoods {
+            if let enhancedFood = findEnhancedFood(in: foodEntity.lowercased()) {
+                print("🔍 [MEAL NLP DEBUG] Found enhanced food: \(foodEntity)")
+                return calculateFromEnhancedFood(enhancedFood, servingSize: servingSize)
+            }
+        }
+        
+        // Enhanced fallback with better categorization
+        return enhancedEstimateMicronutrients(for: correctedDescription, servingSize: servingSize)
     }
     
     /// Calculate micronutrients with explicit serving size (for backward compatibility)
@@ -80,8 +125,8 @@ class IBDMicronutrientCalculator: ObservableObject {
                     let foodName = meal.description
                     print("🔍 [MICRONUTRIENT DEBUG] Processing food: '\(foodName)'")
                     
-                    // Use intelligent serving size parser instead of hardcoded serving size
-                    let micronutrients = calculateMicronutrients(for: foodName, userProfile: userProfile)
+                    // Use meal-based calculation with actual serving size data
+                    let micronutrients = calculateMicronutrients(for: meal, userProfile: userProfile)
                     
                     print("🔍 [MICRONUTRIENT DEBUG] Calculated micronutrients for '\(foodName)':")
                     print("🔍 [MICRONUTRIENT DEBUG]   Vitamin C: \(micronutrients.vitaminC) mg")
@@ -346,6 +391,385 @@ class IBDMicronutrientCalculator: ObservableObject {
         }
     }
     
+    // MARK: - Enhanced Food Recognition
+    
+    /// Enhanced food recognition that handles complex descriptions
+    private func enhancedFoodRecognition(from description: String) -> (compoundFoods: [String], individualFoods: [String]) {
+        let normalizedDescription = description.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+        print("🔍 [ENHANCED NLP] Analyzing: '\(normalizedDescription)'")
+        
+        var compoundFoods: [String] = []
+        
+        // Enhanced compound food patterns for complex descriptions
+        let compoundPatterns = [
+            // Rice-based dishes
+            "white rice with sweet pudding": "White Rice with Sweet Pudding",
+            "white rice with pudding": "White Rice with Sweet Pudding", 
+            "rice with pudding": "White Rice with Sweet Pudding",
+            "rice pudding": "Rice Pudding",
+            "sweet rice pudding": "Rice Pudding",
+            
+            // Omelette variations
+            "omelette white rice": "Omelette with White Rice",
+            "omelette with rice": "Omelette with White Rice",
+            "egg omelette rice": "Omelette with White Rice",
+            "omelette": "Egg Omelette",
+            "omelet": "Egg Omelette",
+            
+            // Smoothie variations
+            "banana smoothie egg": "Banana Smoothie with Egg",
+            "banana smoothie": "Banana Smoothie",
+            "egg with fruit smoothie": "Egg with Fruit Smoothie",
+            "fruit smoothie": "Fruit Smoothie",
+            
+            // Protein dishes
+            "chicken breast": "Chicken Breast",
+            "chicken": "Chicken",
+            "egg": "Egg",
+            "eggs": "Egg",
+            
+            // Snacks
+            "chips": "Potato Chips",
+            "potato chips": "Potato Chips",
+            "french fries": "French Fries",
+            "fries": "French Fries"
+        ]
+        
+        // Check for compound patterns (longest first for better matching)
+        let sortedPatterns = compoundPatterns.sorted { $0.key.count > $1.key.count }
+        
+        for (pattern, foodName) in sortedPatterns {
+            if normalizedDescription.contains(pattern) {
+                compoundFoods.append(foodName)
+                print("🔍 [ENHANCED NLP] Found compound pattern: '\(pattern)' -> '\(foodName)'")
+                break // Use the first (most specific) match
+            }
+        }
+        
+        // If no compound food found, try to extract individual food components
+        if compoundFoods.isEmpty {
+            let individualFoods = extractIndividualFoods(from: normalizedDescription)
+            print("🔍 [ENHANCED NLP] Extracted individual foods: \(individualFoods)")
+            return (compoundFoods: [], individualFoods: individualFoods)
+        }
+        
+        return (compoundFoods: compoundFoods, individualFoods: [])
+    }
+    
+    /// Extract individual food components from complex descriptions
+    private func extractIndividualFoods(from description: String) -> [String] {
+        var foods: [String] = []
+        
+        // Common food keywords to look for
+        let foodKeywords = [
+            "rice", "white rice", "brown rice", "pudding", "sweet pudding",
+            "omelette", "omelet", "egg", "eggs", "chicken", "chicken breast",
+            "banana", "smoothie", "fruit", "chips", "fries", "potato",
+            "bread", "pasta", "noodles", "soup", "salad", "vegetables",
+            "cheese", "milk", "yogurt", "butter", "oil", "salt", "sugar"
+        ]
+        
+        let words = description.components(separatedBy: .whitespacesAndNewlines)
+            .filter { !$0.isEmpty }
+        
+        for word in words {
+            let cleanWord = word.lowercased().trimmingCharacters(in: .punctuationCharacters)
+            if foodKeywords.contains(cleanWord) {
+                foods.append(cleanWord.capitalized)
+            }
+        }
+        
+        return foods
+    }
+    
+    /// Enhanced micronutrient estimation for complex food descriptions
+    private func enhancedEstimateMicronutrients(for description: String, servingSize: Double) -> MicronutrientData {
+        let normalizedDescription = description.lowercased()
+        print("🔍 [ENHANCED ESTIMATE] Analyzing: '\(normalizedDescription)' with serving size: \(servingSize)")
+        
+        // Enhanced food categorization with better patterns
+        let category = enhancedDetermineFoodCategory(normalizedDescription)
+        print("🔍 [ENHANCED ESTIMATE] Category: \(category)")
+        
+        // Get micronutrient estimates based on enhanced category
+        let micronutrients = getEnhancedEstimatedMicronutrients(for: category, servingSize: servingSize)
+        print("🔍 [ENHANCED ESTIMATE] Micronutrients: C=\(micronutrients.vitaminC), Iron=\(micronutrients.iron), D=\(micronutrients.vitaminD), Ca=\(micronutrients.calcium)")
+        
+        return micronutrients
+    }
+    
+    /// Enhanced food categorization that handles complex descriptions
+    private func enhancedDetermineFoodCategory(_ description: String) -> String {
+        print("🔍 [ENHANCED CATEGORY] Analyzing: '\(description)'")
+        
+        // Enhanced keyword patterns for better categorization
+        let enhancedPatterns = [
+            // Rice and grain dishes
+            "rice": "grain",
+            "white rice": "grain", 
+            "brown rice": "grain",
+            "pudding": "dairy",
+            "sweet pudding": "dairy",
+            "rice pudding": "dairy",
+            
+            // Egg dishes
+            "omelette": "protein",
+            "omelet": "protein",
+            "egg": "protein",
+            "eggs": "protein",
+            
+            // Smoothies and beverages
+            "smoothie": "fruit",
+            "banana smoothie": "fruit",
+            "fruit smoothie": "fruit",
+            
+            // Protein dishes
+            "chicken": "protein",
+            "chicken breast": "protein",
+            "beef": "protein",
+            "pork": "protein",
+            "fish": "protein",
+            
+            // Snacks and processed foods
+            "chips": "grain",
+            "fries": "grain",
+            "potato chips": "grain",
+            "french fries": "grain",
+            
+            // Dairy products
+            "milk": "dairy",
+            "cheese": "dairy",
+            "yogurt": "dairy",
+            "butter": "dairy",
+            "cream": "dairy",
+            
+            // Fruits
+            "banana": "fruit",
+            "apple": "fruit",
+            "orange": "fruit",
+            "berry": "fruit",
+            "grape": "fruit",
+            
+            // Vegetables
+            "salad": "vegetable",
+            "soup": "vegetable",
+            "vegetable": "vegetable",
+            "broccoli": "vegetable",
+            "carrot": "vegetable",
+            "tomato": "vegetable",
+            
+            // Nuts and seeds
+            "nut": "nuts",
+            "almond": "nuts",
+            "walnut": "nuts",
+            "seed": "nuts"
+        ]
+        
+        // Check patterns (longest first for better matching)
+        let sortedPatterns = enhancedPatterns.sorted { $0.key.count > $1.key.count }
+        
+        for (pattern, category) in sortedPatterns {
+            if description.contains(pattern) {
+                print("🔍 [ENHANCED CATEGORY] Matched pattern '\(pattern)' -> \(category)")
+                return category
+            }
+        }
+        
+        // Fallback to original categorization
+        return determineFoodCategory(description)
+    }
+    
+    /// Enhanced micronutrient estimates with better values for complex foods
+    private func getEnhancedEstimatedMicronutrients(for category: String, servingSize: Double) -> MicronutrientData {
+        print("🔍 [ENHANCED MICRONUTRIENTS] Category: \(category), Serving: \(servingSize)")
+        
+        switch category {
+        case "fruit":
+            let result = MicronutrientData(
+                vitaminA: 50.0 * servingSize,
+                vitaminB1: 0.1 * servingSize,
+                vitaminB2: 0.1 * servingSize,
+                vitaminB3: 0.5 * servingSize,
+                vitaminB5: 0.3 * servingSize,
+                vitaminB6: 0.2 * servingSize,
+                vitaminB7: 0.0 * servingSize,
+                vitaminB9: 25.0 * servingSize,
+                vitaminB12: 0.0 * servingSize,
+                vitaminC: 60.0 * servingSize,
+                vitaminD: 0.0 * servingSize,
+                vitaminE: 1.0 * servingSize,
+                vitaminK: 5.0 * servingSize,
+                calcium: 20.0 * servingSize,
+                iron: 0.5 * servingSize,
+                magnesium: 15.0 * servingSize,
+                phosphorus: 20.0 * servingSize,
+                potassium: 200.0 * servingSize,
+                sodium: 2.0 * servingSize,
+                zinc: 0.2 * servingSize,
+                omega3: 0.1 * servingSize,
+                glutamine: 0.0 * servingSize,
+                probiotics: 0.0 * servingSize,
+                prebiotics: 2.0 * servingSize
+            )
+            print("🔍 [ENHANCED MICRONUTRIENTS] Fruit result: C=\(result.vitaminC), B9=\(result.vitaminB9), K=\(result.potassium)")
+            return result
+            
+        case "vegetable":
+            let result = MicronutrientData(
+                vitaminA: 100.0 * servingSize,
+                vitaminB1: 0.1 * servingSize,
+                vitaminB2: 0.1 * servingSize,
+                vitaminB3: 0.5 * servingSize,
+                vitaminB5: 0.2 * servingSize,
+                vitaminB6: 0.3 * servingSize,
+                vitaminB7: 0.0 * servingSize,
+                vitaminB9: 40.0 * servingSize,
+                vitaminB12: 0.0 * servingSize,
+                vitaminC: 50.0 * servingSize,
+                vitaminD: 0.0 * servingSize,
+                vitaminE: 0.5 * servingSize,
+                vitaminK: 80.0 * servingSize,
+                calcium: 50.0 * servingSize,
+                iron: 1.0 * servingSize,
+                magnesium: 25.0 * servingSize,
+                phosphorus: 30.0 * servingSize,
+                potassium: 300.0 * servingSize,
+                sodium: 5.0 * servingSize,
+                zinc: 0.5 * servingSize,
+                omega3: 0.1 * servingSize,
+                glutamine: 0.0 * servingSize,
+                probiotics: 0.0 * servingSize,
+                prebiotics: 3.0 * servingSize
+            )
+            print("🔍 [ENHANCED MICRONUTRIENTS] Vegetable result: C=\(result.vitaminC), K=\(result.vitaminK), Fe=\(result.iron)")
+            return result
+            
+        case "protein":
+            let result = MicronutrientData(
+                vitaminA: 20.0 * servingSize,
+                vitaminB1: 0.1 * servingSize,
+                vitaminB2: 0.2 * servingSize,
+                vitaminB3: 5.0 * servingSize,
+                vitaminB5: 1.0 * servingSize,
+                vitaminB6: 0.5 * servingSize,
+                vitaminB7: 0.0 * servingSize,
+                vitaminB9: 10.0 * servingSize,
+                vitaminB12: 2.0 * servingSize,
+                vitaminC: 0.0 * servingSize,
+                vitaminD: 1.0 * servingSize,
+                vitaminE: 0.5 * servingSize,
+                vitaminK: 0.0 * servingSize,
+                calcium: 20.0 * servingSize,
+                iron: 2.0 * servingSize,
+                magnesium: 25.0 * servingSize,
+                phosphorus: 200.0 * servingSize,
+                potassium: 300.0 * servingSize,
+                sodium: 100.0 * servingSize,
+                zinc: 3.0 * servingSize,
+                omega3: 0.5 * servingSize,
+                glutamine: 0.0 * servingSize,
+                probiotics: 0.0 * servingSize,
+                prebiotics: 0.0 * servingSize
+            )
+            print("🔍 [ENHANCED MICRONUTRIENTS] Protein result: B12=\(result.vitaminB12), Fe=\(result.iron), Zn=\(result.zinc)")
+            return result
+            
+        case "grain":
+            let result = MicronutrientData(
+                vitaminA: 0.0 * servingSize,
+                vitaminB1: 0.3 * servingSize,
+                vitaminB2: 0.1 * servingSize,
+                vitaminB3: 2.0 * servingSize,
+                vitaminB5: 0.5 * servingSize,
+                vitaminB6: 0.2 * servingSize,
+                vitaminB7: 0.0 * servingSize,
+                vitaminB9: 20.0 * servingSize,
+                vitaminB12: 0.0 * servingSize,
+                vitaminC: 0.0 * servingSize,
+                vitaminD: 0.0 * servingSize,
+                vitaminE: 0.5 * servingSize,
+                vitaminK: 0.0 * servingSize,
+                calcium: 20.0 * servingSize,
+                iron: 1.5 * servingSize,
+                magnesium: 50.0 * servingSize,
+                phosphorus: 100.0 * servingSize,
+                potassium: 100.0 * servingSize,
+                sodium: 200.0 * servingSize,
+                zinc: 1.0 * servingSize,
+                omega3: 0.1 * servingSize,
+                glutamine: 0.0 * servingSize,
+                probiotics: 0.0 * servingSize,
+                prebiotics: 2.0 * servingSize
+            )
+            print("🔍 [ENHANCED MICRONUTRIENTS] Grain result: B1=\(result.vitaminB1), Fe=\(result.iron), Mg=\(result.magnesium)")
+            return result
+            
+        case "dairy":
+            let result = MicronutrientData(
+                vitaminA: 50.0 * servingSize,
+                vitaminB1: 0.1 * servingSize,
+                vitaminB2: 0.3 * servingSize,
+                vitaminB3: 0.1 * servingSize,
+                vitaminB5: 0.5 * servingSize,
+                vitaminB6: 0.1 * servingSize,
+                vitaminB7: 0.0 * servingSize,
+                vitaminB9: 5.0 * servingSize,
+                vitaminB12: 1.0 * servingSize,
+                vitaminC: 0.0 * servingSize,
+                vitaminD: 2.0 * servingSize,
+                vitaminE: 0.1 * servingSize,
+                vitaminK: 0.0 * servingSize,
+                calcium: 200.0 * servingSize,
+                iron: 0.1 * servingSize,
+                magnesium: 20.0 * servingSize,
+                phosphorus: 150.0 * servingSize,
+                potassium: 150.0 * servingSize,
+                sodium: 50.0 * servingSize,
+                zinc: 0.5 * servingSize,
+                omega3: 0.1 * servingSize,
+                glutamine: 0.0 * servingSize,
+                probiotics: 1.0 * servingSize,
+                prebiotics: 0.0 * servingSize
+            )
+            print("🔍 [ENHANCED MICRONUTRIENTS] Dairy result: Ca=\(result.calcium), B12=\(result.vitaminB12), D=\(result.vitaminD)")
+            return result
+            
+        case "nuts":
+            let result = MicronutrientData(
+                vitaminA: 0.0 * servingSize,
+                vitaminB1: 0.2 * servingSize,
+                vitaminB2: 0.1 * servingSize,
+                vitaminB3: 1.0 * servingSize,
+                vitaminB5: 0.5 * servingSize,
+                vitaminB6: 0.2 * servingSize,
+                vitaminB7: 0.0 * servingSize,
+                vitaminB9: 10.0 * servingSize,
+                vitaminB12: 0.0 * servingSize,
+                vitaminC: 0.0 * servingSize,
+                vitaminD: 0.0 * servingSize,
+                vitaminE: 5.0 * servingSize,
+                vitaminK: 0.0 * servingSize,
+                calcium: 50.0 * servingSize,
+                iron: 2.0 * servingSize,
+                magnesium: 100.0 * servingSize,
+                phosphorus: 200.0 * servingSize,
+                potassium: 300.0 * servingSize,
+                sodium: 5.0 * servingSize,
+                zinc: 2.0 * servingSize,
+                omega3: 1.0 * servingSize,
+                glutamine: 0.0 * servingSize,
+                probiotics: 0.0 * servingSize,
+                prebiotics: 1.0 * servingSize
+            )
+            print("🔍 [ENHANCED MICRONUTRIENTS] Nuts result: E=\(result.vitaminE), Mg=\(result.magnesium), Zn=\(result.zinc)")
+            return result
+            
+        default:
+            print("🔍 [ENHANCED MICRONUTRIENTS] Unknown category, using default")
+            return MicronutrientData() // Return empty data for unknown categories
+        }
+    }
+    
     private func correctSpelling(_ text: String) -> String {
         // Basic spelling correction - can be enhanced with more sophisticated algorithms
         return text.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
@@ -354,17 +778,113 @@ class IBDMicronutrientCalculator: ObservableObject {
     private func determineFoodCategory(_ foodDescription: String) -> String {
         let description = foodDescription.lowercased()
         
-        if description.contains("fruit") || description.contains("apple") || description.contains("banana") {
-            return "fruit"
-        } else if description.contains("vegetable") || description.contains("carrot") || description.contains("broccoli") {
+        print("🔍 [FOOD CATEGORY] Analyzing: '\(description)'")
+        
+        // Comprehensive food categorization for international cuisines
+        let fruitKeywords = [
+            "fruit", "apple", "banana", "orange", "grape", "berry", "strawberry", "blueberry", "raspberry",
+            "mango", "pineapple", "papaya", "kiwi", "peach", "pear", "plum", "cherry", "lemon", "lime",
+            "smoothie", "juice", "fresh", "citrus", "tropical", "melon", "watermelon", "cantaloupe",
+            "avocado", "coconut", "date", "fig", "pomegranate", "passion", "guava", "lychee"
+        ]
+        
+        let vegetableKeywords = [
+            "vegetable", "carrot", "broccoli", "spinach", "lettuce", "cabbage", "cauliflower", "pepper",
+            "tomato", "cucumber", "onion", "garlic", "potato", "sweet potato", "corn", "peas", "beans",
+            "salad", "soup", "stew", "curry", "stir fry", "sauteed", "roasted", "grilled", "steamed",
+            "asparagus", "zucchini", "eggplant", "mushroom", "radish", "beet", "turnip", "parsnip",
+            "kale", "chard", "arugula", "bok choy", "napa", "daikon", "okra", "artichoke", "brussels"
+        ]
+        
+        let proteinKeywords = [
+            "meat", "chicken", "beef", "pork", "lamb", "turkey", "duck", "fish", "salmon", "tuna",
+            "shrimp", "crab", "lobster", "egg", "eggs", "tofu", "tempeh", "seitan", "beans", "lentils",
+            "chickpea", "quinoa", "protein", "steak", "chop", "cutlet", "fillet", "breast", "thigh",
+            "wing", "leg", "rib", "sausage", "bacon", "ham", "deli", "cold cut", "jerky", "pate",
+            "teriyaki", "kebab", "satay", "gyro", "taco", "burrito", "enchilada", "fajita", "quesadilla"
+        ]
+        
+        let grainKeywords = [
+            "grain", "rice", "bread", "pasta", "noodle", "quinoa", "barley", "oats", "wheat", "rye",
+            "corn", "millet", "buckwheat", "bulgur", "couscous", "polenta", "grits", "cereal", "granola",
+            "pudding", "porridge", "congee", "risotto", "paella", "fried rice", "sushi", "roll",
+            "wrap", "sandwich", "burger", "pizza", "flatbread", "naan", "pita", "tortilla", "bagel",
+            "muffin", "pancake", "waffle", "crepe", "dumpling", "ravioli", "lasagna", "spaghetti"
+        ]
+        
+        let dairyKeywords = [
+            "dairy", "milk", "cheese", "yogurt", "butter", "cream", "sour cream", "buttermilk",
+            "kefir", "cottage", "ricotta", "mozzarella", "cheddar", "parmesan", "feta", "goat",
+            "sheep", "buffalo", "camel", "soy milk", "almond milk", "coconut milk", "oat milk",
+            "ice cream", "gelato", "sorbet", "pudding", "custard", "flan", "cheesecake", "tiramisu"
+        ]
+        
+        let nutKeywords = [
+            "nut", "almond", "walnut", "pecan", "cashew", "pistachio", "hazelnut", "macadamia",
+            "peanut", "seed", "sunflower", "pumpkin", "sesame", "chia", "flax", "hemp", "chia seed",
+            "trail mix", "granola", "nut butter", "tahini", "hummus", "guacamole", "pesto"
+        ]
+        
+        // Check for fruit keywords
+        for keyword in fruitKeywords {
+            if description.contains(keyword) {
+                print("🔍 [FOOD CATEGORY] -> fruit (matched: \(keyword))")
+                return "fruit"
+            }
+        }
+        
+        // Check for vegetable keywords
+        for keyword in vegetableKeywords {
+            if description.contains(keyword) {
+                print("🔍 [FOOD CATEGORY] -> vegetable (matched: \(keyword))")
+                return "vegetable"
+            }
+        }
+        
+        // Check for protein keywords
+        for keyword in proteinKeywords {
+            if description.contains(keyword) {
+                print("🔍 [FOOD CATEGORY] -> protein (matched: \(keyword))")
+                return "protein"
+            }
+        }
+        
+        // Check for grain keywords
+        for keyword in grainKeywords {
+            if description.contains(keyword) {
+                print("🔍 [FOOD CATEGORY] -> grain (matched: \(keyword))")
+                return "grain"
+            }
+        }
+        
+        // Check for dairy keywords
+        for keyword in dairyKeywords {
+            if description.contains(keyword) {
+                print("🔍 [FOOD CATEGORY] -> dairy (matched: \(keyword))")
+                return "dairy"
+            }
+        }
+        
+        // Check for nut keywords
+        for keyword in nutKeywords {
+            if description.contains(keyword) {
+                print("🔍 [FOOD CATEGORY] -> nuts (matched: \(keyword))")
+                return "nuts"
+            }
+        }
+        
+        // Default fallback - try to guess based on common patterns
+        if description.contains("soup") || description.contains("stew") || description.contains("broth") {
+            print("🔍 [FOOD CATEGORY] -> vegetable (soup/stew pattern)")
             return "vegetable"
-        } else if description.contains("meat") || description.contains("chicken") || description.contains("beef") {
-            return "protein"
-        } else if description.contains("grain") || description.contains("rice") || description.contains("bread") {
-            return "grain"
-        } else if description.contains("dairy") || description.contains("milk") || description.contains("cheese") {
-            return "dairy"
+        } else if description.contains("salad") || description.contains("fresh") {
+            print("🔍 [FOOD CATEGORY] -> vegetable (salad pattern)")
+            return "vegetable"
+        } else if description.contains("smoothie") || description.contains("juice") {
+            print("🔍 [FOOD CATEGORY] -> fruit (beverage pattern)")
+            return "fruit"
         } else {
+            print("🔍 [FOOD CATEGORY] -> other (no match found)")
             return "other"
         }
     }
@@ -372,39 +892,81 @@ class IBDMicronutrientCalculator: ObservableObject {
     private func getEstimatedMicronutrients(for category: String, servingSize: Double) -> MicronutrientData {
         // Return estimated micronutrients based on food category
         // This is a simplified version - in production, you'd have more detailed estimates
+        print("🔍 [ESTIMATED MICRONUTRIENTS] Category: \(category), Serving Size: \(servingSize)")
+        
         switch category {
         case "fruit":
-            return MicronutrientData(
+            let result = MicronutrientData(
                 vitaminB9: 20.0 * servingSize, // Fixed: moved before vitaminC
                 vitaminC: 50.0 * servingSize,
                 potassium: 200.0 * servingSize
             )
+            print("🔍 [ESTIMATED MICRONUTRIENTS] Fruit result: C=\(result.vitaminC), B9=\(result.vitaminB9), K=\(result.potassium)")
+            return result
         case "vegetable":
-            return MicronutrientData(
+            let result = MicronutrientData(
                 vitaminA: 100.0 * servingSize,
                 vitaminB9: 40.0 * servingSize, // Fixed: moved before vitaminC
                 vitaminC: 30.0 * servingSize,
                 potassium: 300.0 * servingSize
             )
+            print("🔍 [ESTIMATED MICRONUTRIENTS] Vegetable result: A=\(result.vitaminA), C=\(result.vitaminC), B9=\(result.vitaminB9), K=\(result.potassium)")
+            return result
         case "protein":
-            return MicronutrientData(
+            let result = MicronutrientData(
                 vitaminB12: 1.0 * servingSize, // Fixed: moved before iron
                 iron: 2.0 * servingSize,
                 zinc: 3.0 * servingSize
             )
+            print("🔍 [ESTIMATED MICRONUTRIENTS] Protein result: B12=\(result.vitaminB12), Iron=\(result.iron), Zn=\(result.zinc)")
+            return result
         case "grain":
-            return MicronutrientData(
+            let result = MicronutrientData(
                 vitaminB9: 30.0 * servingSize,
                 iron: 1.0 * servingSize,
                 magnesium: 50.0 * servingSize
             )
+            print("🔍 [ESTIMATED MICRONUTRIENTS] Grain result: B9=\(result.vitaminB9), Iron=\(result.iron), Mg=\(result.magnesium)")
+            return result
         case "dairy":
-            return MicronutrientData(
+            let result = MicronutrientData(
                 vitaminB12: 1.0 * servingSize,
                 vitaminD: 2.0 * servingSize, // Fixed: moved before calcium
                 calcium: 200.0 * servingSize
             )
+            print("🔍 [ESTIMATED MICRONUTRIENTS] Dairy result: B12=\(result.vitaminB12), D=\(result.vitaminD), Ca=\(result.calcium)")
+            return result
+        case "nuts":
+            let result = MicronutrientData(
+                vitaminA: 0.0,
+                vitaminB1: 0.0,
+                vitaminB2: 0.0,
+                vitaminB3: 0.0,
+                vitaminB5: 0.0,
+                vitaminB6: 0.0,
+                vitaminB7: 0.0,
+                vitaminB9: 0.0,
+                vitaminB12: 0.0,
+                vitaminC: 0.0,
+                vitaminD: 0.0,
+                vitaminE: 5.0 * servingSize,
+                vitaminK: 0.0,
+                calcium: 0.0,
+                iron: 1.5 * servingSize,
+                magnesium: 100.0 * servingSize,
+                phosphorus: 0.0,
+                potassium: 200.0 * servingSize,
+                sodium: 0.0,
+                zinc: 2.0 * servingSize,
+                omega3: 1.0 * servingSize,
+                glutamine: 0.0,
+                probiotics: 0.0,
+                prebiotics: 0.0
+            )
+            print("🔍 [ESTIMATED MICRONUTRIENTS] Nuts result: E=\(result.vitaminE), Mg=\(result.magnesium), Zn=\(result.zinc), Fe=\(result.iron), K=\(result.potassium), Omega3=\(result.omega3)")
+            return result
         default:
+            print("🔍 [ESTIMATED MICRONUTRIENTS] Unknown category: \(category)")
             return MicronutrientData()
         }
     }
@@ -513,18 +1075,138 @@ class IBDMicronutrientCalculator: ObservableObject {
         )
     }
 
+    // Convert serving size from various units to cups
+    private func convertServingSize(_ amount: Double, from unit: String) -> Double {
+        let unitLower = unit.lowercased()
+        
+        switch unitLower {
+        // Volume measurements
+        case "cup", "cups":
+            return amount
+        case "tablespoon", "tbsp", "tbs":
+            return amount * 0.0625 // 16 tbsp = 1 cup
+        case "teaspoon", "tsp":
+            return amount * 0.0208 // 48 tsp = 1 cup
+        case "liter", "litre", "l":
+            return amount * 4.2 // 1 liter ≈ 4.2 cups
+        case "ml", "milliliter":
+            return amount * 0.0042 // 1000 ml = 1 liter
+        case "fl oz", "fluid ounce", "oz":
+            return amount * 0.125 // 8 fl oz = 1 cup
+        case "pint", "pt":
+            return amount * 2.0 // 1 pint = 2 cups
+        case "quart", "qt":
+            return amount * 4.0 // 1 quart = 4 cups
+        case "gallon", "gal":
+            return amount * 16.0 // 1 gallon = 16 cups
+        
+        // Weight measurements (approximate conversions)
+        case "pound", "lb", "lbs":
+            return amount * 2.0 // Approximate: 1 lb ≈ 2 cups
+        case "ounce", "oz":
+            return amount * 0.125 // 8 oz ≈ 1 cup
+        case "gram", "g", "grams":
+            return amount * 0.0042 // Approximate: 240g ≈ 1 cup
+        case "kg", "kilogram", "kilograms":
+            return amount * 4.2 // Approximate: 1 kg ≈ 4.2 cups
+        
+        // Count-based measurements
+        case "slice", "slices":
+            return amount * 0.125 // Assume 8 slices per cup
+        case "piece", "pieces":
+            return amount * 0.125 // Assume 8 pieces per cup
+        case "serving", "servings":
+            return amount // 1 serving = 1 cup (default)
+        case "portion", "portions":
+            return amount // 1 portion = 1 cup (default)
+        
+        // International measurements
+        case "taza", "tazas": // Spanish
+            return amount
+        case "bol", "bols": // French
+            return amount
+        case "schale", "schalen": // German
+            return amount
+        case "碗": // Chinese (bowl)
+            return amount * 1.5 // Chinese bowls are typically larger
+        case "杯": // Chinese (cup)
+            return amount
+        case "皿": // Japanese (plate)
+            return amount * 0.8 // Japanese plates are typically smaller
+        case "盛り": // Japanese (serving)
+            return amount
+        
+        default:
+            print("⚠️ [SERVING SIZE] Unknown unit: \(unit), using default 1.0 cups")
+            return amount // Default to 1 cup if unit is unknown
+        }
+    }
+    
     // Add simple serving size parser to replace IntelligentServingSizeParser
-    private func parseServingSize(from description: String) -> Double {
-        // Simple serving size parsing - extract numbers from description
+    func parseServingSize(from description: String) -> Double {
+        // Enhanced serving size parsing for international foods
         let words = description.lowercased().components(separatedBy: .whitespacesAndNewlines)
         
-        for word in words {
+        for (index, word) in words.enumerated() {
             if let number = Double(word) {
-                return number
+                // Look for common serving size indicators
+                if index + 1 < words.count {
+                    let nextWord = words[index + 1]
+                    
+                    // Volume measurements
+                    if nextWord.contains("cup") || nextWord.contains("cups") {
+                        return number
+                    } else if nextWord.contains("tablespoon") || nextWord.contains("tbsp") {
+                        return number * 0.0625 // Convert tbsp to cups
+                    } else if nextWord.contains("teaspoon") || nextWord.contains("tsp") {
+                        return number * 0.0208 // Convert tsp to cups
+                    } else if nextWord.contains("liter") || nextWord.contains("litre") {
+                        return number * 4.2 // Convert liters to cups
+                    } else if nextWord.contains("ml") || nextWord.contains("milliliter") {
+                        return number * 0.0042 // Convert ml to cups
+                    } else if nextWord.contains("fl oz") || nextWord.contains("fluid ounce") {
+                        return number * 0.125 // Convert fl oz to cups
+                    }
+                    
+                    // Weight measurements
+                    else if nextWord.contains("pound") || nextWord.contains("lb") {
+                        return number * 2.0 // Convert pounds to cups (approximate)
+                    } else if nextWord.contains("ounce") || nextWord.contains("oz") {
+                        return number * 0.125 // Convert oz to cups
+                    } else if nextWord.contains("gram") || nextWord.contains("g") {
+                        return number * 0.0042 // Convert grams to cups (approximate)
+                    } else if nextWord.contains("kg") || nextWord.contains("kilogram") {
+                        return number * 4.2 // Convert kg to cups (approximate)
+                    }
+                    
+                    // Count-based measurements
+                    else if nextWord.contains("slice") || nextWord.contains("slices") {
+                        return number * 0.125 // Assume 8 slices per cup
+                    } else if nextWord.contains("piece") || nextWord.contains("pieces") {
+                        return number * 0.125 // Assume 8 pieces per cup
+                    } else if nextWord.contains("serving") || nextWord.contains("servings") {
+                        return number
+                    } else if nextWord.contains("portion") || nextWord.contains("portions") {
+                        return number
+                    }
+                }
             }
         }
         
-        // Default serving size if no number found
-        return 1.0
+        // Default serving size based on food type
+        let description = description.lowercased()
+        if description.contains("soup") || description.contains("stew") || description.contains("broth") {
+            return 1.5 // Soups are typically larger servings
+        } else if description.contains("salad") || description.contains("fresh") {
+            return 1.0 // Standard salad serving
+        } else if description.contains("smoothie") || description.contains("juice") {
+            return 1.0 // Standard beverage serving
+        } else if description.contains("rice") || description.contains("pasta") || description.contains("noodle") {
+            return 1.0 // Standard grain serving
+        } else if description.contains("meat") || description.contains("chicken") || description.contains("fish") {
+            return 0.5 // Protein servings are typically smaller
+        } else {
+            return 1.0 // Default serving size
+        }
     }
 }
