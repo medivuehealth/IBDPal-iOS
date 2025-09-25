@@ -1739,25 +1739,26 @@ struct Summary {
 // MARK: - Industry Standard Targets
 
 struct IBDTargets {
-    // Research-driven baseline values based on AGA Guidelines 2024 and Crohn's & Colitis Congress 2024
-    // These are default values - should be personalized based on user profile
+    // NIH DRI-based baseline values with IBD-specific adjustments
+    // Based on Dietary Reference Intakes (DRI) from NIH Office of Dietary Supplements
+    // Adjusted for IBD patients who may have increased nutrient needs due to malabsorption
     
-    // Macronutrients (Daily Baseline)
-    let calorieTarget: Int = 2100 // 30 kcal/kg × 70kg (default weight)
-    let proteinTarget: Int = 105 // 1.5 g/kg × 70kg (minimum for IBD patients)
-    let fiberTarget: Int = 17 // Mid-range of 10-25 g/day (symptom-adjustable)
-    let hydrationTarget: Int = 2500 // Mid-range of 2000-3000 ml/day (activity-dependent)
-    let fatTarget: Int = 70 // 30% of calories from fat (2100 × 0.3 / 9 kcal/g)
-    let carbTarget: Int = 262 // Remaining calories from carbs (2100 - 420 protein - 630 fat) / 4 kcal/g
+    // Macronutrients (Daily Baseline - DRI-based)
+    let calorieTarget: Int = 2000 // DRI: 2000-2500 kcal/day for adults (using lower end for IBD)
+    let proteinTarget: Int = 65 // DRI: 56g (male) / 46g (female) - using average with IBD adjustment
+    let fiberTarget: Int = 25 // DRI: 25g (female) / 38g (male) - using lower end for IBD tolerance
+    let hydrationTarget: Int = 2700 // DRI: 2.7L/day for adult females, 3.7L/day for males (using female baseline)
+    let fatTarget: Int = 65 // DRI: 20-35% of calories (using 30% of 2000 kcal / 9 kcal/g)
+    let carbTarget: Int = 300 // DRI: 130g minimum + additional for energy (2000 - 260 protein - 585 fat) / 4
     
-    // Micronutrients (Daily Baseline - vs RDA)
-    let vitaminDTarget: Int = 2500 // IU (3-5x higher than RDA)
-    let vitaminB12Target: Int = 1000 // mcg (400x higher than RDA)
-    let ironTarget: Int = 37 // mg (2-3x higher than RDA)
-    let folateTarget: Int = 600 // mcg (1.5x higher than RDA)
-    let calciumTarget: Int = 1350 // mg (age-adjusted, mid-range)
-    let zincTarget: Int = 15 // mg (1.4x higher than RDA)
-    let omega3Target: Int = 2000 // mg (1.8x higher than RDA)
+    // Micronutrients (Daily Baseline - DRI RDA/AI values with IBD adjustments)
+    let vitaminDTarget: Int = 600 // DRI: 600 IU (15 mcg) - may need 2-3x for IBD patients
+    let vitaminB12Target: Int = 2 // DRI: 2.4 mcg - may need 2-3x for IBD patients (rounded to 2)
+    let ironTarget: Int = 18 // DRI: 18mg (female) / 8mg (male) - using female value with IBD adjustment
+    let folateTarget: Int = 400 // DRI: 400 mcg DFE - may need 1.5x for IBD patients
+    let calciumTarget: Int = 1000 // DRI: 1000mg (19-50 years) - may need 1.5x for IBD patients
+    let zincTarget: Int = 11 // DRI: 11mg (male) / 8mg (female) - using male value with IBD adjustment
+    let omega3Target: Int = 1100 // DRI: 1.1g (1100mg) - may need 2x for IBD patients
     
     // FODMAP-specific targets (more conservative for symptom management)
     let fodmapFiberTarget: Int = 10 // g/day (lower end of range for FODMAP diet)
@@ -1787,37 +1788,45 @@ struct PersonalizedIBDTargets {
     let zincTarget: Int
     let omega3Target: Int
     
-    // Calculate personalized targets based on user profile
+    // Calculate personalized targets based on user profile using DRI as baseline
     static func calculate(for userProfile: MicronutrientProfile) -> PersonalizedIBDTargets {
         let weight = userProfile.weight
         let age = userProfile.age
         let diseaseActivity = userProfile.diseaseActivity
+        let gender = userProfile.gender
         
         // Calculate multipliers based on user profile
         let diseaseActivityMultiplier = diseaseActivityMultiplier(for: diseaseActivity)
         let ageMultiplier = ageMultiplier(for: age)
-        let diseaseTypeMultiplier = 1.1 // Default for IBD (between IBS and Crohn's)
+        let diseaseTypeMultiplier = 1.2 // IBD patients typically need 20% more nutrients due to malabsorption
         
         let totalMultiplier = diseaseActivityMultiplier * ageMultiplier * diseaseTypeMultiplier
         
-        // Macronutrients (weight-based calculations)
-        let calorieTarget = Int(Double(weight * 30) * totalMultiplier) // 30 kcal/kg
-        let proteinTarget = Int(Double(weight * 2) * totalMultiplier) // 2.0 g/kg (upper range for IBD)
-        let fiberTarget = Int(17.0 * totalMultiplier) // Mid-range, symptom-adjustable
-        let hydrationTarget = Int(2500.0 * totalMultiplier) // Activity-dependent
+        // Macronutrients (DRI-based with weight adjustments)
+        let baseCalories = gender == "male" ? 2500 : 2000 // DRI baseline
+        let calorieTarget = Int(Double(baseCalories) * totalMultiplier)
         
-        // Calculate fat and carb targets based on calorie target
+        let baseProtein = gender == "male" ? 56 : 46 // DRI baseline (g/day)
+        let proteinTarget = Int(Double(baseProtein) * totalMultiplier)
+        
+        let baseFiber = gender == "male" ? 38 : 25 // DRI baseline (g/day)
+        let fiberTarget = Int(Double(baseFiber) * totalMultiplier)
+        
+        let baseHydration = gender == "male" ? 3700 : 2700 // DRI baseline (ml/day)
+        let hydrationTarget = Int(Double(baseHydration) * totalMultiplier)
+        
+        // Calculate fat and carb targets based on calorie target (DRI: 20-35% fat, 45-65% carbs)
         let fatTarget = Int(Double(calorieTarget) * 0.3 / 9.0) // 30% of calories from fat
         let carbTarget = Int((Double(calorieTarget) - Double(proteinTarget * 4) - Double(fatTarget * 9)) / 4.0)
         
-        // Micronutrients (research-based, with multipliers)
-        let vitaminDTarget = Int(2500.0 * totalMultiplier)
-        let vitaminB12Target = Int(1000.0 * totalMultiplier)
-        let ironTarget = Int(37.0 * totalMultiplier)
-        let folateTarget = Int(600.0 * totalMultiplier)
-        let calciumTarget = Int(1350.0 * totalMultiplier)
-        let zincTarget = Int(15.0 * totalMultiplier)
-        let omega3Target = Int(2000.0 * totalMultiplier)
+        // Micronutrients (DRI RDA/AI baseline with IBD adjustments)
+        let vitaminDTarget = Int(600.0 * totalMultiplier) // DRI: 600 IU baseline
+        let vitaminB12Target = Int(2.4 * totalMultiplier) // DRI: 2.4 mcg baseline
+        let ironTarget = Int(18.0 * totalMultiplier) // DRI: 18mg (female) baseline
+        let folateTarget = Int(400.0 * totalMultiplier) // DRI: 400 mcg DFE baseline
+        let calciumTarget = Int(1000.0 * totalMultiplier) // DRI: 1000mg baseline
+        let zincTarget = Int(11.0 * totalMultiplier) // DRI: 11mg (male) baseline
+        let omega3Target = Int(1100.0 * totalMultiplier) // DRI: 1.1g baseline
         
         return PersonalizedIBDTargets(
             calorieTarget: calorieTarget,
