@@ -20,21 +20,61 @@ struct IBDNutritionAnalysisView: View {
     var body: some View {
         NavigationView {
             ScrollView {
-                VStack(spacing: 20) {
+                VStack(spacing: 24) {
                     if isLoading {
-                        ProgressView("Analyzing nutrition...")
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        VStack(spacing: 16) {
+                            ProgressView()
+                                .scaleEffect(1.2)
+                            
+                            Text("Analyzing nutrition...")
+                                .font(.headline)
+                                .foregroundColor(.primary)
+                            
+                            Text("Processing your micronutrient data")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                        }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .padding(40)
                     } else if let errorMessage = errorMessage {
-                        Text("Error: \(errorMessage)")
-                            .foregroundColor(.red)
+                        VStack(spacing: 16) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .font(.system(size: 48))
+                                .foregroundColor(.red)
+                            
+                            Text("Analysis Error")
+                                .font(.title2)
+                                .fontWeight(.bold)
+                                .foregroundColor(.primary)
+                            
+                            Text(errorMessage)
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                                .multilineTextAlignment(.center)
+                        }
+                        .padding(40)
                     } else if let analysis = micronutrientAnalysis {
                         analysisContent(analysis)
                     } else {
-                        Text("No analysis available")
-                            .foregroundColor(.secondary)
+                        VStack(spacing: 16) {
+                            Image(systemName: "chart.bar.doc.horizontal")
+                                .font(.system(size: 48))
+                                .foregroundColor(.gray)
+                            
+                            Text("No Analysis Available")
+                                .font(.title2)
+                                .fontWeight(.bold)
+                                .foregroundColor(.primary)
+                            
+                            Text("Unable to generate micronutrient analysis")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                        }
+                        .padding(40)
                     }
                 }
-                .padding()
+                .padding(.horizontal, 16)
+                .padding(.vertical, 8)
             }
             .navigationTitle("Micronutrient Analysis")
             .navigationBarTitleDisplayMode(.large)
@@ -43,6 +83,7 @@ struct IBDNutritionAnalysisView: View {
                     Button("Close") {
                         dismiss()
                     }
+                    .fontWeight(.medium)
                 }
             }
             .task {
@@ -54,7 +95,7 @@ struct IBDNutritionAnalysisView: View {
     // Break up the analysis content to fix type-checking error
     @ViewBuilder
     private func analysisContent(_ analysis: IBDMicronutrientAnalysis) -> some View {
-        VStack(spacing: 20) {
+        VStack(spacing: 24) {
             overallStatusSection(analysis)
             micronutrientStatusSection(analysis)
             foodMicronutrientsSection()
@@ -64,100 +105,334 @@ struct IBDNutritionAnalysisView: View {
     
     @ViewBuilder
     private func overallStatusSection(_ analysis: IBDMicronutrientAnalysis) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Overall Status")
-                .font(.headline)
-                .foregroundColor(.primary)
-            
+        VStack(alignment: .leading, spacing: 20) {
+            // Header with icon
             HStack {
-                VStack(alignment: .leading) {
-                    Text("Daily Intake")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                    Text("\(countOptimalNutrients(analysis)) nutrients optimal")
-                        .font(.title2)
-                        .fontWeight(.semibold)
-                }
+                Image(systemName: "chart.bar.fill")
+                    .font(.title2)
+                    .foregroundColor(.blue)
+                
+                Text("Overall Status")
+                    .font(.title2)
+                    .fontWeight(.bold)
+                    .foregroundColor(.primary)
                 
                 Spacer()
-                
-                VStack(alignment: .trailing) {
-                    Text("IBD Score")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                    Text(calculateIBDScore(analysis))
-                        .font(.title2)
-                        .fontWeight(.semibold)
-                        .foregroundColor(ibdScoreColor(analysis))
+            }
+            
+            // Main status cards
+            HStack(spacing: 16) {
+                // Nutrition Status Card
+                VStack(spacing: 12) {
+                    HStack {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.title3)
+                            .foregroundColor(.green)
+                        
+                        Text("Nutrition Status")
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                            .foregroundColor(.primary)
+                        
+                        Spacer()
+                    }
+                    
+                    VStack(spacing: 8) {
+                        Text("\(countOptimalNutrients(analysis))/6")
+                            .font(.title)
+                            .fontWeight(.bold)
+                            .foregroundColor(.green)
+                        
+                        Text("Nutrients Optimal")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        
+                        // Progress bar
+                        ProgressView(value: Double(countOptimalNutrients(analysis)), total: 6.0)
+                            .progressViewStyle(LinearProgressViewStyle(tint: .green))
+                            .scaleEffect(y: 2)
+                    }
                 }
+                .frame(maxWidth: .infinity)
+                .padding(16)
+                .background(
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(Color.green.opacity(0.1))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12)
+                                .stroke(Color.green.opacity(0.3), lineWidth: 1)
+                        )
+                )
+                
+                // IBD Score Card
+                VStack(spacing: 12) {
+                    HStack {
+                        Image(systemName: "heart.fill")
+                            .font(.title3)
+                            .foregroundColor(ibdScoreColor(analysis))
+                        
+                        Text("IBD Score")
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                            .foregroundColor(.primary)
+                        
+                        Spacer()
+                    }
+                    
+                    VStack(spacing: 8) {
+                        Text(calculateIBDScore(analysis))
+                            .font(.title)
+                            .fontWeight(.bold)
+                            .foregroundColor(ibdScoreColor(analysis))
+                        
+                        Text("Overall Health")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        
+                        // Score indicator
+                        HStack(spacing: 4) {
+                            ForEach(0..<5) { index in
+                                Circle()
+                                    .fill(index < getScoreLevel(analysis) ? ibdScoreColor(analysis) : Color.gray.opacity(0.3))
+                                    .frame(width: 8, height: 8)
+                            }
+                        }
+                    }
+                }
+                .frame(maxWidth: .infinity)
+                .padding(16)
+                .background(
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(ibdScoreColor(analysis).opacity(0.1))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12)
+                                .stroke(ibdScoreColor(analysis).opacity(0.3), lineWidth: 1)
+                        )
+                )
+            }
+            
+            // Summary metrics
+            HStack(spacing: 12) {
+                StatusMetricCard(
+                    title: "Deficiencies",
+                    count: analysis.deficiencies.count,
+                    color: analysis.deficiencies.isEmpty ? .green : .red,
+                    icon: "exclamationmark.triangle.fill"
+                )
+                
+                StatusMetricCard(
+                    title: "Excesses",
+                    count: analysis.excesses.count,
+                    color: analysis.excesses.isEmpty ? .green : .orange,
+                    icon: "arrow.up.circle.fill"
+                )
+                
+                StatusMetricCard(
+                    title: "Optimal",
+                    count: countOptimalNutrients(analysis),
+                    color: .blue,
+                    icon: "checkmark.circle.fill"
+                )
             }
         }
-        .padding()
-        .background(Color(.systemGray6))
-        .cornerRadius(12)
+        .padding(20)
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color(.systemBackground))
+                .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 2)
+        )
     }
     
     @ViewBuilder
     private func micronutrientStatusSection(_ analysis: IBDMicronutrientAnalysis) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Micronutrient Status")
-                .font(.headline)
-                .foregroundColor(.primary)
+        VStack(alignment: .leading, spacing: 20) {
+            // Header with icon
+            HStack {
+                Image(systemName: "pills.fill")
+                    .font(.title2)
+                    .foregroundColor(.purple)
+                
+                Text("Micronutrient Status")
+                    .font(.title2)
+                    .fontWeight(.bold)
+                    .foregroundColor(.primary)
+                
+                Spacer()
+            }
             
-            LazyVGrid(columns: [
-                GridItem(.flexible()),
-                GridItem(.flexible())
-            ], spacing: 12) {
-                ForEach(analysis.deficiencies, id: \.id) { deficiency in
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(deficiency.nutrient)
-                            .font(.subheadline)
-                            .fontWeight(.medium)
-                        
-                        Text(deficiency.severity.rawValue.capitalized)
-                            .font(.caption)
-                            .foregroundColor(severityColor(deficiency.severity))
+            if analysis.deficiencies.isEmpty {
+                // No deficiencies - show success state
+                VStack(spacing: 16) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 48))
+                        .foregroundColor(.green)
+                    
+                    Text("All Micronutrients Optimal")
+                        .font(.title3)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.primary)
+                    
+                    Text("Your micronutrient levels are within the recommended ranges for IBD management.")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(24)
+                .background(
+                    RoundedRectangle(cornerRadius: 16)
+                        .fill(Color.green.opacity(0.1))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 16)
+                                .stroke(Color.green.opacity(0.3), lineWidth: 1)
+                        )
+                )
+            } else {
+                // Show deficiencies with professional cards
+                LazyVGrid(columns: [
+                    GridItem(.flexible()),
+                    GridItem(.flexible())
+                ], spacing: 16) {
+                    ForEach(analysis.deficiencies, id: \.id) { deficiency in
+                        DeficiencyCard(deficiency: deficiency)
                     }
-                    .padding(8)
-                    .background(severityColor(deficiency.severity).opacity(0.1))
-                    .cornerRadius(8)
+                }
+            }
+            
+            // Show IBD-specific nutrients status
+            VStack(alignment: .leading, spacing: 12) {
+                Text("IBD-Specific Nutrients")
+                    .font(.headline)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.primary)
+                
+                LazyVGrid(columns: [
+                    GridItem(.flexible()),
+                    GridItem(.flexible())
+                ], spacing: 12) {
+                    IBDNutrientCard(
+                        name: "Vitamin D",
+                        status: analysis.ibdSpecificNutrients.vitaminD.status,
+                        value: analysis.ibdSpecificNutrients.vitaminD.currentIntake,
+                        target: analysis.ibdSpecificNutrients.vitaminD.requiredIntake,
+                        unit: "IU"
+                    )
+                    
+                    IBDNutrientCard(
+                        name: "Vitamin B12",
+                        status: analysis.ibdSpecificNutrients.vitaminB12.status,
+                        value: analysis.ibdSpecificNutrients.vitaminB12.currentIntake,
+                        target: analysis.ibdSpecificNutrients.vitaminB12.requiredIntake,
+                        unit: "mcg"
+                    )
+                    
+                    IBDNutrientCard(
+                        name: "Iron",
+                        status: analysis.ibdSpecificNutrients.iron.status,
+                        value: analysis.ibdSpecificNutrients.iron.currentIntake,
+                        target: analysis.ibdSpecificNutrients.iron.requiredIntake,
+                        unit: "mg"
+                    )
+                    
+                    IBDNutrientCard(
+                        name: "Calcium",
+                        status: analysis.ibdSpecificNutrients.calcium.status,
+                        value: analysis.ibdSpecificNutrients.calcium.currentIntake,
+                        target: analysis.ibdSpecificNutrients.calcium.requiredIntake,
+                        unit: "mg"
+                    )
+                    
+                    IBDNutrientCard(
+                        name: "Zinc",
+                        status: analysis.ibdSpecificNutrients.zinc.status,
+                        value: analysis.ibdSpecificNutrients.zinc.currentIntake,
+                        target: analysis.ibdSpecificNutrients.zinc.requiredIntake,
+                        unit: "mg"
+                    )
+                    
+                    IBDNutrientCard(
+                        name: "Omega-3",
+                        status: analysis.ibdSpecificNutrients.omega3.status,
+                        value: analysis.ibdSpecificNutrients.omega3.currentIntake,
+                        target: analysis.ibdSpecificNutrients.omega3.requiredIntake,
+                        unit: "mg"
+                    )
                 }
             }
         }
-        .padding()
-        .background(Color(.systemGray6))
-        .cornerRadius(12)
+        .padding(20)
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color(.systemBackground))
+                .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 2)
+        )
     }
     
     @ViewBuilder
     private func foodMicronutrientsSection() -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Food Micronutrients (Last 7 Days)")
-                .font(.headline)
-                .foregroundColor(.primary)
+        VStack(alignment: .leading, spacing: 20) {
+            // Header with icon
+            HStack {
+                Image(systemName: "fork.knife")
+                    .font(.title2)
+                    .foregroundColor(.green)
+                
+                Text("Food Micronutrients")
+                    .font(.title2)
+                    .fontWeight(.bold)
+                    .foregroundColor(.primary)
+                
+                Spacer()
+                
+                Text("Last 7 Days")
+                    .font(.caption)
+                    .fontWeight(.medium)
+                    .foregroundColor(.secondary)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Color.blue.opacity(0.1))
+                    .cornerRadius(6)
+            }
             
             if foodMicronutrients.isEmpty {
-                VStack(spacing: 8) {
-                    Text("No food data available")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
+                VStack(spacing: 16) {
+                    Image(systemName: "chart.bar.doc.horizontal")
+                        .font(.system(size: 48))
+                        .foregroundColor(.gray)
                     
-                    Text("This could mean:")
+                    Text("No Food Data Available")
+                        .font(.title3)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.primary)
+                    
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("This could mean:")
+                            .font(.subheadline)
+                            .fontWeight(.medium)
+                            .foregroundColor(.secondary)
+                        
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("• No journal entries in the last 7 days")
+                            Text("• Journal entries don't contain meal data")
+                            Text("• Food micronutrient calculation failed")
+                        }
                         .font(.caption)
                         .foregroundColor(.secondary)
-                    
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("• No journal entries in the last 7 days")
-                        Text("• Journal entries don't contain meal data")
-                        Text("• Food micronutrient calculation failed")
                     }
-                    .font(.caption)
-                    .foregroundColor(.secondary)
                 }
                 .frame(maxWidth: .infinity, alignment: .center)
-                .padding()
+                .padding(24)
+                .background(
+                    RoundedRectangle(cornerRadius: 16)
+                        .fill(Color.gray.opacity(0.1))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 16)
+                                .stroke(Color.gray.opacity(0.3), lineWidth: 1)
+                        )
+                )
             } else {
-                LazyVStack(spacing: 12) {
+                LazyVStack(spacing: 16) {
                     ForEach(Array(foodMicronutrients.enumerated()), id: \.offset) { index, foodData in
                         FoodMicronutrientCard(
                             foodName: foodData.0, 
@@ -168,44 +443,74 @@ struct IBDNutritionAnalysisView: View {
                 }
             }
         }
-        .padding()
-        .background(Color(.systemGray6))
-        .cornerRadius(12)
+        .padding(20)
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color(.systemBackground))
+                .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 2)
+        )
     }
     
     @ViewBuilder
     private func recommendationsSection(_ analysis: IBDMicronutrientAnalysis) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Recommendations")
-                .font(.headline)
-                .foregroundColor(.primary)
+        VStack(alignment: .leading, spacing: 20) {
+            // Header with icon
+            HStack {
+                Image(systemName: "lightbulb.fill")
+                    .font(.title2)
+                    .foregroundColor(.orange)
+                
+                Text("Recommendations")
+                    .font(.title2)
+                    .fontWeight(.bold)
+                    .foregroundColor(.primary)
+                
+                Spacer()
+            }
             
-            VStack(alignment: .leading, spacing: 8) {
-                ForEach(analysis.recommendations.immediateActions, id: \.nutrient) { action in
-                    HStack(alignment: .top, spacing: 12) {
-                        Image(systemName: priorityIcon(action.priority))
-                            .foregroundColor(priorityColor(action.priority))
-                            .frame(width: 20)
-                        
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(action.action)
-                                .font(.subheadline)
-                                .fontWeight(.medium)
-                            
-                            Text(action.timeframe)
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
-                        
-                        Spacer()
+            if analysis.recommendations.immediateActions.isEmpty {
+                // No recommendations - show success state
+                VStack(spacing: 16) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 48))
+                        .foregroundColor(.green)
+                    
+                    Text("No Immediate Actions Needed")
+                        .font(.title3)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.primary)
+                    
+                    Text("Your current nutrition status doesn't require immediate intervention. Continue following your current dietary plan.")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(24)
+                .background(
+                    RoundedRectangle(cornerRadius: 16)
+                        .fill(Color.green.opacity(0.1))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 16)
+                                .stroke(Color.green.opacity(0.3), lineWidth: 1)
+                        )
+                )
+            } else {
+                // Show recommendations with professional cards
+                LazyVStack(spacing: 12) {
+                    ForEach(analysis.recommendations.immediateActions, id: \.nutrient) { action in
+                        RecommendationCard(action: action)
                     }
-                    .padding(.vertical, 4)
                 }
             }
         }
-        .padding()
-        .background(Color(.systemGray6))
-        .cornerRadius(12)
+        .padding(20)
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color(.systemBackground))
+                .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 2)
+        )
     }
     
     // MARK: - Helper Functions
@@ -290,6 +595,20 @@ struct IBDNutritionAnalysisView: View {
             return .orange
         case .low:
             return .blue
+        }
+    }
+    
+    private func getScoreLevel(_ analysis: IBDMicronutrientAnalysis) -> Int {
+        let score = calculateIBDScore(analysis)
+        switch score {
+        case "Excellent":
+            return 5
+        case "Good":
+            return 4
+        case "Fair":
+            return 3
+        default:
+            return 2
         }
     }
     
@@ -447,10 +766,15 @@ struct FoodMicronutrientCard: View {
     let servingSize: String?
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 16) {
+            // Food header
             HStack {
+                Image(systemName: "leaf.fill")
+                    .font(.title3)
+                    .foregroundColor(.green)
+                
                 Text(foodName)
-                    .font(.subheadline)
+                    .font(.headline)
                     .fontWeight(.semibold)
                     .foregroundColor(.primary)
                 
@@ -459,15 +783,17 @@ struct FoodMicronutrientCard: View {
                 if let servingSize = servingSize {
                     Text(servingSize)
                         .font(.caption)
-                        .foregroundColor(.secondary)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
+                        .fontWeight(.medium)
+                        .foregroundColor(.blue)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
                         .background(Color.blue.opacity(0.1))
-                        .cornerRadius(4)
+                        .cornerRadius(6)
                 }
             }
             
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 3), spacing: 8) {
+            // Micronutrients grid
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 3), spacing: 12) {
                 MicronutrientValueItem(name: "Vitamin C", value: micronutrients.vitaminC, unit: "mg")
                 MicronutrientValueItem(name: "Iron", value: micronutrients.iron, unit: "mg")
                 MicronutrientValueItem(name: "Potassium", value: micronutrients.potassium, unit: "mg")
@@ -479,12 +805,15 @@ struct FoodMicronutrientCard: View {
                 MicronutrientValueItem(name: "Magnesium", value: micronutrients.magnesium, unit: "mg")
             }
         }
-        .padding(12)
-        .background(Color(.systemBackground))
-        .cornerRadius(8)
+        .padding(16)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color(.systemBackground))
+                .shadow(color: .black.opacity(0.05), radius: 4, x: 0, y: 2)
+        )
         .overlay(
-            RoundedRectangle(cornerRadius: 8)
-                .stroke(Color(.systemGray4), lineWidth: 1)
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(Color.green.opacity(0.2), lineWidth: 1)
         )
     }
 }
@@ -495,21 +824,318 @@ struct MicronutrientValueItem: View {
     let unit: String
     
     var body: some View {
-        VStack(spacing: 2) {
+        VStack(spacing: 6) {
             Text(name)
-                .font(.caption2)
+                .font(.caption)
+                .fontWeight(.medium)
                 .foregroundColor(.secondary)
                 .lineLimit(1)
+                .minimumScaleFactor(0.8)
             
             Text("\(String(format: "%.1f", value)) \(unit)")
+                .font(.subheadline)
+                .fontWeight(.bold)
+                .foregroundColor(.primary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 8)
+        .padding(.horizontal, 4)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(Color(.systemGray6))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke(Color.blue.opacity(0.2), lineWidth: 1)
+                )
+        )
+    }
+}
+
+// MARK: - Custom Card Components
+
+struct StatusMetricCard: View {
+    let title: String
+    let count: Int
+    let color: Color
+    let icon: String
+    
+    var body: some View {
+        VStack(spacing: 8) {
+            Image(systemName: icon)
+                .font(.title3)
+                .foregroundColor(color)
+            
+            Text("\(count)")
+                .font(.title2)
+                .fontWeight(.bold)
+                .foregroundColor(color)
+            
+            Text(title)
                 .font(.caption)
                 .fontWeight(.medium)
                 .foregroundColor(.primary)
+                .multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 4)
-        .background(Color(.systemGray6))
-        .cornerRadius(4)
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(color.opacity(0.1))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke(color.opacity(0.3), lineWidth: 1)
+                )
+        )
+    }
+}
+
+struct DeficiencyCard: View {
+    let deficiency: MicronutrientDeficiency
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Image(systemName: severityIcon(deficiency.severity))
+                    .font(.title3)
+                    .foregroundColor(severityColor(deficiency.severity))
+                
+                Text(deficiency.nutrient)
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.primary)
+                
+                Spacer()
+            }
+            
+            VStack(alignment: .leading, spacing: 4) {
+                Text(deficiency.severity.rawValue.capitalized)
+                    .font(.caption)
+                    .fontWeight(.medium)
+                    .foregroundColor(severityColor(deficiency.severity))
+            }
+        }
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(severityColor(deficiency.severity).opacity(0.1))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(severityColor(deficiency.severity).opacity(0.3), lineWidth: 1)
+                )
+        )
+    }
+    
+    private func severityIcon(_ severity: DeficiencySeverity) -> String {
+        switch severity {
+        case .mild:
+            return "exclamationmark.circle.fill"
+        case .moderate:
+            return "exclamationmark.triangle.fill"
+        case .severe:
+            return "exclamationmark.octagon.fill"
+        case .critical:
+            return "xmark.octagon.fill"
+        }
+    }
+    
+    private func severityColor(_ severity: DeficiencySeverity) -> Color {
+        switch severity {
+        case .mild:
+            return .yellow
+        case .moderate:
+            return .orange
+        case .severe:
+            return .red
+        case .critical:
+            return .red
+        }
+    }
+}
+
+struct IBDNutrientCard: View {
+    let name: String
+    let status: NutrientStatusLevel
+    let value: Double
+    let target: Double
+    let unit: String
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text(name)
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.primary)
+                
+                Spacer()
+                
+                Image(systemName: statusIcon(status))
+                    .font(.caption)
+                    .foregroundColor(statusColor(status))
+            }
+            
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    Text("\(String(format: "%.1f", value)) \(unit)")
+                        .font(.caption)
+                        .fontWeight(.medium)
+                        .foregroundColor(.primary)
+                    
+                    Spacer()
+                    
+                    Text("of \(String(format: "%.1f", target)) \(unit)")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
+                
+                // Progress bar
+                ProgressView(value: value, total: target)
+                    .progressViewStyle(LinearProgressViewStyle(tint: statusColor(status)))
+                    .scaleEffect(y: 1.5)
+            }
+        }
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(statusColor(status).opacity(0.1))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke(statusColor(status).opacity(0.3), lineWidth: 1)
+                )
+        )
+    }
+    
+    private func statusIcon(_ status: NutrientStatusLevel) -> String {
+        switch status {
+        case .optimal:
+            return "checkmark.circle.fill"
+        case .deficient:
+            return "exclamationmark.triangle.fill"
+        case .suboptimal:
+            return "exclamationmark.circle.fill"
+        case .adequate:
+            return "checkmark.circle"
+        case .excessive:
+            return "arrow.up.circle.fill"
+        }
+    }
+    
+    private func statusColor(_ status: NutrientStatusLevel) -> Color {
+        switch status {
+        case .optimal:
+            return .green
+        case .deficient:
+            return .red
+        case .suboptimal:
+            return .orange
+        case .adequate:
+            return .blue
+        case .excessive:
+            return .orange
+        }
+    }
+}
+
+struct RecommendationCard: View {
+    let action: MicronutrientAction
+    
+    var body: some View {
+        HStack(alignment: .top, spacing: 16) {
+            // Priority indicator
+            VStack {
+                Image(systemName: priorityIcon(action.priority))
+                    .font(.title3)
+                    .foregroundColor(priorityColor(action.priority))
+                
+                Text(priorityText(action.priority))
+                    .font(.caption2)
+                    .fontWeight(.medium)
+                    .foregroundColor(priorityColor(action.priority))
+            }
+            .frame(width: 60)
+            
+            // Action content
+            VStack(alignment: .leading, spacing: 8) {
+                Text(action.action)
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.primary)
+                    .multilineTextAlignment(.leading)
+                
+                HStack {
+                    Image(systemName: "clock.fill")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    
+                    Text(action.timeframe)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    
+                    Spacer()
+                    
+                    Text(action.nutrient)
+                        .font(.caption)
+                        .fontWeight(.medium)
+                        .foregroundColor(.blue)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 2)
+                        .background(Color.blue.opacity(0.1))
+                        .cornerRadius(4)
+                }
+            }
+            
+            Spacer()
+        }
+        .padding(16)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(priorityColor(action.priority).opacity(0.1))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(priorityColor(action.priority).opacity(0.3), lineWidth: 1)
+                )
+        )
+    }
+    
+    private func priorityIcon(_ priority: ActionPriority) -> String {
+        switch priority {
+        case .critical:
+            return "exclamationmark.octagon.fill"
+        case .high:
+            return "exclamationmark.triangle.fill"
+        case .medium:
+            return "exclamationmark.circle.fill"
+        case .low:
+            return "info.circle.fill"
+        }
+    }
+    
+    private func priorityColor(_ priority: ActionPriority) -> Color {
+        switch priority {
+        case .critical:
+            return .red
+        case .high:
+            return .orange
+        case .medium:
+            return .yellow
+        case .low:
+            return .blue
+        }
+    }
+    
+    private func priorityText(_ priority: ActionPriority) -> String {
+        switch priority {
+        case .critical:
+            return "Critical"
+        case .high:
+            return "High"
+        case .medium:
+            return "Medium"
+        case .low:
+            return "Low"
+        }
     }
 }
 

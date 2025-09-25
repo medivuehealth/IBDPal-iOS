@@ -76,11 +76,6 @@ struct MicronutrientAnalysisCard: View {
                     )
                 }
                 
-                // Debug info
-                Text("Debug: \(calculatedMicronutrients.count) micronutrients calculated")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                
                 // Calculated Micronutrients Summary
                 if !calculatedMicronutrients.isEmpty {
                     VStack(alignment: .leading, spacing: 8) {

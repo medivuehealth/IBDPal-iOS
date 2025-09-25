@@ -51,7 +51,7 @@ struct DailyLogView: View {
                             let today = Date()
                             if nextDate <= today {
                                 selectedDate = nextDate
-                                loadEntries()
+                            loadEntries()
                             }
                         }) {
                             Image(systemName: "chevron.right")
@@ -108,10 +108,10 @@ struct DailyLogView: View {
                                 .padding(.horizontal)
                             
                             LazyVStack(spacing: 16) {
-                                ForEach(entries) { entry in
-                                    LogEntryCard(entry: entry)
-                                }
-                            }
+                        ForEach(entries) { entry in
+                            LogEntryCard(entry: entry)
+                        }
+                    }
                             .padding(.horizontal)
                         }
                     }
@@ -237,18 +237,18 @@ struct DailyLogView: View {
         switch entryType {
         case .meals:
             // Count how many main meals are filled (breakfast, lunch, dinner)
-            var mealCount = 0
-            if (entry.breakfast?.isEmpty == false) || (entry.breakfastCalories?.isEmpty == false) {
-                mealCount += 1
-            }
-            if (entry.lunch?.isEmpty == false) || (entry.lunchCalories?.isEmpty == false) {
-                mealCount += 1
-            }
-            if (entry.dinner?.isEmpty == false) || (entry.dinnerCalories?.isEmpty == false) {
-                mealCount += 1
-            }
-            // Complete if at least 2 out of 3 main meals are filled
-            return mealCount >= 2
+                var mealCount = 0
+                if (entry.breakfast?.isEmpty == false) || (entry.breakfastCalories?.isEmpty == false) {
+                    mealCount += 1
+                }
+                if (entry.lunch?.isEmpty == false) || (entry.lunchCalories?.isEmpty == false) {
+                    mealCount += 1
+                }
+                if (entry.dinner?.isEmpty == false) || (entry.dinnerCalories?.isEmpty == false) {
+                    mealCount += 1
+                }
+                // Complete if at least 2 out of 3 main meals are filled
+                return mealCount >= 2
         case .bowelHealth:
             return (entry.bowelFrequency ?? 0) > 0 ||
                    (entry.bristolScale ?? 0) > 0 ||
@@ -358,7 +358,7 @@ struct EntryFormView: View {
                         HydrationFormView(data: $hydrationData)
                     }
                 }
-                .padding()
+                    .padding()
             }
             .navigationTitle(entryType.displayName)
             .navigationBarTitleDisplayMode(.inline)
@@ -383,8 +383,8 @@ struct EntryFormView: View {
         .onAppear {
             loadExistingEntry()
             
-            // For medication form, also load previous medication data if it's today
-            if entryType == .medication && Calendar.current.isDateInToday(selectedDate) {
+            // For medication form, always load previous medication data to show defaults
+            if entryType == .medication {
                 loadPreviousMedicationData()
             }
         }
@@ -438,8 +438,8 @@ struct EntryFormView: View {
     }
     
     private func populateFormData(from entry: [String: Any]) {
-        switch entryType {
-        case .meals:
+                    switch entryType {
+                    case .meals:
             // Populate meals data
             DispatchQueue.main.async {
                 NetworkLogger.shared.log("🍽️ POPULATE: Starting to populate meals data from entry", level: .info, category: .journal)
@@ -561,7 +561,7 @@ struct EntryFormView: View {
                 self.dataLoaded = true
             }
             
-        case .bowelHealth:
+                    case .bowelHealth:
             // Populate bowel health data
             DispatchQueue.main.async {
                 self.bowelData.frequency = entry["bowel_frequency"] as? Int ?? 0
@@ -575,7 +575,7 @@ struct EntryFormView: View {
                 self.bowelData.notes = entry["notes"] as? String ?? ""
             }
             
-        case .medication:
+                    case .medication:
             // Populate medication data
             DispatchQueue.main.async {
                 self.medicationData.medicationType = entry["medication_type"] as? String ?? "None"
@@ -664,7 +664,7 @@ struct EntryFormView: View {
                 self.medicationData.previousMedicationType = self.medicationData.medicationType
             }
             
-        case .stress:
+                    case .stress:
             // Populate stress data
             DispatchQueue.main.async {
                 self.stressData.stressLevel = entry["stress_level"] as? Int ?? 3
@@ -674,7 +674,7 @@ struct EntryFormView: View {
                 self.stressData.notes = ""  // Always empty for user to fill
             }
             
-        case .sleep:
+                    case .sleep:
             // Populate sleep data
             DispatchQueue.main.async {
                 self.sleepData.sleepHours = entry["sleep_hours"] as? Int ?? 8
@@ -683,7 +683,7 @@ struct EntryFormView: View {
                 self.sleepData.notes = ""  // Always empty for user to fill
             }
             
-        case .hydration:
+                    case .hydration:
             // Populate hydration data
             DispatchQueue.main.async {
                 // Convert liters back to cups for display (1 liter = 4.22675 cups)
@@ -902,19 +902,70 @@ struct EntryFormView: View {
                     if let medicationData = try JSONSerialization.jsonObject(with: data) as? [String: Any] {
                         NetworkLogger.shared.log("💊 Received previous medication data: \(medicationData)", level: .debug, category: .journal)
                         
-                        // Only populate if medication type is not "None"
-                        if let medicationType = medicationData["medication_type"] as? String, medicationType != "None" {
-                            self.medicationData.medicationType = medicationType
-                            
-                            // Parse dosage_level to separate dosage and frequency
-                            if let dosageLevel = medicationData["dosage_level"] as? String {
-                                let (dosage, frequency) = MedicationFormData.fromDosageLevel(dosageLevel)
-                                self.medicationData.dosage = dosage
-                                self.medicationData.frequency = frequency
-                                NetworkLogger.shared.log("💊 Loaded previous medication: \(medicationType), \(dosage)mg, \(frequency)", level: .info, category: .journal)
+                        // Only populate defaults if current medication type is "None" or if we're loading for the first time
+                        // This ensures we don't overwrite existing data for the selected date
+                        if self.medicationData.medicationType == "None" {
+                            if let medicationType = medicationData["medication_type"] as? String, medicationType != "None" {
+                                self.medicationData.medicationType = medicationType
+                                
+                                // Parse dosage_level to separate dosage and frequency
+                                if let dosageLevel = medicationData["dosage_level"] as? String {
+                                    let (dosage, frequency) = MedicationFormData.fromDosageLevel(dosageLevel)
+                                    self.medicationData.dosage = dosage
+                                    self.medicationData.frequency = frequency
+                                    NetworkLogger.shared.log("💊 Loaded previous medication defaults: \(medicationType), \(dosage)mg, \(frequency)", level: .info, category: .journal)
+                                }
+                                
+                                // Parse last_taken_date
+                                if let lastTakenDateString = medicationData["last_taken_date"] as? String {
+                                    NetworkLogger.shared.log("💊 Parsing last_taken_date from previous medication: '\(lastTakenDateString)'", level: .debug, category: .journal)
+                                    
+                                    var lastTakenDate: Date?
+                                    
+                                    // Try multiple date formats
+                                    let dateFormats = [
+                                        "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'",
+                                        "yyyy-MM-dd'T'HH:mm:ss'Z'",
+                                        "yyyy-MM-dd'T'HH:mm:ss.SSSSSS'Z'",
+                                        "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'"
+                                    ]
+                                    
+                                    let formatter = DateFormatter()
+                                    formatter.timeZone = TimeZone(identifier: "UTC")
+                                    
+                                    for format in dateFormats {
+                                        formatter.dateFormat = format
+                                        if let parsedDate = formatter.date(from: lastTakenDateString) {
+                                            lastTakenDate = parsedDate
+                                            NetworkLogger.shared.log("💊 Successfully parsed last_taken_date '\(lastTakenDateString)' -> \(parsedDate)", level: .debug, category: .journal)
+                                            break
+                                        }
+                                    }
+                                    
+                                    if let parsedDate = lastTakenDate {
+                                        self.medicationData.lastTakenDate = parsedDate
+                                        NetworkLogger.shared.log("💊 Set previous medication last_taken_date to: \(parsedDate)", level: .info, category: .journal)
+                                    } else {
+                                        NetworkLogger.shared.log("💊 Failed to parse last_taken_date from '\(lastTakenDateString)'", level: .error, category: .journal)
+                                    }
+                                } else {
+                                    NetworkLogger.shared.log("💊 No last_taken_date found in previous medication data", level: .debug, category: .journal)
+                                }
+                                
+                                // Parse additional fields from server
+                                if let medicationTaken = medicationData["medication_taken"] as? Bool {
+                                    NetworkLogger.shared.log("💊 Loaded medication_taken: \(medicationTaken)", level: .debug, category: .journal)
+                                }
+                                
+                                if let notes = medicationData["notes"] as? String, !notes.isEmpty {
+                                    self.medicationData.notes = notes
+                                    NetworkLogger.shared.log("💊 Loaded previous medication notes: \(notes)", level: .debug, category: .journal)
+                                }
+                            } else {
+                                NetworkLogger.shared.log("💊 No previous medication data found or medication type is None", level: .info, category: .journal)
                             }
                         } else {
-                            NetworkLogger.shared.log("💊 No previous medication data found or medication type is None", level: .info, category: .journal)
+                            NetworkLogger.shared.log("💊 Skipping default load - medication data already exists for this date", level: .debug, category: .journal)
                         }
                     } else {
                         NetworkLogger.shared.log("❌ Failed to parse medication data", level: .error, category: .journal)
@@ -1184,18 +1235,26 @@ struct MedicationFormData {
     
     // Get available dosages for current medication type
     var availableDosages: [String] {
+        var dosages: [String]
         switch medicationType {
         case "biologic":
-            return Self.biologicDosages
+            dosages = Self.biologicDosages
         case "immunosuppressant":
-            return Self.immunosuppressantDosages
+            dosages = Self.immunosuppressantDosages
         case "steroid":
-            return Self.steroidDosages
+            dosages = Self.steroidDosages
         case "mesalamine":
-            return Self.mesalamineDosages
+            dosages = Self.mesalamineDosages
         default:
-            return ["0"]
+            dosages = ["0"]
         }
+        
+        // Always include "0" as an option for frequency-only medications
+        if !dosages.contains("0") {
+            dosages.insert("0", at: 0)
+        }
+        
+        return dosages
     }
     
     // Get available frequencies for current medication type
@@ -1221,11 +1280,21 @@ struct MedicationFormData {
         }
         
         let availableDosages = availableDosages
+        NetworkLogger.shared.log("💊 MEDICATION: Validating dosage - current dosage='\(dosage)', availableDosages=\(availableDosages), medicationType='\(medicationType)'", level: .debug, category: .journal)
+        
         if availableDosages.contains(dosage) {
+            NetworkLogger.shared.log("💊 MEDICATION: Dosage '\(dosage)' is valid", level: .debug, category: .journal)
             return dosage
         } else {
+            // If current dosage is not in available list, keep it if it's "0" (frequency-only)
+            if dosage == "0" {
+                NetworkLogger.shared.log("💊 MEDICATION: Dosage is '0' (frequency-only), keeping as '0'", level: .debug, category: .journal)
+                return "0"
+            }
             // Return first available dosage as default
-            return availableDosages.first ?? "0"
+            let defaultDosage = availableDosages.first ?? "0"
+            NetworkLogger.shared.log("💊 MEDICATION: Dosage '\(dosage)' not in available list, using default '\(defaultDosage)'", level: .debug, category: .journal)
+            return defaultDosage
         }
     }
     
@@ -1302,6 +1371,8 @@ struct MedicationFormData {
         // Combine dosage and frequency into dosage_level for backward compatibility
         let dosageLevel = "\(validatedDosage)mg_\(validatedFrequency)"
         
+        NetworkLogger.shared.log("💊 MEDICATION: Creating dosage_level - dosage='\(dosage)', validatedDosage='\(validatedDosage)', frequency='\(frequency)', validatedFrequency='\(validatedFrequency)', dosageLevel='\(dosageLevel)'", level: .debug, category: .journal)
+        
         return [
             "medication_type": medicationType,
             "dosage_level": dosageLevel,
@@ -1316,13 +1387,27 @@ struct MedicationFormData {
             return ("0", "daily")
         }
         
+        // Check if it's just a frequency (starts with frequency keywords)
+        let frequencyKeywords = ["every", "daily", "twice", "three", "weekly"]
+        if frequencyKeywords.contains(where: { dosageLevel.hasPrefix($0) }) {
+            // This is just a frequency, no dosage
+            return ("0", dosageLevel)
+        }
+        
         // Handle formats like "40mg_every_4_weeks" or "2.4g" or "2400mg"
         let components = dosageLevel.components(separatedBy: "_")
         if components.count >= 2 {
-            // New format: "40mg_every_4_weeks"
-            let dosage = components[0].replacingOccurrences(of: "mg", with: "")
-            let frequency = components.dropFirst().joined(separator: "_")
-            return (dosage, frequency)
+            // Check if first component is a number (dosage)
+            let firstComponent = components[0]
+            if firstComponent.contains("mg") || firstComponent.contains("g") || firstComponent.allSatisfy({ $0.isNumber || $0 == "." }) {
+                // New format: "40mg_every_4_weeks"
+                let dosage = firstComponent.replacingOccurrences(of: "mg", with: "").replacingOccurrences(of: "g", with: "")
+                let frequency = components.dropFirst().joined(separator: "_")
+                return (dosage, frequency)
+            } else {
+                // This is just a frequency like "every_4_weeks"
+                return ("0", dosageLevel)
+            }
         } else {
             // Old format or single value: "2.4g" or "2400mg"
             var dosage = dosageLevel
@@ -1630,9 +1715,9 @@ struct MealsFormView: View {
                                 AutoNutritionCard(title: "Protein", value: String(format: "%.1f", nutrition.totalProtein), unit: "g", color: .blue)
                                 AutoNutritionCard(title: "Carbs", value: String(format: "%.1f", nutrition.totalCarbs), unit: "g", color: .orange)
                                 AutoNutritionCard(title: "Fat", value: String(format: "%.1f", nutrition.totalFat), unit: "g", color: .red)
-                            }
-                        }
-                        .padding()
+                    }
+                }
+                .padding()
                         .background(Color.blue.opacity(0.1))
                         .cornerRadius(8)
                     }
@@ -2420,10 +2505,10 @@ struct MedicationFormView: View {
             )
         }
         .alert("Medication Type Change", isPresented: $showingMedicationChangeAlert) {
-            Button("OK") {
+                Button("OK") {
                 // User acknowledges the warning
-            }
-        } message: {
+                }
+            } message: {
             Text("Changing medication type requires doctor's approval. Please consult your healthcare provider before making changes.")
         }
         .onAppear {
@@ -3099,16 +3184,16 @@ struct NutritionSection: View {
                 VStack(alignment: .leading, spacing: 6) {
                     ForEach(meals, id: \.meal_id) { meal in
                         VStack(alignment: .leading, spacing: 4) {
-                            HStack {
-                                Text(meal.meal_type.capitalized)
-                                    .font(.caption)
+        HStack {
+            Text(meal.meal_type.capitalized)
+                .font(.caption)
                                     .fontWeight(.semibold)
-                                    .foregroundColor(.primary)
-                                
-                                Spacer()
-                                
-                                if let calories = meal.calories, calories > 0 {
-                                    Text("\(calories) cal")
+                .foregroundColor(.primary)
+            
+            Spacer()
+            
+            if let calories = meal.calories, calories > 0 {
+                Text("\(calories) cal")
                                         .font(.caption)
                                         .foregroundColor(.blue)
                                 }
@@ -3116,7 +3201,7 @@ struct NutritionSection: View {
                             
                             Text(meal.description)
                                 .font(.caption)
-                                .foregroundColor(.secondary)
+                    .foregroundColor(.secondary)
                             
                             // Show nutrition breakdown if available
                             if let protein = meal.protein, let carbs = meal.carbs, let fiber = meal.fiber, let fat = meal.fat,
@@ -3200,12 +3285,12 @@ struct MealItem: View {
             if let calories = calories, !calories.isEmpty {
                 Text("\(calories) cal")
                     .font(.caption)
-                    .foregroundColor(.blue)
+                .foregroundColor(.blue)
             }
         }
-        
-        Text(description)
-            .font(.caption)
+            
+            Text(description)
+                .font(.caption)
             .foregroundColor(.secondary)
     }
 }
@@ -3250,20 +3335,20 @@ struct BowelSection: View {
                 .fontWeight(.semibold)
                 .foregroundColor(.orange)
             
-            HStack {
+        HStack {
                 if let frequency = entry.bowelFrequency, frequency > 0 {
                     Text("Frequency: \(frequency)")
-                        .font(.caption)
+                .font(.caption)
                 }
-                
+            
                 if let scale = entry.bristolScale, scale > 0 {
                     Text("Bristol Scale: \(scale) (\(scale.bristolScaleDescription()))")
                         .font(.caption)
                 }
-                
+            
                 if entry.bloodPresent == true {
                     Text("Blood Present")
-                        .font(.caption)
+                .font(.caption)
                         .foregroundColor(.red)
                 }
             }
@@ -3333,7 +3418,7 @@ struct DatePickerView: View {
     
     var body: some View {
         NavigationView {
-            VStack {
+        VStack {
                 DatePicker("Select Date", selection: $selectedDate, displayedComponents: .date)
                     .datePickerStyle(GraphicalDatePickerStyle())
                     .padding()
@@ -3490,7 +3575,7 @@ struct BristolScaleInfoView: View {
                     
                     Text("The Bristol Stool Scale is a medical aid designed to classify the form of human feces into seven categories. It helps healthcare providers understand your bowel health.")
                         .font(.body)
-                        .foregroundColor(.secondary)
+                .foregroundColor(.secondary)
                     
                     VStack(alignment: .leading, spacing: 12) {
                         ForEach(1...7, id: \.self) { scale in
