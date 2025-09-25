@@ -237,18 +237,40 @@ struct DailyLogView: View {
         switch entryType {
         case .meals:
             // Count how many main meals are filled (breakfast, lunch, dinner)
-                var mealCount = 0
-                if (entry.breakfast?.isEmpty == false) || (entry.breakfastCalories?.isEmpty == false) {
-                    mealCount += 1
-                }
-                if (entry.lunch?.isEmpty == false) || (entry.lunchCalories?.isEmpty == false) {
-                    mealCount += 1
-                }
-                if (entry.dinner?.isEmpty == false) || (entry.dinnerCalories?.isEmpty == false) {
-                    mealCount += 1
-                }
-                // Complete if at least 2 out of 3 main meals are filled
-                return mealCount >= 2
+            // Snacks should not be considered for the missing entries check
+            var mealCount = 0
+            
+            // Check breakfast - must have description OR calories > 0
+            let hasBreakfast = (entry.breakfast?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false) ||
+                              (entry.breakfastCalories?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false && 
+                               Double(entry.breakfastCalories ?? "0") ?? 0 > 0)
+            if hasBreakfast {
+                mealCount += 1
+            }
+            
+            // Check lunch - must have description OR calories > 0
+            let hasLunch = (entry.lunch?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false) ||
+                          (entry.lunchCalories?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false && 
+                           Double(entry.lunchCalories ?? "0") ?? 0 > 0)
+            if hasLunch {
+                mealCount += 1
+            }
+            
+            // Check dinner - must have description OR calories > 0
+            let hasDinner = (entry.dinner?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false) ||
+                           (entry.dinnerCalories?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false && 
+                            Double(entry.dinnerCalories ?? "0") ?? 0 > 0)
+            if hasDinner {
+                mealCount += 1
+            }
+            
+            // Debug logging for troubleshooting
+            print("🍽️ MEALS CHECK: breakfast='\(entry.breakfast ?? "nil")', lunch='\(entry.lunch ?? "nil")', dinner='\(entry.dinner ?? "nil")'")
+            print("🍽️ MEALS CHECK: breakfastCalories='\(entry.breakfastCalories ?? "nil")', lunchCalories='\(entry.lunchCalories ?? "nil")', dinnerCalories='\(entry.dinnerCalories ?? "nil")'")
+            print("🍽️ MEALS CHECK: hasBreakfast=\(hasBreakfast), hasLunch=\(hasLunch), hasDinner=\(hasDinner), mealCount=\(mealCount)")
+            
+            // Complete if at least 2 out of 3 main meals are filled
+            return mealCount >= 2
         case .bowelHealth:
             return (entry.bowelFrequency ?? 0) > 0 ||
                    (entry.bristolScale ?? 0) > 0 ||
