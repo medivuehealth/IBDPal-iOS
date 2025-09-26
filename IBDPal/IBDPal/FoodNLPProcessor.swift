@@ -28,8 +28,19 @@ class FoodNLPProcessor: ObservableObject {
         "pita": "pita bread",
         "pita bread": "pita bread",
         "flatbread": "pita bread",
-        "naan": "flatbread",
-        "tortilla": "flatbread",
+        "naan": "naan",
+        "parotta": "parotta",
+        "paratha": "parotta",
+        "roti": "roti",
+        "chapati": "chapati",
+        "chapatti": "chapati",
+        "poori": "poori",
+        "tortilla": "tortilla",
+        "lavash": "lavash",
+        "khubz": "khubz",
+        "arabic bread": "khubz",
+        "indian bread": "roti",
+        "flat bread": "flatbread",
         
         // Bean variations
         "red beans": "baked red beans",
@@ -90,9 +101,61 @@ class FoodNLPProcessor: ObservableObject {
         // Legume variations
         "lentils": "lentils",
         "lentil": "lentils",
+        "dal": "lentils",
+        "dhal": "lentils",
         "chickpeas": "chickpeas",
         "chickpea": "chickpeas",
+        "garbanzo": "chickpeas",
         "hummus": "hummus",
+        "humus": "hummus",
+        
+        // Indian food variations
+        "curry": "curry",
+        "biryani": "biryani",
+        "biriyani": "biryani",
+        "tandoori": "tandoori",
+        "butter chicken": "butter chicken",
+        "chicken tikka": "chicken tikka",
+        "samosa": "samosa",
+        "pakora": "pakora",
+        "bhaji": "bhaji",
+        "masala": "masala",
+        "tikka masala": "tikka masala",
+        "vindaloo": "vindaloo",
+        "korma": "korma",
+        "jalfrezi": "jalfrezi",
+        "rogan josh": "rogan josh",
+        "saag": "saag",
+        "palak": "palak",
+        "aloo": "aloo",
+        "gobi": "gobi",
+        "mattar": "mattar",
+        "paneer": "paneer",
+        "lassi": "lassi",
+        "raita": "raita",
+        "chutney": "chutney",
+        "pickle": "pickle",
+        "papad": "papad",
+        "papadum": "papad",
+        
+        // Middle Eastern food variations
+        "falafel": "falafel",
+        "shawarma": "shawarma",
+        "kebab": "kebab",
+        "kabob": "kebab",
+        "gyro": "gyro",
+        "tabbouleh": "tabbouleh",
+        "fattoush": "fattoush",
+        "baba ganoush": "baba ganoush",
+        "baba ghanoush": "baba ganoush",
+        "tahini": "tahini",
+        "za'atar": "za'atar",
+        "sumac": "sumac",
+        "pomegranate": "pomegranate",
+        "mint": "mint",
+        "parsley": "parsley",
+        "cilantro": "cilantro",
+        "coriander": "cilantro",
         
         // Nut variations
         "almonds": "almonds",
@@ -110,14 +173,9 @@ class FoodNLPProcessor: ObservableObject {
         
         // International foods
         "sushi": "sushi",
-        "curry": "curry",
         "pad thai": "pad thai",
         "padthai": "pad thai",
-        "biryani": "rice biryani",
-        "biriyani": "rice biryani",
-        "shawarma": "chicken shawarma",
         "shwarma": "chicken shawarma",
-        "falafel": "falafel",
         "falafal": "falafel",
         "crepe": "crepe",
         "crepes": "crepe",
@@ -234,6 +292,28 @@ class FoodNLPProcessor: ObservableObject {
             "mac and cheese": "Mac and Cheese",
             "mac n cheese": "Mac and Cheese",
             "chicken shawarma": "Chicken Shawarma",
+            
+            // Mixed meals with flatbreads
+            "boiled egg and salad": "Egg and Salad with Flatbread",
+            "egg and salad": "Egg and Salad with Flatbread",
+            "tortillas with vegetables": "Tortillas with Vegetables",
+            "tortilla with vegetables": "Tortillas with Vegetables",
+            "parotta with curry": "Parotta with Curry",
+            "naan with curry": "Naan with Curry",
+            "roti with curry": "Roti with Curry",
+            "chapati with curry": "Chapati with Curry",
+            
+            // Indian flatbread combinations
+            "naan bread": "Naan",
+            "parotta bread": "Parotta",
+            "roti bread": "Roti",
+            "chapati bread": "Chapati",
+            "poori bread": "Poori",
+            
+            // Middle Eastern combinations
+            "pita with hummus": "Pita with Hummus",
+            "lavash with vegetables": "Lavash with Vegetables",
+            "khubz with vegetables": "Khubz with Vegetables",
             "pad thai": "Pad Thai",
             "rice biryani": "Rice Biryani",
             "chicken curry": "Chicken Curry",
@@ -301,7 +381,29 @@ class FoodNLPProcessor: ObservableObject {
         let commonFoodWords = Set([
             "bread", "cheese", "meat", "fish", "chicken", "beef", "pork", "lamb",
             "vegetable", "fruit", "grain", "nut", "seed", "bean", "pasta", "rice",
-            "soup", "salad", "sauce", "dressing", "oil", "butter", "milk", "yogurt"
+            "soup", "salad", "sauce", "dressing", "oil", "butter", "milk", "yogurt",
+            
+            // International flatbreads
+            "naan", "parotta", "paratha", "roti", "chapati", "chapatti", "poori",
+            "pita", "lavash", "khubz", "tortilla", "flatbread",
+            
+            // Indian foods
+            "curry", "biryani", "biriyani", "tandoori", "masala", "dal", "dhal",
+            "samosa", "pakora", "bhaji", "lassi", "raita", "chutney", "pickle",
+            "papad", "papadum", "paneer", "saag", "palak", "aloo", "gobi", "mattar",
+            
+            // Middle Eastern foods
+            "falafel", "shawarma", "kebab", "kabob", "gyro", "tabbouleh", "fattoush",
+            "baba", "ganoush", "ghanoush", "tahini", "za'atar", "sumac", "pomegranate",
+            "mint", "parsley", "cilantro", "coriander",
+            
+            // Asian foods
+            "sushi", "ramen", "miso", "kimchi", "tofu", "teriyaki", "tempura",
+            "pad", "thai", "pho", "banh", "mi", "spring", "rolls", "bun", "cha",
+            
+            // Mexican foods
+            "taco", "burrito", "enchilada", "quesadilla", "fajita", "guacamole",
+            "tortilla", "salsa", "jalapeno", "cilantro", "lime", "avocado"
         ])
         
         return commonFoodWords.contains(word)
@@ -345,14 +447,17 @@ class FoodNLPProcessor: ObservableObject {
     
     private func determineCategory(for food: String) -> String {
         let categories: [String: Set<String>] = [
-            "Grains": ["bread", "pasta", "rice", "quinoa", "oats", "pita"],
-            "Protein": ["chicken", "beef", "pork", "lamb", "fish", "salmon", "tuna"],
-            "Dairy": ["cheese", "milk", "yogurt", "butter"],
-            "Vegetables": ["tomato", "lettuce", "cucumber", "onion", "garlic", "carrot", "broccoli", "spinach"],
-            "Fruits": ["apple", "banana", "orange", "strawberry", "blueberry"],
-            "Legumes": ["beans", "lentils", "chickpeas", "hummus"],
+            "Grains": ["bread", "pasta", "rice", "quinoa", "oats", "pita", "naan", "parotta", "roti", "chapati", "poori", "lavash", "khubz", "tortilla", "flatbread"],
+            "Protein": ["chicken", "beef", "pork", "lamb", "fish", "salmon", "tuna", "tofu", "tempeh", "seitan", "paneer"],
+            "Dairy": ["cheese", "milk", "yogurt", "butter", "lassi", "raita"],
+            "Vegetables": ["tomato", "lettuce", "cucumber", "onion", "garlic", "carrot", "broccoli", "spinach", "saag", "palak", "aloo", "gobi", "mattar"],
+            "Fruits": ["apple", "banana", "orange", "strawberry", "blueberry", "pomegranate", "avocado"],
+            "Legumes": ["beans", "lentils", "chickpeas", "hummus", "dal", "dhal", "falafel"],
             "Nuts": ["almonds", "peanuts", "walnuts"],
-            "Fats": ["oil", "butter", "avocado"]
+            "Fats": ["oil", "butter", "avocado", "tahini"],
+            "Spices": ["masala", "curry", "tandoori", "za'atar", "sumac", "cilantro", "coriander", "mint", "parsley"],
+            "Sauces": ["sauce", "dressing", "chutney", "pickle", "salsa", "guacamole"],
+            "Bread": ["naan", "parotta", "roti", "chapati", "poori", "pita", "lavash", "khubz", "tortilla", "flatbread"]
         ]
         
         for (category, foods) in categories {

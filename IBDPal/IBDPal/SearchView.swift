@@ -57,6 +57,7 @@ struct SearchView: View {
                 DiscoverCategoriesView(selectedCategory: $selectedDiscoverCategory, onCategorySelected: {
                     print("🔍 SearchView: Category selected: \(selectedDiscoverCategory)")
                     print("🔍 SearchView: Current articles count before loading: \(self.currentArticles.count)")
+                    print("🔍 SearchView: nutritionArticles count before loading: \(self.nutritionArticles.count)")
                     
                     if selectedDiscoverCategory == .community {
                         print("🔍 SearchView: Community category selected, loading data...")
@@ -65,7 +66,19 @@ struct SearchView: View {
                             loadNearbySpecialists()
                             loadNearbySupportOrganizations()
                         } else {
-                            print("🔍 SearchView: No location available yet for community data")
+                            print("🔍 SearchView: No location available, requesting permission...")
+                            // Request location permission if not already granted
+                            let currentStatus = locationManager.authorizationStatus
+                            if currentStatus == .notDetermined {
+                                print("🔍 SearchView: Requesting location permission...")
+                                locationManager.requestLocationPermission()
+                            } else if currentStatus == .denied || currentStatus == .restricted {
+                                print("🔍 SearchView: Location permission denied, showing permission alert")
+                                showingLocationPermission = true
+                            } else {
+                                print("🔍 SearchView: Location permission granted but no location yet, starting location updates...")
+                                locationManager.startUpdatingLocation()
+                            }
                         }
                     } else {
                         print("🔍 SearchView: Loading articles for \(selectedDiscoverCategory)")
@@ -115,6 +128,7 @@ struct SearchView: View {
             .onAppear {
                 print("🔍 SearchView: onAppear - selectedDiscoverCategory: \(selectedDiscoverCategory)")
                 print("🔍 SearchView: onAppear - current articles count: \(currentArticles.count)")
+                print("🔍 SearchView: onAppear - nutritionArticles count: \(nutritionArticles.count)")
                 
                 // Always load articles for the current category when view appears
                 if selectedDiscoverCategory != .community {
@@ -178,6 +192,26 @@ struct SearchView: View {
                     print("🔍 SearchView: Reloading articles for \(selectedDiscoverCategory) after background")
                     loadArticles(for: selectedDiscoverCategory)
                 }
+            }
+            .onChange(of: selectedDiscoverCategory) { oldCategory, newCategory in
+                print("🔍 SearchView: Category changed from \(oldCategory) to \(newCategory)")
+                print("🔍 SearchView: Current articles count: \(currentArticles.count)")
+                
+                // If switching to a non-community category and no articles are loaded, load them
+                if newCategory != .community && currentArticles.isEmpty {
+                    print("🔍 SearchView: No articles loaded for \(newCategory), loading now...")
+                    loadArticles(for: newCategory)
+                }
+            }
+            .alert("Location Permission Required", isPresented: $showingLocationPermission) {
+                Button("Settings") {
+                    if let settingsUrl = URL(string: UIApplication.openSettingsURLString) {
+                        UIApplication.shared.open(settingsUrl)
+                    }
+                }
+                Button("Cancel", role: .cancel) { }
+            } message: {
+                Text("IBDPal needs location access to find nearby hospitals, specialists, and support organizations. Please enable location services in Settings.")
             }
         }
     }
@@ -612,29 +646,14 @@ struct SearchView: View {
         print("🔍 SearchView: Current articles count before loading: \(currentArticles.count)")
         isLoading = true
         
-        // For categories that have database articles, fetch from API
+        // For categories that have database articles, try API first, then fallback to sample
         if category == .nutrition || category == .medication || category == .lifestyle || category == .research {
             print("🔍 SearchView: Loading \(category) articles from API")
             loadArticlesFromAPI(for: category)
         } else {
             // For other categories, use sample articles for now
             print("🔍 SearchView: Loading sample articles for \(category)")
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                print("🔍 SearchView: Loading sample articles for \(category)")
-                let sampleArticles = self.getSampleArticles(for: category)
-                
-                // Store articles in the appropriate array
-                switch category {
-                case .blogs:
-                    self.blogsArticles = sampleArticles
-                default:
-                    break
-                }
-                
-                self.isLoading = false
-                print("🔍 SearchView: Loaded \(sampleArticles.count) sample articles for \(category)")
-                print("🔍 SearchView: Current articles count after loading: \(self.currentArticles.count)")
-            }
+            loadSampleArticlesForCategory(category)
         }
     }
     
@@ -644,11 +663,14 @@ struct SearchView: View {
         let urlString = "\(apiBaseURL)/community/nutrition-articles?category=\(categoryParam)&featured=true&limit=10"
         
         print("🔍 SearchView: Loading \(category) articles from API: \(urlString)")
+        print("🔍 SearchView: API Base URL: \(apiBaseURL)")
+        print("🔍 SearchView: Category parameter: \(categoryParam)")
         
         guard let url = URL(string: urlString) else {
-            print("🔍 SearchView: Invalid \(category) articles URL")
+            print("❌ SearchView: Invalid \(category) articles URL: \(urlString)")
             self.isLoading = false
             // Fallback to sample articles
+            print("🔄 SearchView: Falling back to sample articles for \(category)")
             loadSampleArticlesForCategory(category)
             return
         }
@@ -658,10 +680,27 @@ struct SearchView: View {
                 self.isLoading = false
                 
                 if let error = error {
-                    print("🔍 SearchView: Error loading \(category) articles: \(error)")
+                    print("❌ SearchView: Error loading \(category) articles: \(error)")
                     // Fallback to sample articles
+                    print("🔄 SearchView: Falling back to sample articles for \(category) due to error")
                     self.loadSampleArticlesForCategory(category)
                     return
+                }
+                
+                // Check HTTP response status
+                if let httpResponse = response as? HTTPURLResponse {
+                    print("🔍 SearchView: HTTP Status Code: \(httpResponse.statusCode)")
+                    if httpResponse.statusCode == 429 {
+                        print("⚠️ SearchView: Rate limit exceeded (429), falling back to sample articles for \(category)")
+                        print("🔄 SearchView: Falling back to sample articles for \(category) due to rate limiting")
+                        self.loadSampleArticlesForCategory(category)
+                        return
+                    } else if httpResponse.statusCode != 200 {
+                        print("❌ SearchView: HTTP Error: \(httpResponse.statusCode)")
+                        print("🔄 SearchView: Falling back to sample articles for \(category) due to HTTP error")
+                        self.loadSampleArticlesForCategory(category)
+                        return
+                    }
                 }
                 
                 if let data = data {
@@ -721,11 +760,14 @@ struct SearchView: View {
                             print("🔍 SearchView: Current articles count after \(category) loading: \(self.currentArticles.count)")
                         }
                     } else {
-                        print("🔍 SearchView: Failed to parse \(category) articles response, using sample articles")
+                        print("❌ SearchView: Failed to parse \(category) articles response, using sample articles")
+                        print("🔍 SearchView: Response data: \(String(data: data, encoding: .utf8) ?? "Unable to decode")")
+                        print("🔄 SearchView: Falling back to sample articles for \(category)")
                         self.loadSampleArticlesForCategory(category)
                     }
                 } else {
-                    print("🔍 SearchView: No \(category) articles data received, using sample articles")
+                    print("❌ SearchView: No \(category) articles data received, using sample articles")
+                    print("🔄 SearchView: Falling back to sample articles for \(category)")
                     self.loadSampleArticlesForCategory(category)
                 }
             }
@@ -761,6 +803,18 @@ struct SearchView: View {
                     readTime: 8,
                     imageURL: nil,
                     url: "https://www.health.harvard.edu/staying-healthy/foods-that-fight-inflammation"
+                ),
+                Article(
+                    id: "nih-dri",
+                    title: "NIH Dietary Reference Intakes (DRI) - Nutrition Targets",
+                    summary: "Official NIH DRI values used as baseline for IBDPal nutrition targets and recommendations.",
+                    content: "The Dietary Reference Intakes (DRI) are a set of reference values used to plan and assess nutrient intakes of healthy people. These values, which vary by age and sex, include: Recommended Dietary Allowance (RDA), Adequate Intake (AI), Tolerable Upper Intake Level (UL), and Estimated Average Requirement (EAR). IBDPal uses these evidence-based NIH DRI values as the foundation for personalized nutrition targets, with adjustments for IBD-specific needs including malabsorption, increased nutrient requirements, and disease activity levels. The DRI values are regularly updated based on the latest scientific research and are considered the gold standard for nutrient recommendations.",
+                    category: "nutrition",
+                    author: "NIH Office of Dietary Supplements",
+                    publishedDate: Date().addingTimeInterval(-86400 * 1),
+                    readTime: 6,
+                    imageURL: nil,
+                    url: "https://ods.od.nih.gov/HealthInformation/Dietary_Reference_Intakes.aspx"
                 )
             ]
         case .medication:
@@ -903,28 +957,44 @@ struct SearchView: View {
     }
     
     private func storeArticlesForCategory(_ category: DiscoverCategory, articles: [Article]) {
+        print("🔍 SearchView: Storing \(articles.count) articles for category: \(category)")
         switch category {
         case .nutrition:
             self.nutritionArticles = articles
+            print("🔍 SearchView: Stored \(articles.count) nutrition articles")
         case .medication:
             self.medicationArticles = articles
+            print("🔍 SearchView: Stored \(articles.count) medication articles")
         case .lifestyle:
             self.lifestyleArticles = articles
+            print("🔍 SearchView: Stored \(articles.count) lifestyle articles")
         case .research:
             self.researchArticles = articles
-        default:
+            print("🔍 SearchView: Stored \(articles.count) research articles")
+        case .blogs:
+            self.blogsArticles = articles
+            print("🔍 SearchView: Stored \(articles.count) blogs articles")
+        case .community:
+            // Community doesn't have articles
+            print("🔍 SearchView: Community category - no articles to store")
             break
         }
+        print("🔍 SearchView: Current articles count after storing: \(self.currentArticles.count)")
     }
     
     private func loadSampleArticlesForCategory(_ category: DiscoverCategory) {
+        print("🔄 SearchView: Starting to load sample articles for \(category)")
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
             print("🔍 SearchView: Loading sample articles for \(category)")
             let sampleArticles = self.getSampleArticles(for: category)
+            print("🔍 SearchView: Generated \(sampleArticles.count) sample articles for \(category)")
+            
             self.storeArticlesForCategory(category, articles: sampleArticles)
             self.isLoading = false
+            
             print("🔍 SearchView: Loaded \(sampleArticles.count) sample articles for \(category)")
             print("🔍 SearchView: Current articles count after loading: \(self.currentArticles.count)")
+            print("🔍 SearchView: Articles stored successfully for \(category)")
         }
     }
 }
@@ -1913,6 +1983,11 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
     func startUpdatingLocation() {
         print("🔍 LocationManager: Starting location updates...")
         locationManager.startUpdatingLocation()
+    }
+    
+    func requestLocationPermission() {
+        print("🔍 LocationManager: Requesting location permission...")
+        locationManager.requestWhenInUseAuthorization()
     }
     
     func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {

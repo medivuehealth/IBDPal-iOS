@@ -61,6 +61,9 @@ class FlarePredictionTest {
             urgency_level: 4,
             bristol_scale: 4,
             hydration: 2000,
+            water_intake: "2.0",
+            other_fluids: "0.5",
+            fluid_type: "Water",
             notes: "Test entry",
             created_at: "2024-01-15T10:00:00Z",
             updated_at: "2024-01-15T10:00:00Z"

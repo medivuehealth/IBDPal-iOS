@@ -62,9 +62,21 @@ struct JournalEntry: Codable {
     let urgency_level: Int?
     let bristol_scale: Int?
     let hydration: Int?
+    let water_intake: String?
+    let other_fluids: String?
+    let fluid_type: String?
     let notes: String?
     let created_at: String
     let updated_at: String
+    
+    // Computed properties to convert string values to doubles
+    var waterIntakeDouble: Double {
+        return Double(water_intake ?? "0") ?? 0.0
+    }
+    
+    var otherFluidsDouble: Double {
+        return Double(other_fluids ?? "0") ?? 0.0
+    }
 }
 
 struct Meal: Codable {

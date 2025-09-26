@@ -1,5 +1,6 @@
 import SwiftUI
 
+
 struct DailyLogView: View {
     let userData: UserData?
     @ObservedObject var dataRefreshManager: DataRefreshManager
@@ -18,7 +19,7 @@ struct DailyLogView: View {
     var body: some View {
         NavigationView {
             ScrollView {
-                VStack(spacing: 20) {
+                VStack(spacing: 12) {
                     // Date Header
                     HStack {
                         Button(action: {
@@ -63,7 +64,7 @@ struct DailyLogView: View {
                     .padding(.top)
                     
                     // Entry Type Cards
-                    LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 2), spacing: 16) {
+                    LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 2), spacing: 8) {
                         ForEach(EntryType.allCases, id: \.self) { entryType in
                             EntryTypeCard(
                                 entryType: entryType,
@@ -240,34 +241,51 @@ struct DailyLogView: View {
             // Snacks should not be considered for the missing entries check
             var mealCount = 0
             
-            // Check breakfast - must have description OR calories > 0
-            let hasBreakfast = (entry.breakfast?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false) ||
-                              (entry.breakfastCalories?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false && 
-                               Double(entry.breakfastCalories ?? "0") ?? 0 > 0)
-            if hasBreakfast {
-                mealCount += 1
+            // Check if we have structured meals data (new format)
+            if let meals = entry.meals, !meals.isEmpty {
+                // New structured format - check meals array
+                for meal in meals {
+                    // Only count main meals (breakfast, lunch, dinner), exclude snacks
+                    if meal.meal_type == "breakfast" || meal.meal_type == "lunch" || meal.meal_type == "dinner" {
+                        let hasDescription = !meal.description.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                        let hasCalories = (meal.calories ?? 0) > 0
+                        
+                        if hasDescription || hasCalories {
+                            mealCount += 1
+                        }
+                    }
+                }
+                
+                print("🍽️ MEALS CHECK (structured): meals count=\(meals.count), mealCount=\(mealCount)")
+                for meal in meals {
+                    print("🍽️ MEALS CHECK (structured): \(meal.meal_type) - description='\(meal.description)', calories=\(meal.calories ?? 0)")
+                }
+            } else {
+                // Fallback to old flat format
+                let hasBreakfast = (entry.breakfast?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false) ||
+                                  (entry.breakfastCalories?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false && 
+                                   Double(entry.breakfastCalories ?? "0") ?? 0 > 0)
+                if hasBreakfast {
+                    mealCount += 1
+                }
+                
+                let hasLunch = (entry.lunch?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false) ||
+                              (entry.lunchCalories?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false && 
+                               Double(entry.lunchCalories ?? "0") ?? 0 > 0)
+                if hasLunch {
+                    mealCount += 1
+                }
+                
+                let hasDinner = (entry.dinner?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false) ||
+                               (entry.dinnerCalories?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false && 
+                                Double(entry.dinnerCalories ?? "0") ?? 0 > 0)
+                if hasDinner {
+                    mealCount += 1
+                }
+                
+                print("🍽️ MEALS CHECK (flat): breakfast='\(entry.breakfast ?? "nil")', lunch='\(entry.lunch ?? "nil")', dinner='\(entry.dinner ?? "nil")'")
+                print("🍽️ MEALS CHECK (flat): hasBreakfast=\(hasBreakfast), hasLunch=\(hasLunch), hasDinner=\(hasDinner), mealCount=\(mealCount)")
             }
-            
-            // Check lunch - must have description OR calories > 0
-            let hasLunch = (entry.lunch?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false) ||
-                          (entry.lunchCalories?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false && 
-                           Double(entry.lunchCalories ?? "0") ?? 0 > 0)
-            if hasLunch {
-                mealCount += 1
-            }
-            
-            // Check dinner - must have description OR calories > 0
-            let hasDinner = (entry.dinner?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false) ||
-                           (entry.dinnerCalories?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false && 
-                            Double(entry.dinnerCalories ?? "0") ?? 0 > 0)
-            if hasDinner {
-                mealCount += 1
-            }
-            
-            // Debug logging for troubleshooting
-            print("🍽️ MEALS CHECK: breakfast='\(entry.breakfast ?? "nil")', lunch='\(entry.lunch ?? "nil")', dinner='\(entry.dinner ?? "nil")'")
-            print("🍽️ MEALS CHECK: breakfastCalories='\(entry.breakfastCalories ?? "nil")', lunchCalories='\(entry.lunchCalories ?? "nil")', dinnerCalories='\(entry.dinnerCalories ?? "nil")'")
-            print("🍽️ MEALS CHECK: hasBreakfast=\(hasBreakfast), hasLunch=\(hasLunch), hasDinner=\(hasDinner), mealCount=\(mealCount)")
             
             // Complete if at least 2 out of 3 main meals are filled
             return mealCount >= 2
@@ -278,6 +296,9 @@ struct DailyLogView: View {
         case .medication:
             return (entry.medicationTaken == true) ||
                    (entry.medicationType?.isEmpty == false)
+        case .supplements:
+            return (entry.supplementsTaken == true) ||
+                   (entry.supplementsCount ?? 0) > 0
         case .stress:
             return (entry.stressLevel ?? 0) > 0 ||
                    (entry.fatigueLevel ?? 0) > 0
@@ -295,6 +316,7 @@ enum EntryType: String, CaseIterable {
     case meals = "meals"
     case bowelHealth = "bowel"
     case medication = "medication"
+    case supplements = "supplements"
     case stress = "stress"
     case sleep = "sleep"
     case hydration = "hydration"
@@ -304,6 +326,7 @@ enum EntryType: String, CaseIterable {
         case .meals: return "Meals"
         case .bowelHealth: return "Bowel Health"
         case .medication: return "Medication"
+        case .supplements: return "Supplements"
         case .stress: return "Stress"
         case .sleep: return "Sleep"
         case .hydration: return "Hydration"
@@ -315,6 +338,7 @@ enum EntryType: String, CaseIterable {
         case .meals: return "fork.knife"
         case .bowelHealth: return "drop.fill"
         case .medication: return "pills.fill"
+        case .supplements: return "pills.circle.fill"
         case .stress: return "brain.head.profile"
         case .sleep: return "bed.double.fill"
         case .hydration: return "drop.degreesign"
@@ -326,6 +350,7 @@ enum EntryType: String, CaseIterable {
         case .meals: return .green
         case .bowelHealth: return .orange
         case .medication: return .blue
+        case .supplements: return .indigo
         case .stress: return .red
         case .sleep: return .purple
         case .hydration: return .cyan
@@ -348,6 +373,7 @@ struct EntryFormView: View {
     @State private var mealsData = MealsFormData()
     @State private var bowelData = BowelHealthFormData()
     @State private var medicationData = MedicationFormData()
+    @State private var supplementsData = SupplementsFormData()
     @State private var stressData = StressFormData()
     @State private var sleepData = SleepFormData()
     @State private var hydrationData = HydrationFormData()
@@ -372,6 +398,8 @@ struct EntryFormView: View {
                         BowelHealthFormView(data: $bowelData)
                     case .medication:
                         MedicationFormView(data: $medicationData)
+                    case .supplements:
+                        SupplementsFormView(data: $supplementsData, userData: userData)
                     case .stress:
                         StressFormView(data: $stressData)
                     case .sleep:
@@ -686,6 +714,42 @@ struct EntryFormView: View {
                 self.medicationData.previousMedicationType = self.medicationData.medicationType
             }
             
+                    case .supplements:
+            // Populate supplements data
+            DispatchQueue.main.async {
+                self.supplementsData.supplementsTaken = entry["supplements_taken"] as? Bool ?? false
+                self.supplementsData.supplementsCount = entry["supplements_count"] as? Int ?? 0
+                self.supplementsData.notes = entry["notes"] as? String ?? ""
+                
+                // Parse supplement details if available
+                if let supplementDetails = entry["supplement_details"] as? [[String: Any]] {
+                    self.supplementsData.supplementDetails = supplementDetails.compactMap { detail in
+                        guard let supplementId = detail["supplement_id"] as? String,
+                              let supplementName = detail["supplement_name"] as? String,
+                              let category = detail["category"] as? String,
+                              let dosage = detail["dosage"] as? String,
+                              let unit = detail["unit"] as? String,
+                              let timeTakenString = detail["time_taken"] as? String else {
+                            return nil
+                        }
+                        
+                        let formatter = DateFormatter()
+                        formatter.dateFormat = "HH:mm"
+                        let timeTaken = formatter.date(from: timeTakenString) ?? Date()
+                        
+                        return DailySupplementIntake(
+                            supplementId: supplementId,
+                            supplementName: supplementName,
+                            category: category,
+                            dosage: dosage,
+                            unit: unit,
+                            timeTaken: timeTaken,
+                            notes: detail["notes"] as? String
+                        )
+                    }
+                }
+            }
+            
                     case .stress:
             // Populate stress data
             DispatchQueue.main.async {
@@ -771,6 +835,10 @@ struct EntryFormView: View {
             let medDict = medicationData.toDictionary()
             entryData.merge(medDict) { _, new in new }
             NetworkLogger.shared.log("💊 Medication data: \(medDict)", level: .debug, category: .journal)
+        case .supplements:
+            let supplementsDict = supplementsData.toDictionary()
+            entryData.merge(supplementsDict) { _, new in new }
+            NetworkLogger.shared.log("💊 Supplements data: \(supplementsDict)", level: .debug, category: .journal)
         case .stress:
             let stressDict = stressData.toDictionary()
             entryData.merge(stressDict) { _, new in new }
@@ -1010,29 +1078,29 @@ struct EntryTypeCard: View {
     
     var body: some View {
         Button(action: action) {
-            VStack(spacing: 16) {
+            VStack(spacing: 8) {
                 HStack {
                     Image(systemName: entryType.icon)
-                        .font(.system(size: 32))
+                        .font(.system(size: 24))
                         .foregroundColor(entryType.color)
                     
                     Spacer()
                     
                     if hasData {
                         Image(systemName: "checkmark.circle.fill")
-                            .font(.system(size: 20))
+                            .font(.system(size: 16))
                             .foregroundColor(.green)
                     }
                 }
                 
                 Text(entryType.displayName)
-                    .font(.headline)
-                    .fontWeight(.semibold)
+                    .font(.subheadline)
+                    .fontWeight(.medium)
                     .foregroundColor(.ibdPrimaryText)
                     .multilineTextAlignment(.center)
             }
             .frame(maxWidth: .infinity)
-            .frame(height: 120)
+            .frame(height: 80)
             .padding()
             .background(Color.ibdSurfaceBackground)
             .cornerRadius(16)
@@ -1578,6 +1646,59 @@ struct HydrationFormData {
     }
 }
 
+struct SupplementsFormData {
+    var supplementsTaken: Bool = false
+    var supplementsCount: Int = 0
+    var supplementDetails: [DailySupplementIntake] = []
+    var notes = ""
+    
+    func toDictionary() -> [String: Any] {
+        return [
+            "supplements_taken": supplementsTaken,
+            "supplements_count": supplementsCount,
+            "supplement_details": supplementDetails.map { $0.toDictionary() },
+            "notes": notes
+        ]
+    }
+}
+
+struct DailySupplementIntake: Codable, Identifiable, Equatable {
+    let id: String
+    let supplementId: String
+    let supplementName: String
+    let category: String
+    let dosage: String
+    let unit: String
+    let timeTaken: Date
+    let notes: String?
+    
+    init(id: String = UUID().uuidString, supplementId: String, supplementName: String, category: String, dosage: String, unit: String, timeTaken: Date, notes: String? = nil) {
+        self.id = id
+        self.supplementId = supplementId
+        self.supplementName = supplementName
+        self.category = category
+        self.dosage = dosage
+        self.unit = unit
+        self.timeTaken = timeTaken
+        self.notes = notes
+    }
+    
+    func toDictionary() -> [String: Any] {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm"
+        
+        return [
+            "supplement_id": supplementId,
+            "supplement_name": supplementName,
+            "category": category,
+            "dosage": dosage,
+            "unit": unit,
+            "time_taken": formatter.string(from: timeTaken),
+            "notes": notes ?? ""
+        ]
+    }
+}
+
 // Form Views
 struct MealsFormView: View {
     @Binding var data: MealsFormData
@@ -1603,7 +1724,7 @@ struct MealsFormView: View {
         ScrollView {
             VStack(spacing: 20) {
                 // Meal Type
-                VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: 4) {
                     Text("Meal Type")
                         .font(.headline)
                     
@@ -1655,7 +1776,7 @@ struct MealsFormView: View {
 
                 
                 // Food Description
-                VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: 4) {
                     Text("Describe your meal")
                         .font(.headline)
                     
@@ -1831,7 +1952,7 @@ struct MealsFormView: View {
                 }
                 
                 // Notes
-                VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: 4) {
                     Text("Notes")
                         .font(.headline)
                     
@@ -2116,7 +2237,7 @@ struct BowelHealthFormView: View {
         ScrollView {
             VStack(spacing: 20) {
                 // Frequency
-                VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: 4) {
                     Text("Bowel Movements Today")
                         .font(.headline)
                     
@@ -2127,7 +2248,7 @@ struct BowelHealthFormView: View {
                 }
                 
                 // Bristol Scale
-                VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: 4) {
                     HStack {
                         Text("Bristol Stool Scale")
                             .font(.headline)
@@ -2170,7 +2291,7 @@ struct BowelHealthFormView: View {
                 
                 // Pain and Urgency
                 VStack(alignment: .leading, spacing: 16) {
-                    VStack(alignment: .leading, spacing: 8) {
+                    VStack(alignment: .leading, spacing: 4) {
                         Text("Pain Level (0-10)")
                             .font(.headline)
                         
@@ -2187,7 +2308,7 @@ struct BowelHealthFormView: View {
                             .foregroundColor(.secondary)
                     }
                     
-                    VStack(alignment: .leading, spacing: 8) {
+                    VStack(alignment: .leading, spacing: 4) {
                         Text("Pain Location")
                             .font(.headline)
                         
@@ -2202,7 +2323,7 @@ struct BowelHealthFormView: View {
                         .cornerRadius(8)
                     }
                     
-                    VStack(alignment: .leading, spacing: 8) {
+                    VStack(alignment: .leading, spacing: 4) {
                         Text("Pain Time")
                             .font(.headline)
                         
@@ -2217,7 +2338,7 @@ struct BowelHealthFormView: View {
                         .cornerRadius(8)
                     }
                     
-                    VStack(alignment: .leading, spacing: 8) {
+                    VStack(alignment: .leading, spacing: 4) {
                         Text("Urgency Level (0-10)")
                             .font(.headline)
                         
@@ -2236,7 +2357,7 @@ struct BowelHealthFormView: View {
                 }
                 
                 // Notes
-                VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: 4) {
                     Text("Notes")
                         .font(.headline)
                     
@@ -2322,7 +2443,7 @@ struct MedicationFormView: View {
                 
                 // Medication Type Change Alert
                 if data.hasMedicationTypeChanged {
-                    VStack(alignment: .leading, spacing: 8) {
+                    VStack(alignment: .leading, spacing: 4) {
                         HStack {
                             Image(systemName: "exclamationmark.triangle.fill")
                                 .foregroundColor(.orange)
@@ -2514,8 +2635,8 @@ struct MedicationFormView: View {
                         .padding(.horizontal, 4)
                 }
             }
-            .padding(.horizontal, 20)
-            .padding(.vertical, 16)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
         }
         .sheet(isPresented: $showingDatePicker) {
             DatePickerView(
@@ -2593,8 +2714,8 @@ struct StressFormView: View {
                             get: { Double(data.stressLevel) },
                             set: { data.stressLevel = Int($0) }
                         ), in: 1...5, step: 1)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 12)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
                         .background(Color(.systemGray6))
                         .cornerRadius(10)
                         
@@ -2654,8 +2775,8 @@ struct StressFormView: View {
                             get: { Double(data.mood) },
                             set: { data.mood = Int($0) }
                         ), in: 1...5, step: 1)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 12)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
                         .background(Color(.systemGray6))
                         .cornerRadius(10)
                         
@@ -2694,8 +2815,8 @@ struct StressFormView: View {
                         .padding(.horizontal, 4)
                 }
             }
-            .padding(.horizontal, 20)
-            .padding(.vertical, 16)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
         }
     }
 }
@@ -2707,7 +2828,7 @@ struct SleepFormView: View {
         ScrollView {
             VStack(spacing: 20) {
                 // Sleep Hours
-                VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: 4) {
                     Text("Hours of Sleep")
                         .font(.headline)
                     
@@ -2718,7 +2839,7 @@ struct SleepFormView: View {
                 }
                 
                 // Sleep Quality
-                VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: 4) {
                     Text("Sleep Quality (0-10)")
                         .font(.headline)
                     
@@ -2736,7 +2857,7 @@ struct SleepFormView: View {
                 }
                 
                 // Sleep Notes
-                VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: 4) {
                     Text("Sleep Notes")
                         .font(.headline)
                     
@@ -2746,7 +2867,7 @@ struct SleepFormView: View {
                 }
                 
                 // Notes
-                VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: 4) {
                     Text("Notes")
                         .font(.headline)
                     
@@ -2767,9 +2888,9 @@ struct HydrationFormView: View {
     
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
+            VStack(alignment: .leading, spacing: 8) {
                 // Water Intake in Cups
-                VStack(alignment: .leading, spacing: 12) {
+                VStack(alignment: .leading, spacing: 4) {
                     Text("Water Intake")
                         .font(.headline)
                         .fontWeight(.semibold)
@@ -2798,8 +2919,8 @@ struct HydrationFormView: View {
                         .foregroundColor(.primary)
                     
                     Stepper("\(String(format: "%.1f", data.otherFluids)) L", value: $data.otherFluids, in: 0...5, step: 0.1)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 12)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
                         .background(Color(.systemGray6))
                         .cornerRadius(10)
                 }
@@ -2835,8 +2956,8 @@ struct HydrationFormView: View {
                             get: { Double(data.hydrationLevel) },
                             set: { data.hydrationLevel = Int($0) }
                         ), in: 0...10, step: 1)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 12)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
                         .background(Color(.systemGray6))
                         .cornerRadius(10)
                         
@@ -2871,11 +2992,259 @@ struct HydrationFormView: View {
                         .padding(.horizontal, 4)
                 }
             }
-            .padding(.horizontal, 20)
-            .padding(.vertical, 16)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
         }
     }
 }
+
+struct SupplementsFormView: View {
+    @Binding var data: SupplementsFormData
+    let userData: UserData?
+    
+    @State private var availableSupplements: [MicronutrientSupplement] = []
+    @State private var isLoadingSupplements = false
+    @State private var takenSupplements: Set<String> = []
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            if isLoadingSupplements {
+                HStack {
+                    ProgressView()
+                        .scaleEffect(0.8)
+                    Text("Loading your supplements...")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                .padding()
+            } else if availableSupplements.isEmpty {
+                // No supplements message
+                VStack(spacing: 8) {
+                    Image(systemName: "pills.circle")
+                        .font(.system(size: 40))
+                        .foregroundColor(.gray)
+                    
+                    Text("No Supplements Added")
+                        .font(.headline)
+                        .fontWeight(.semibold)
+                    
+                    Text("Add your supplements in the Nutrition Profile under More screen first.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                }
+                .padding()
+                .background(Color(.systemGray6))
+                .cornerRadius(10)
+            } else {
+                // Supplements list
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Your Supplements")
+                        .font(.headline)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.primary)
+                    
+                    Text("Check which supplements you took today:")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    
+                    ForEach(availableSupplements) { supplement in
+                        SupplementCheckRow(
+                            supplement: supplement,
+                            isTaken: takenSupplements.contains(supplement.id)
+                        ) { isTaken in
+                            if isTaken {
+                                takenSupplements.insert(supplement.id)
+                            } else {
+                                takenSupplements.remove(supplement.id)
+                            }
+                            updateSupplementsData()
+                        }
+                    }
+                }
+            }
+            
+            // Notes (only show if supplements exist)
+            if !availableSupplements.isEmpty {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Notes")
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                        .foregroundColor(.primary)
+                    
+                    TextField("Any notes about your supplements...", text: $data.notes, axis: .vertical)
+                        .lineLimit(2...4)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .background(Color(.systemGray6))
+                        .cornerRadius(8)
+                }
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+        .onAppear {
+            loadAvailableSupplements()
+        }
+        .onChange(of: data.supplementDetails) { _, newValue in
+            // Update takenSupplements when supplementDetails changes (e.g., from loaded data)
+            takenSupplements = Set(newValue.map { $0.supplementId })
+            print("🔍 [SupplementsFormView] Updated takenSupplements from data: \(takenSupplements)")
+        }
+    }
+    
+    private func loadAvailableSupplements() {
+        guard let userData = userData else { 
+            print("🔍 [SupplementsFormView] No userData available")
+            return 
+        }
+        
+        print("🔍 [SupplementsFormView] Loading supplements for user: \(userData.id)")
+        isLoadingSupplements = true
+        
+        Task {
+            do {
+                let profile = try await fetchMicronutrientProfile(userId: userData.id)
+                await MainActor.run {
+                    print("🔍 [SupplementsFormView] Fetched profile: \(profile?.supplements.count ?? 0) supplements")
+                    self.availableSupplements = profile?.supplements ?? []
+                    self.isLoadingSupplements = false
+                    
+                    // Load previously selected supplements from data
+                    self.loadPreviouslySelectedSupplements()
+                    
+                    // Update supplements taken status
+                    if !self.availableSupplements.isEmpty {
+                        self.data.supplementsTaken = !self.takenSupplements.isEmpty
+                        self.data.supplementsCount = self.takenSupplements.count
+                    }
+                }
+            } catch {
+                print("🔍 [SupplementsFormView] Error loading supplements: \(error)")
+                await MainActor.run {
+                    self.isLoadingSupplements = false
+                }
+            }
+        }
+    }
+    
+    private func loadPreviouslySelectedSupplements() {
+        // Load previously selected supplements from the data
+        print("🔍 [SupplementsFormView] Loading previously selected supplements from data.supplementDetails: \(data.supplementDetails.count) items")
+        for detail in data.supplementDetails {
+            print("🔍 [SupplementsFormView] Found supplement detail: \(detail.supplementName) (ID: \(detail.supplementId))")
+        }
+        takenSupplements = Set(data.supplementDetails.map { $0.supplementId })
+        print("🔍 [SupplementsFormView] Loaded previously selected supplements: \(takenSupplements)")
+    }
+    
+    private func updateSupplementsData() {
+        data.supplementsTaken = !takenSupplements.isEmpty
+        data.supplementsCount = takenSupplements.count
+        
+        // Update supplement details
+        data.supplementDetails = takenSupplements.compactMap { supplementId in
+            guard let supplement = availableSupplements.first(where: { $0.id == supplementId }) else { return nil }
+            return DailySupplementIntake(
+                supplementId: supplement.id,
+                supplementName: supplement.name,
+                category: supplement.category.rawValue,
+                dosage: String(supplement.dosage),
+                unit: supplement.unit.rawValue,
+                timeTaken: Date(),
+                notes: nil
+            )
+        }
+    }
+    
+    private func fetchMicronutrientProfile(userId: String) async throws -> MicronutrientProfile? {
+        guard let url = URL(string: "https://ibdpal-server-production.up.railway.app/api/micronutrient/profile") else {
+            print("🔍 [SupplementsFormView] Invalid URL")
+            return nil
+        }
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        
+        // Add authentication token from userData
+        if let userData = userData {
+            request.setValue("Bearer \(userData.token)", forHTTPHeaderField: "Authorization")
+            print("🔍 [SupplementsFormView] Using auth token: \(userData.token.prefix(20))...")
+        } else {
+            print("🔍 [SupplementsFormView] No userData available")
+        }
+        
+        do {
+            print("🔍 [SupplementsFormView] Making API request to: \(url)")
+            let (data, response) = try await URLSession.shared.data(for: request)
+            
+            guard let httpResponse = response as? HTTPURLResponse else {
+                print("🔍 [SupplementsFormView] Invalid response type")
+                return nil
+            }
+            
+            print("🔍 [SupplementsFormView] Response status: \(httpResponse.statusCode)")
+            
+            guard httpResponse.statusCode == 200 else {
+                print("🔍 [SupplementsFormView] HTTP error: \(httpResponse.statusCode)")
+                if httpResponse.statusCode == 401 {
+                    let responseString = String(data: data, encoding: .utf8) ?? "No response body"
+                    print("🔍 [SupplementsFormView] 401 Unauthorized - Response: \(responseString)")
+                }
+                return nil
+            }
+            
+            // Parse the response structure
+            let responseData = try JSONDecoder().decode(MicronutrientProfileResponse.self, from: data)
+            print("🔍 [SupplementsFormView] Response success: \(responseData.success ?? false)")
+            if let profile = responseData.data {
+                print("🔍 [SupplementsFormView] Response data: \(profile.supplements.count) supplements")
+                return profile
+            } else {
+                print("🔍 [SupplementsFormView] No profile data")
+                return nil
+            }
+        } catch {
+            print("🔍 [SupplementsFormView] Error fetching micronutrient profile: \(error)")
+            return nil
+        }
+    }
+}
+
+struct SupplementCheckRow: View {
+    let supplement: MicronutrientSupplement
+    let isTaken: Bool
+    let onToggle: (Bool) -> Void
+    
+    var body: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(supplement.name)
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                    .foregroundColor(.primary)
+                
+                Text("\(Int(supplement.dosage)) \(supplement.unit.rawValue)")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+            
+            Spacer()
+            
+            Button(action: { onToggle(!isTaken) }) {
+                Image(systemName: isTaken ? "checkmark.circle.fill" : "circle")
+                    .foregroundColor(isTaken ? .green : .gray)
+                    .font(.title2)
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(isTaken ? Color.green.opacity(0.1) : Color(.systemGray6))
+        .cornerRadius(8)
+    }
+}
+
 
 struct NutritionInputField: View {
     let title: String
@@ -2924,6 +3293,8 @@ struct LogEntry: Identifiable, Codable {
     let medicationTaken: Bool?
     let medicationType: String?
     let dosageLevel: String?
+    let supplementsTaken: Bool?
+    let supplementsCount: Int?
     let sleepHours: Double?
     let sleepQuality: Int?
     let stressLevel: Int?
@@ -3000,6 +3371,8 @@ struct LogEntry: Identifiable, Codable {
         medicationTaken = dict["medication_taken"] as? Bool
         medicationType = dict["medication_type"] as? String
         dosageLevel = dict["dosage_level"] as? String
+        supplementsTaken = dict["supplements_taken"] as? Bool
+        supplementsCount = dict["supplements_count"] as? Int
         sleepHours = dict["sleep_hours"] as? Double
         sleepQuality = dict["sleep_quality"] as? Int
         stressLevel = dict["stress_level"] as? Int
@@ -3625,7 +3998,7 @@ struct BristolScaleInfoView: View {
                         }
                     }
                     
-                    VStack(alignment: .leading, spacing: 8) {
+                    VStack(alignment: .leading, spacing: 4) {
                         Text("What to look for:")
                             .font(.headline)
                             .padding(.top, 16)

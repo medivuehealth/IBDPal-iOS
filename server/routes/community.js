@@ -188,4 +188,66 @@ router.get('/support-organizations', async (req, res) => {
         });
     }
 });
+
+// GET /api/community/nutrition-articles - Get nutrition articles from database
+router.get('/nutrition-articles', async (req, res) => {
+    try {
+        const { category = 'nutrition', featured = 'true', limit = 10 } = req.query;
+        
+        console.log('Getting nutrition articles:', { category, featured, limit });
+
+        let query = `
+            SELECT 
+                id,
+                title,
+                summary,
+                content,
+                category,
+                author,
+                published_date,
+                read_time_minutes,
+                source,
+                source_url,
+                image_url,
+                url,
+                featured
+            FROM nutrition_articles 
+            WHERE category = $1
+        `;
+        
+        const params = [category];
+        
+        if (featured === 'true') {
+            query += ' AND featured = true';
+        }
+        
+        query += ' ORDER BY published_date DESC LIMIT $2';
+        params.push(parseInt(limit));
+
+        const result = await db.query(query, params);
+        const articles = result.rows;
+
+        console.log(`Found ${articles.length} nutrition articles for category: ${category}`);
+
+        res.json({
+            success: true,
+            data: {
+                articles: articles,
+                category: category,
+                featured: featured === 'true',
+                total: articles.length,
+                source: 'database'
+            }
+        });
+
+    } catch (error) {
+        console.error('Error fetching nutrition articles:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to fetch nutrition articles',
+            error: error.message
+        });
+    }
+});
+
 module.exports = router;

@@ -269,7 +269,7 @@ struct LabResult: Codable, Identifiable {
     }
 }
 
-struct MicronutrientSupplement: Codable, Identifiable {
+struct MicronutrientSupplement: Codable, Identifiable, Hashable {
     let id: String
     let name: String
     let category: MicronutrientCategory
@@ -347,7 +347,7 @@ struct MicronutrientSupplement: Codable, Identifiable {
 
 
 
-enum MicronutrientCategory: String, Codable, CaseIterable {
+enum MicronutrientCategory: String, Codable, CaseIterable, Hashable {
     init(from decoder: Decoder) throws {
         let container = try decoder.singleValueContainer()
         let rawValue = try container.decode(String.self)
@@ -374,7 +374,7 @@ enum MicronutrientCategory: String, Codable, CaseIterable {
     }
 }
 
-enum DosageUnit: String, Codable, CaseIterable {
+enum DosageUnit: String, Codable, CaseIterable, Hashable {
     init(from decoder: Decoder) throws {
         let container = try decoder.singleValueContainer()
         let rawValue = try container.decode(String.self)
@@ -403,7 +403,7 @@ enum DosageUnit: String, Codable, CaseIterable {
     }
 }
 
-enum SupplementFrequency: String, Codable, CaseIterable {
+enum SupplementFrequency: String, Codable, CaseIterable, Hashable {
     init(from decoder: Decoder) throws {
         let container = try decoder.singleValueContainer()
         let rawValue = try container.decode(String.self)

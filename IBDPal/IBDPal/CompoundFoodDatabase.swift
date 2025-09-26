@@ -281,6 +281,81 @@ class CompoundFoodDatabase: ObservableObject {
                 tags: ["protein", "probiotics", "fiber", "potassium"]
             ),
             
+            // MIXED MEALS WITH FLATBREADS
+            CompoundFoodItem(
+                name: "Egg and Salad with Flatbread",
+                category: "Mixed Meals",
+                ingredients: [
+                    FoodIngredient(name: "Eggs", quantity: 2, unit: "large", calories: 155, protein: 12.6, carbs: 1.1, fiber: 0, fat: 10.6, category: "Protein"),
+                    FoodIngredient(name: "Lettuce", quantity: 1, unit: "cup", calories: 8, protein: 0.5, carbs: 1.5, fiber: 0.5, fat: 0.1, category: "Vegetables"),
+                    FoodIngredient(name: "Tomato", quantity: 1, unit: "medium", calories: 22, protein: 1.1, carbs: 4.8, fiber: 1.2, fat: 0.2, category: "Vegetables"),
+                    FoodIngredient(name: "Cucumber", quantity: 0.5, unit: "cup", calories: 8, protein: 0.4, carbs: 1.8, fiber: 0.3, fat: 0.1, category: "Vegetables"),
+                    FoodIngredient(name: "Naan", quantity: 1, unit: "piece", calories: 320, protein: 8, carbs: 50, fiber: 2, fat: 8, category: "Bread"),
+                    FoodIngredient(name: "Olive Oil", quantity: 1, unit: "tsp", calories: 40, protein: 0, carbs: 0, fiber: 0, fat: 4.5, category: "Fats")
+                ],
+                totalCalories: 553,
+                totalProtein: 22.6,
+                totalCarbs: 59.2,
+                totalFiber: 4.0,
+                totalFat: 23.5,
+                servingSize: "1 meal",
+                cuisine: "International",
+                ibdFriendly: true,
+                fodmapLevel: "low",
+                preparationMethods: ["boiled", "fresh", "baked"],
+                benefits: "Complete protein, fiber, healthy fats, vitamins",
+                tags: ["protein", "fiber", "healthy_fats", "vitamins", "flatbread"]
+            ),
+            
+            CompoundFoodItem(
+                name: "Tortillas with Vegetables",
+                category: "Mixed Meals",
+                ingredients: [
+                    FoodIngredient(name: "Tortilla", quantity: 2, unit: "pieces", calories: 200, protein: 6, carbs: 36, fiber: 2, fat: 4, category: "Bread"),
+                    FoodIngredient(name: "Bell Peppers", quantity: 0.5, unit: "cup", calories: 15, protein: 0.5, carbs: 3.5, fiber: 1, fat: 0.1, category: "Vegetables"),
+                    FoodIngredient(name: "Onion", quantity: 0.25, unit: "cup", calories: 16, protein: 0.4, carbs: 3.7, fiber: 0.7, fat: 0.1, category: "Vegetables"),
+                    FoodIngredient(name: "Tomato", quantity: 0.5, unit: "medium", calories: 11, protein: 0.5, carbs: 2.4, fiber: 0.6, fat: 0.1, category: "Vegetables"),
+                    FoodIngredient(name: "Olive Oil", quantity: 1, unit: "tsp", calories: 40, protein: 0, carbs: 0, fiber: 0, fat: 4.5, category: "Fats"),
+                    FoodIngredient(name: "Cheese", quantity: 0.5, unit: "oz", calories: 55, protein: 3.5, carbs: 0.5, fiber: 0, fat: 4.5, category: "Dairy")
+                ],
+                totalCalories: 337,
+                totalProtein: 10.9,
+                totalCarbs: 48.1,
+                totalFiber: 4.3,
+                totalFat: 13.3,
+                servingSize: "1 meal",
+                cuisine: "International",
+                ibdFriendly: true,
+                fodmapLevel: "low",
+                preparationMethods: ["sauteed", "wrapped", "grilled"],
+                benefits: "Fiber, vitamins, healthy fats, calcium",
+                tags: ["fiber", "vitamins", "healthy_fats", "calcium", "flatbread"]
+            ),
+            
+            CompoundFoodItem(
+                name: "Parotta with Curry",
+                category: "Mixed Meals",
+                ingredients: [
+                    FoodIngredient(name: "Parotta", quantity: 1, unit: "piece", calories: 280, protein: 6, carbs: 45, fiber: 1.5, fat: 6, category: "Bread"),
+                    FoodIngredient(name: "Chicken Curry", quantity: 0.5, unit: "cup", calories: 120, protein: 15, carbs: 5, fiber: 1, fat: 4, category: "Protein"),
+                    FoodIngredient(name: "Onion", quantity: 0.25, unit: "cup", calories: 16, protein: 0.4, carbs: 3.7, fiber: 0.7, fat: 0.1, category: "Vegetables"),
+                    FoodIngredient(name: "Tomato", quantity: 0.25, unit: "medium", calories: 5.5, protein: 0.3, carbs: 1.2, fiber: 0.3, fat: 0.1, category: "Vegetables"),
+                    FoodIngredient(name: "Coconut Oil", quantity: 1, unit: "tsp", calories: 40, protein: 0, carbs: 0, fiber: 0, fat: 4.5, category: "Fats")
+                ],
+                totalCalories: 461.5,
+                totalProtein: 21.7,
+                totalCarbs: 54.9,
+                totalFiber: 3.5,
+                totalFat: 14.7,
+                servingSize: "1 meal",
+                cuisine: "Indian",
+                ibdFriendly: true,
+                fodmapLevel: "low",
+                preparationMethods: ["layered", "spiced", "curried"],
+                benefits: "Complete meal, protein, fiber, traditional flavors",
+                tags: ["complete_meal", "protein", "fiber", "traditional", "indian"]
+            ),
+            
             // ASIAN DISHES
             CompoundFoodItem(
                 name: "Sushi Roll (California)",
