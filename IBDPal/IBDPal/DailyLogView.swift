@@ -287,8 +287,8 @@ struct DailyLogView: View {
                 print("🍽️ MEALS CHECK (flat): hasBreakfast=\(hasBreakfast), hasLunch=\(hasLunch), hasDinner=\(hasDinner), mealCount=\(mealCount)")
             }
             
-            // Complete if at least 2 out of 3 main meals are filled
-            return mealCount >= 2
+                // Complete if at least 2 out of 3 main meals are filled
+                return mealCount >= 2
         case .bowelHealth:
             return (entry.bowelFrequency ?? 0) > 0 ||
                    (entry.bristolScale ?? 0) > 0 ||
@@ -626,27 +626,61 @@ struct EntryFormView: View {
             }
             
                     case .medication:
-            // Populate medication data
+            // For medication, we should load the previously saved medication data
+            // This doesn't change daily - it's the user's current medication regimen
+            NetworkLogger.shared.log("💊 MEDICATION: Loading previously saved medication data for user", level: .info, category: .journal)
+            
+            // Load the most recent medication data
+            loadPreviousMedicationData()
+            
+            // Also populate from current journal entry if available
             DispatchQueue.main.async {
                 self.medicationData.medicationType = entry["medication_type"] as? String ?? "None"
                 
                 // Parse dosage_level to separate dosage and frequency
                 if let dosageLevel = entry["dosage_level"] as? String {
                     let (dosage, frequency) = MedicationFormData.fromDosageLevel(dosageLevel)
-                    self.medicationData.dosage = dosage
-                    self.medicationData.frequency = frequency
-                    NetworkLogger.shared.log("💊 MEDICATION: Parsed dosage_level '\(dosageLevel)' to dosage='\(dosage)', frequency='\(frequency)'", level: .debug, category: .journal)
+                    
+                    // Only set dosage if it's valid for the medication type
+                    if self.medicationData.availableDosages.contains(dosage) {
+                        self.medicationData.dosage = dosage
+                    } else {
+                        // Use first available dosage as default
+                        if let firstDosage = self.medicationData.availableDosages.first {
+                            self.medicationData.dosage = firstDosage
+                        }
+                    }
+                    
+                    // Only set frequency if it's valid for the medication type
+                    if self.medicationData.availableFrequencies.contains(frequency) {
+                        self.medicationData.frequency = frequency
+                    } else {
+                        // Use first available frequency as default
+                        if let firstFrequency = self.medicationData.availableFrequencies.first {
+                            self.medicationData.frequency = firstFrequency
+                        }
+                    }
+                    
+                    NetworkLogger.shared.log("💊 MEDICATION: Parsed dosage_level '\(dosageLevel)' to dosage='\(self.medicationData.dosage)', frequency='\(self.medicationData.frequency)'", level: .debug, category: .journal)
                 } else {
-                    self.medicationData.dosage = "0"
-                    self.medicationData.frequency = "daily"
+                    // Set default values based on medication type
+                    if self.medicationData.medicationType == "None" {
+                        self.medicationData.dosage = "0"
+                        self.medicationData.frequency = "daily"
+                    } else {
+                        // Use first available dosage and frequency for the medication type
+                        if let firstDosage = self.medicationData.availableDosages.first {
+                            self.medicationData.dosage = firstDosage
+                        }
+                        if let firstFrequency = self.medicationData.availableFrequencies.first {
+                            self.medicationData.frequency = firstFrequency
+                        }
+                    }
                 }
                 
                 self.medicationData.notes = entry["notes"] as? String ?? ""
                 
                 // Load last taken date
-                NetworkLogger.shared.log("💊 MEDICATION: Raw last_taken_date from database: \(entry["last_taken_date"] ?? "nil")", level: .debug, category: .journal)
-                NetworkLogger.shared.log("💊 MEDICATION: Type of last_taken_date: \(type(of: entry["last_taken_date"]))", level: .debug, category: .journal)
-                
                 if let lastTakenDateString = entry["last_taken_date"] as? String {
                     NetworkLogger.shared.log("💊 MEDICATION: Parsing last_taken_date string: '\(lastTakenDateString)'", level: .debug, category: .journal)
                     
@@ -700,14 +734,22 @@ struct EntryFormView: View {
                         NetworkLogger.shared.log("💊 MEDICATION: Failed to parse date from '\(lastTakenDateString)'", level: .error, category: .journal)
                     }
                 } else {
-                    // Only set to today's date if there's no existing medication data
-                    // If medication type is "None", don't set a default date
-                    if self.medicationData.medicationType != "None" {
-                        self.medicationData.lastTakenDate = Date()
-                        NetworkLogger.shared.log("💊 MEDICATION: No last_taken_date found, setting to today for new medication", level: .debug, category: .journal)
-                    } else {
-                        NetworkLogger.shared.log("💊 MEDICATION: No last_taken_date found and no medication type set", level: .debug, category: .journal)
+                    // Set a default date if no last taken date is found
+                    self.medicationData.lastTakenDate = Date()
+                    NetworkLogger.shared.log("💊 MEDICATION: No last_taken_date found, setting to today", level: .debug, category: .journal)
+                }
+                
+                // Ensure frequency is always valid for the current medication type
+                NetworkLogger.shared.log("💊 MEDICATION: Validating frequency '\(self.medicationData.frequency)' for medication type '\(self.medicationData.medicationType)'", level: .debug, category: .journal)
+                NetworkLogger.shared.log("💊 MEDICATION: Available frequencies: \(self.medicationData.availableFrequencies)", level: .debug, category: .journal)
+                
+                if !self.medicationData.availableFrequencies.contains(self.medicationData.frequency) {
+                    if let firstFrequency = self.medicationData.availableFrequencies.first {
+                        self.medicationData.frequency = firstFrequency
+                        NetworkLogger.shared.log("💊 MEDICATION: Corrected invalid frequency to '\(firstFrequency)' for medication type '\(self.medicationData.medicationType)'", level: .debug, category: .journal)
                     }
+                } else {
+                    NetworkLogger.shared.log("💊 MEDICATION: Frequency '\(self.medicationData.frequency)' is valid for medication type '\(self.medicationData.medicationType)'", level: .debug, category: .journal)
                 }
                 
                 // Store previous medication type for change detection
@@ -992,70 +1034,118 @@ struct EntryFormView: View {
                     if let medicationData = try JSONSerialization.jsonObject(with: data) as? [String: Any] {
                         NetworkLogger.shared.log("💊 Received previous medication data: \(medicationData)", level: .debug, category: .journal)
                         
-                        // Only populate defaults if current medication type is "None" or if we're loading for the first time
-                        // This ensures we don't overwrite existing data for the selected date
-                        if self.medicationData.medicationType == "None" {
-                            if let medicationType = medicationData["medication_type"] as? String, medicationType != "None" {
-                                self.medicationData.medicationType = medicationType
+                        // Always load the previous medication data - this is the user's current regimen
+                        if let medicationType = medicationData["medication_type"] as? String {
+                            self.medicationData.medicationType = medicationType
+                            
+                            // Parse dosage_level to separate dosage and frequency
+                            if let dosageLevel = medicationData["dosage_level"] as? String {
+                                let (dosage, frequency) = MedicationFormData.fromDosageLevel(dosageLevel)
                                 
-                                // Parse dosage_level to separate dosage and frequency
-                                if let dosageLevel = medicationData["dosage_level"] as? String {
-                                    let (dosage, frequency) = MedicationFormData.fromDosageLevel(dosageLevel)
+                                // Only set dosage if it's valid for the medication type
+                                if self.medicationData.availableDosages.contains(dosage) {
                                     self.medicationData.dosage = dosage
-                                    self.medicationData.frequency = frequency
-                                    NetworkLogger.shared.log("💊 Loaded previous medication defaults: \(medicationType), \(dosage)mg, \(frequency)", level: .info, category: .journal)
-                                }
-                                
-                                // Parse last_taken_date
-                                if let lastTakenDateString = medicationData["last_taken_date"] as? String {
-                                    NetworkLogger.shared.log("💊 Parsing last_taken_date from previous medication: '\(lastTakenDateString)'", level: .debug, category: .journal)
-                                    
-                                    var lastTakenDate: Date?
-                                    
-                                    // Try multiple date formats
-                                    let dateFormats = [
-                                        "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'",
-                                        "yyyy-MM-dd'T'HH:mm:ss'Z'",
-                                        "yyyy-MM-dd'T'HH:mm:ss.SSSSSS'Z'",
-                                        "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'"
-                                    ]
-                                    
-                                    let formatter = DateFormatter()
-                                    formatter.timeZone = TimeZone(identifier: "UTC")
-                                    
-                                    for format in dateFormats {
-                                        formatter.dateFormat = format
-                                        if let parsedDate = formatter.date(from: lastTakenDateString) {
-                                            lastTakenDate = parsedDate
-                                            NetworkLogger.shared.log("💊 Successfully parsed last_taken_date '\(lastTakenDateString)' -> \(parsedDate)", level: .debug, category: .journal)
-                                            break
-                                        }
-                                    }
-                                    
-                                    if let parsedDate = lastTakenDate {
-                                        self.medicationData.lastTakenDate = parsedDate
-                                        NetworkLogger.shared.log("💊 Set previous medication last_taken_date to: \(parsedDate)", level: .info, category: .journal)
-                                    } else {
-                                        NetworkLogger.shared.log("💊 Failed to parse last_taken_date from '\(lastTakenDateString)'", level: .error, category: .journal)
-                                    }
                                 } else {
-                                    NetworkLogger.shared.log("💊 No last_taken_date found in previous medication data", level: .debug, category: .journal)
+                                    // Use first available dosage as default
+                                    if let firstDosage = self.medicationData.availableDosages.first {
+                                        self.medicationData.dosage = firstDosage
+                                    }
                                 }
                                 
-                                // Parse additional fields from server
-                                if let medicationTaken = medicationData["medication_taken"] as? Bool {
-                                    NetworkLogger.shared.log("💊 Loaded medication_taken: \(medicationTaken)", level: .debug, category: .journal)
+                                // Only set frequency if it's valid for the medication type
+                                if self.medicationData.availableFrequencies.contains(frequency) {
+                                    self.medicationData.frequency = frequency
+                                } else {
+                                    // Use first available frequency as default
+                                    if let firstFrequency = self.medicationData.availableFrequencies.first {
+                                        self.medicationData.frequency = firstFrequency
+                                    }
                                 }
                                 
-                                if let notes = medicationData["notes"] as? String, !notes.isEmpty {
-                                    self.medicationData.notes = notes
-                                    NetworkLogger.shared.log("💊 Loaded previous medication notes: \(notes)", level: .debug, category: .journal)
+                                NetworkLogger.shared.log("💊 Loaded previous medication: \(medicationType), \(self.medicationData.dosage)mg, \(self.medicationData.frequency)", level: .info, category: .journal)
+                            } else {
+                                // Set default values based on medication type
+                                if self.medicationData.medicationType == "None" {
+                                    self.medicationData.dosage = "0"
+                                    self.medicationData.frequency = "daily"
+                                } else {
+                                    // Use first available dosage and frequency for the medication type
+                                    if let firstDosage = self.medicationData.availableDosages.first {
+                                        self.medicationData.dosage = firstDosage
+                                    }
+                                    if let firstFrequency = self.medicationData.availableFrequencies.first {
+                                        self.medicationData.frequency = firstFrequency
+                                    }
+                                }
+                            }
+                            
+                            // Parse last_taken_date
+                            if let lastTakenDateString = medicationData["last_taken_date"] as? String {
+                                NetworkLogger.shared.log("💊 Parsing last_taken_date from previous medication: '\(lastTakenDateString)'", level: .debug, category: .journal)
+                                
+                                var lastTakenDate: Date?
+                                
+                                // Try multiple date formats
+                                let dateFormats = [
+                                    "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'",
+                                    "yyyy-MM-dd'T'HH:mm:ss'Z'",
+                                    "yyyy-MM-dd'T'HH:mm:ss.SSSSSS'Z'",
+                                    "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'"
+                                ]
+                                
+                                let formatter = DateFormatter()
+                                formatter.timeZone = TimeZone(identifier: "UTC")
+                                
+                                for format in dateFormats {
+                                    formatter.dateFormat = format
+                                    if let parsedDate = formatter.date(from: lastTakenDateString) {
+                                        lastTakenDate = parsedDate
+                                        NetworkLogger.shared.log("💊 Successfully parsed last_taken_date '\(lastTakenDateString)' -> \(parsedDate)", level: .debug, category: .journal)
+                                        break
+                                    }
+                                }
+                                
+                                if let parsedDate = lastTakenDate {
+                                    self.medicationData.lastTakenDate = parsedDate
+                                    NetworkLogger.shared.log("💊 Set previous medication last_taken_date to: \(parsedDate)", level: .info, category: .journal)
+                                } else {
+                                    NetworkLogger.shared.log("💊 Failed to parse last_taken_date from '\(lastTakenDateString)'", level: .error, category: .journal)
                                 }
                             } else {
-                                NetworkLogger.shared.log("💊 No previous medication data found or medication type is None", level: .info, category: .journal)
+                                NetworkLogger.shared.log("💊 No last_taken_date found in previous medication data", level: .debug, category: .journal)
+                                // Set a default date if no last taken date is found
+                                self.medicationData.lastTakenDate = Date()
+                            }
+                            
+                            // Parse additional fields from server
+                            if let medicationTaken = medicationData["medication_taken"] as? Bool {
+                                NetworkLogger.shared.log("💊 Loaded medication_taken: \(medicationTaken)", level: .debug, category: .journal)
+                            }
+                            
+                            if let notes = medicationData["notes"] as? String, !notes.isEmpty {
+                                self.medicationData.notes = notes
+                                NetworkLogger.shared.log("💊 Loaded previous medication notes: \(notes)", level: .debug, category: .journal)
+                            }
+                            
+                            // Ensure frequency is always valid for the current medication type
+                            NetworkLogger.shared.log("💊 MEDICATION: Validating frequency '\(self.medicationData.frequency)' for medication type '\(self.medicationData.medicationType)'", level: .debug, category: .journal)
+                            NetworkLogger.shared.log("💊 MEDICATION: Available frequencies: \(self.medicationData.availableFrequencies)", level: .debug, category: .journal)
+                            
+                            if !self.medicationData.availableFrequencies.contains(self.medicationData.frequency) {
+                                if let firstFrequency = self.medicationData.availableFrequencies.first {
+                                    self.medicationData.frequency = firstFrequency
+                                    NetworkLogger.shared.log("💊 MEDICATION: Corrected invalid frequency to '\(firstFrequency)' for medication type '\(self.medicationData.medicationType)'", level: .debug, category: .journal)
+                                }
+                            } else {
+                                NetworkLogger.shared.log("💊 MEDICATION: Frequency '\(self.medicationData.frequency)' is valid for medication type '\(self.medicationData.medicationType)'", level: .debug, category: .journal)
                             }
                         } else {
-                            NetworkLogger.shared.log("💊 Skipping default load - medication data already exists for this date", level: .debug, category: .journal)
+                            NetworkLogger.shared.log("💊 No previous medication data found", level: .info, category: .journal)
+                            // Set default values for None medication type
+                            self.medicationData.medicationType = "None"
+                            self.medicationData.dosage = "0"
+                            self.medicationData.frequency = "daily"
+                            self.medicationData.lastTakenDate = Date()
                         }
                     } else {
                         NetworkLogger.shared.log("❌ Failed to parse medication data", level: .error, category: .journal)
@@ -2423,6 +2513,14 @@ struct MedicationFormView: View {
                     .onChange(of: data.medicationType) { oldValue, newValue in
                         if data.hasMedicationTypeChanged {
                             showingMedicationChangeAlert = true
+                        }
+                        
+                        // Ensure frequency is valid for the new medication type
+                        if !data.availableFrequencies.contains(data.frequency) {
+                            if let firstFrequency = data.availableFrequencies.first {
+                                data.frequency = firstFrequency
+                                NetworkLogger.shared.log("💊 MEDICATION: Updated frequency to '\(firstFrequency)' for medication type '\(newValue)'", level: .debug, category: .journal)
+                            }
                         }
                         
                         // If changing from "None" to a real medication type, set default date
