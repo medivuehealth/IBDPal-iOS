@@ -69,6 +69,32 @@ struct JournalEntry: Codable {
     let created_at: String
     let updated_at: String
     
+    // Medication fields
+    let medication_taken: Bool?
+    let medication_type: String?
+    let dosage_level: String?
+    let last_taken_date: String?
+    
+    // Supplement fields
+    let supplements_taken: Bool?
+    let supplements_count: Int?
+    let supplement_details: [SupplementDetail]?
+    
+    // Sleep fields
+    let sleep_hours: Int?
+    let sleep_quality: Int?
+    let sleep_notes: String?
+    
+    // Stress fields
+    let stress_level: Int?
+    let stress_source: String?
+    let coping_strategies: String?
+    
+    // Additional fields
+    let fatigue_level: Int?
+    let mood_level: Int?
+    let menstruation: String?
+    
     // Computed properties to convert string values to doubles
     var waterIntakeDouble: Double {
         return Double(water_intake ?? "0") ?? 0.0
@@ -77,6 +103,16 @@ struct JournalEntry: Codable {
     var otherFluidsDouble: Double {
         return Double(other_fluids ?? "0") ?? 0.0
     }
+}
+
+struct SupplementDetail: Codable {
+    let supplement_id: String
+    let supplement_name: String
+    let dosage: String
+    let unit: String
+    let category: String
+    let time_taken: String
+    let notes: String?
 }
 
 struct Meal: Codable {

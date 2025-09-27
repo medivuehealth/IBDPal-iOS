@@ -34,13 +34,13 @@ struct IBDNutritionAnalysisView: View {
                                 .font(.subheadline)
                                 .foregroundColor(.secondary)
                         }
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .padding(40)
                     } else if let errorMessage = errorMessage {
                         VStack(spacing: 16) {
                             Image(systemName: "exclamationmark.triangle.fill")
                                 .font(.system(size: 48))
-                                .foregroundColor(.red)
+                            .foregroundColor(.red)
                             
                             Text("Analysis Error")
                                 .font(.title2)
@@ -68,7 +68,7 @@ struct IBDNutritionAnalysisView: View {
                             
                             Text("Unable to generate micronutrient analysis")
                                 .font(.subheadline)
-                                .foregroundColor(.secondary)
+                            .foregroundColor(.secondary)
                         }
                         .padding(40)
                     }
@@ -97,9 +97,10 @@ struct IBDNutritionAnalysisView: View {
     private func analysisContent(_ analysis: IBDMicronutrientAnalysis) -> some View {
         VStack(spacing: 24) {
             overallStatusSection(analysis)
-            micronutrientStatusSection(analysis)
-            foodMicronutrientsSection()
+            summaryMetricsSection(analysis)
+            ibdSpecificNutrientsSection(analysis)
             recommendationsSection(analysis)
+            foodMicronutrientsSection()
         }
     }
     
@@ -120,97 +121,19 @@ struct IBDNutritionAnalysisView: View {
                 Spacer()
             }
             
-            // Main status cards
-            HStack(spacing: 16) {
-                // Nutrition Status Card
-                VStack(spacing: 12) {
-                    HStack {
-                        Image(systemName: "checkmark.circle.fill")
-                            .font(.title3)
-                            .foregroundColor(.green)
-                        
-                        Text("Nutrition Status")
-                            .font(.subheadline)
-                            .fontWeight(.semibold)
-                            .foregroundColor(.primary)
-                        
-                        Spacer()
-                    }
-                    
-                    VStack(spacing: 8) {
-                        Text("\(countOptimalNutrients(analysis))/6")
-                            .font(.title)
-                            .fontWeight(.bold)
-                            .foregroundColor(.green)
-                        
-                        Text("Nutrients Optimal")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                        
-                        // Progress bar
-                        ProgressView(value: Double(countOptimalNutrients(analysis)), total: 6.0)
-                            .progressViewStyle(LinearProgressViewStyle(tint: .green))
-                            .scaleEffect(y: 2)
-                    }
-                }
-                .frame(maxWidth: .infinity)
-                .padding(16)
-                .background(
-                    RoundedRectangle(cornerRadius: 12)
-                        .fill(Color.green.opacity(0.1))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 12)
-                                .stroke(Color.green.opacity(0.3), lineWidth: 1)
-                        )
-                )
-                
-                // IBD Score Card
-                VStack(spacing: 12) {
-                    HStack {
-                        Image(systemName: "heart.fill")
-                            .font(.title3)
-                            .foregroundColor(ibdScoreColor(analysis))
-                        
-                        Text("IBD Score")
-                            .font(.subheadline)
-                            .fontWeight(.semibold)
-                            .foregroundColor(.primary)
-                        
-                        Spacer()
-                    }
-                    
-                    VStack(spacing: 8) {
-                        Text(calculateIBDScore(analysis))
-                            .font(.title)
-                            .fontWeight(.bold)
-                            .foregroundColor(ibdScoreColor(analysis))
-                        
-                        Text("Overall Health")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                        
-                        // Score indicator
-                        HStack(spacing: 4) {
-                            ForEach(0..<5) { index in
-                                Circle()
-                                    .fill(index < getScoreLevel(analysis) ? ibdScoreColor(analysis) : Color.gray.opacity(0.3))
-                                    .frame(width: 8, height: 8)
-                            }
-                        }
-                    }
-                }
-                .frame(maxWidth: .infinity)
-                .padding(16)
-                .background(
-                    RoundedRectangle(cornerRadius: 12)
-                        .fill(ibdScoreColor(analysis).opacity(0.1))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 12)
-                                .stroke(ibdScoreColor(analysis).opacity(0.3), lineWidth: 1)
-                        )
-                )
-            }
-            
+            // Status cards removed - only showing summary metrics below
+        }
+        .padding(20)
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color(.systemBackground))
+                .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 2)
+        )
+    }
+    
+    @ViewBuilder
+    private func summaryMetricsSection(_ analysis: IBDMicronutrientAnalysis) -> some View {
+        VStack(alignment: .leading, spacing: 20) {
             // Summary metrics
             HStack(spacing: 12) {
                 StatusMetricCard(
@@ -244,7 +167,7 @@ struct IBDNutritionAnalysisView: View {
     }
     
     @ViewBuilder
-    private func micronutrientStatusSection(_ analysis: IBDMicronutrientAnalysis) -> some View {
+    private func ibdSpecificNutrientsSection(_ analysis: IBDMicronutrientAnalysis) -> some View {
         VStack(alignment: .leading, spacing: 20) {
             // Header with icon
             HStack {
@@ -252,113 +175,65 @@ struct IBDNutritionAnalysisView: View {
                     .font(.title2)
                     .foregroundColor(.purple)
                 
-                Text("Micronutrient Status")
+                Text("IBD-Specific Nutrients")
                     .font(.title2)
                     .fontWeight(.bold)
                     .foregroundColor(.primary)
                 
                 Spacer()
             }
-            
-            if analysis.deficiencies.isEmpty {
-                // No deficiencies - show success state
-                VStack(spacing: 16) {
-                    Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: 48))
-                        .foregroundColor(.green)
-                    
-                    Text("All Micronutrients Optimal")
-                        .font(.title3)
-                        .fontWeight(.semibold)
-                        .foregroundColor(.primary)
-                    
-                    Text("Your micronutrient levels are within the recommended ranges for IBD management.")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal)
-                }
-                .frame(maxWidth: .infinity)
-                .padding(24)
-                .background(
-                    RoundedRectangle(cornerRadius: 16)
-                        .fill(Color.green.opacity(0.1))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 16)
-                                .stroke(Color.green.opacity(0.3), lineWidth: 1)
-                        )
-                )
-            } else {
-                // Show deficiencies with professional cards
-                LazyVGrid(columns: [
-                    GridItem(.flexible()),
-                    GridItem(.flexible())
-                ], spacing: 16) {
-                    ForEach(analysis.deficiencies, id: \.id) { deficiency in
-                        DeficiencyCard(deficiency: deficiency)
-                    }
-                }
-            }
-            
-            // Show IBD-specific nutrients status
-            VStack(alignment: .leading, spacing: 12) {
-                Text("IBD-Specific Nutrients")
-                    .font(.headline)
-                    .fontWeight(.semibold)
-                    .foregroundColor(.primary)
                 
                 LazyVGrid(columns: [
                     GridItem(.flexible()),
                     GridItem(.flexible())
                 ], spacing: 12) {
-                    IBDNutrientCard(
-                        name: "Vitamin D",
-                        status: analysis.ibdSpecificNutrients.vitaminD.status,
-                        value: analysis.ibdSpecificNutrients.vitaminD.currentIntake,
-                        target: analysis.ibdSpecificNutrients.vitaminD.requiredIntake,
-                        unit: "IU"
-                    )
-                    
-                    IBDNutrientCard(
-                        name: "Vitamin B12",
-                        status: analysis.ibdSpecificNutrients.vitaminB12.status,
-                        value: analysis.ibdSpecificNutrients.vitaminB12.currentIntake,
-                        target: analysis.ibdSpecificNutrients.vitaminB12.requiredIntake,
-                        unit: "mcg"
-                    )
-                    
-                    IBDNutrientCard(
-                        name: "Iron",
-                        status: analysis.ibdSpecificNutrients.iron.status,
-                        value: analysis.ibdSpecificNutrients.iron.currentIntake,
-                        target: analysis.ibdSpecificNutrients.iron.requiredIntake,
-                        unit: "mg"
-                    )
-                    
-                    IBDNutrientCard(
-                        name: "Calcium",
-                        status: analysis.ibdSpecificNutrients.calcium.status,
-                        value: analysis.ibdSpecificNutrients.calcium.currentIntake,
-                        target: analysis.ibdSpecificNutrients.calcium.requiredIntake,
-                        unit: "mg"
-                    )
-                    
-                    IBDNutrientCard(
-                        name: "Zinc",
-                        status: analysis.ibdSpecificNutrients.zinc.status,
-                        value: analysis.ibdSpecificNutrients.zinc.currentIntake,
-                        target: analysis.ibdSpecificNutrients.zinc.requiredIntake,
-                        unit: "mg"
-                    )
-                    
-                    IBDNutrientCard(
-                        name: "Omega-3",
-                        status: analysis.ibdSpecificNutrients.omega3.status,
-                        value: analysis.ibdSpecificNutrients.omega3.currentIntake,
-                        target: analysis.ibdSpecificNutrients.omega3.requiredIntake,
-                        unit: "mg"
-                    )
-                }
+                IBDNutrientCard(
+                    name: "Vitamin D",
+                    status: analysis.ibdSpecificNutrients.vitaminD.status,
+                    value: analysis.ibdSpecificNutrients.vitaminD.currentIntake,
+                    target: analysis.ibdSpecificNutrients.vitaminD.requiredIntake,
+                    unit: "IU"
+                )
+                
+                IBDNutrientCard(
+                    name: "Vitamin B12",
+                    status: analysis.ibdSpecificNutrients.vitaminB12.status,
+                    value: analysis.ibdSpecificNutrients.vitaminB12.currentIntake,
+                    target: analysis.ibdSpecificNutrients.vitaminB12.requiredIntake,
+                    unit: "mcg"
+                )
+                
+                IBDNutrientCard(
+                    name: "Iron",
+                    status: analysis.ibdSpecificNutrients.iron.status,
+                    value: analysis.ibdSpecificNutrients.iron.currentIntake,
+                    target: analysis.ibdSpecificNutrients.iron.requiredIntake,
+                    unit: "mg"
+                )
+                
+                IBDNutrientCard(
+                    name: "Calcium",
+                    status: analysis.ibdSpecificNutrients.calcium.status,
+                    value: analysis.ibdSpecificNutrients.calcium.currentIntake,
+                    target: analysis.ibdSpecificNutrients.calcium.requiredIntake,
+                    unit: "mg"
+                )
+                
+                IBDNutrientCard(
+                    name: "Zinc",
+                    status: analysis.ibdSpecificNutrients.zinc.status,
+                    value: analysis.ibdSpecificNutrients.zinc.currentIntake,
+                    target: analysis.ibdSpecificNutrients.zinc.requiredIntake,
+                    unit: "mg"
+                )
+                
+                IBDNutrientCard(
+                    name: "Omega-3",
+                    status: analysis.ibdSpecificNutrients.omega3.status,
+                    value: analysis.ibdSpecificNutrients.omega3.currentIntake,
+                    target: analysis.ibdSpecificNutrients.omega3.requiredIntake,
+                    unit: "mg"
+                )
             }
         }
         .padding(20)
@@ -941,6 +816,69 @@ struct DeficiencyCard: View {
     }
     
     private func severityColor(_ severity: DeficiencySeverity) -> Color {
+        switch severity {
+        case .mild:
+            return .yellow
+        case .moderate:
+            return .orange
+        case .severe:
+            return .red
+        case .critical:
+            return .red
+        }
+    }
+}
+
+struct ExcessCard: View {
+    let excess: MicronutrientExcess
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Image(systemName: severityIcon(excess.severity))
+                    .font(.title3)
+                    .foregroundColor(severityColor(excess.severity))
+                
+                Text(excess.nutrient)
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.primary)
+                
+                Spacer()
+            }
+            
+            VStack(alignment: .leading, spacing: 4) {
+                Text(excess.severity.rawValue.capitalized)
+                    .font(.caption)
+                    .fontWeight(.medium)
+                    .foregroundColor(severityColor(excess.severity))
+            }
+        }
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(severityColor(excess.severity).opacity(0.1))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(severityColor(excess.severity).opacity(0.3), lineWidth: 1)
+                )
+        )
+    }
+    
+    private func severityIcon(_ severity: ExcessSeverity) -> String {
+        switch severity {
+        case .mild:
+            return "arrow.up.circle.fill"
+        case .moderate:
+            return "arrow.up.triangle.fill"
+        case .severe:
+            return "arrow.up.octagon.fill"
+        case .critical:
+            return "xmark.octagon.fill"
+        }
+    }
+    
+    private func severityColor(_ severity: ExcessSeverity) -> Color {
         switch severity {
         case .mild:
             return .yellow

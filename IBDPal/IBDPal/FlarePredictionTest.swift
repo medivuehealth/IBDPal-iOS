@@ -66,7 +66,24 @@ class FlarePredictionTest {
             fluid_type: "Water",
             notes: "Test entry",
             created_at: "2024-01-15T10:00:00Z",
-            updated_at: "2024-01-15T10:00:00Z"
+            updated_at: "2024-01-15T10:00:00Z",
+            // New required parameters
+            medication_taken: false,
+            medication_type: "None",
+            dosage_level: "0",
+            last_taken_date: nil,
+            supplements_taken: false,
+            supplements_count: 0,
+            supplement_details: nil,
+            sleep_hours: 8,
+            sleep_quality: 4,
+            sleep_notes: nil,
+            stress_level: 2,
+            stress_source: nil,
+            coping_strategies: nil,
+            fatigue_level: 3,
+            mood_level: 4,
+            menstruation: "not_applicable"
         )
         
         return [mockEntry]

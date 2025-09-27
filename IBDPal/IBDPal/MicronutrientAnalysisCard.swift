@@ -2,6 +2,7 @@ import SwiftUI
 
 struct MicronutrientAnalysisCard: View {
     let userData: UserData?
+    let journalEntries: [JournalEntry]
     let onTap: () -> Void
     
     @StateObject private var micronutrientCalculator = IBDMicronutrientCalculator.shared
@@ -15,30 +16,42 @@ struct MicronutrientAnalysisCard: View {
     
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            // Header
-            HStack {
-                Image(systemName: "pills.circle.fill")
-                    .font(.title2)
-                    .foregroundColor(.blue)
-                
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Micronutrient Analysis")
-                        .font(.headline)
-                        .fontWeight(.bold)
-                    
-                    Text("Last 7 days average")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-                
-                Spacer()
-                
-                Button(action: onTap) {
-                    Image(systemName: "chevron.right")
-                        .font(.title3)
+                // Header
+                HStack {
+                    Image(systemName: "pills.fill")
+                        .font(.title2)
                         .foregroundColor(.blue)
+                    
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Micronutrient Analysis")
+                            .font(.title2)
+                            .fontWeight(.bold)
+                            .foregroundColor(.primary)
+                        
+                        Text("Last 7 days average")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                    }
+                    
+                    Spacer()
+                    
+                    VStack(spacing: 4) {
+                        Image(systemName: "chevron.right")
+                            .font(.title3)
+                            .foregroundColor(.blue)
+                        
+                        Text("View Details")
+                            .font(.caption2)
+                            .foregroundColor(.blue)
+                            .fontWeight(.semibold)
+                    }
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(Color.blue.opacity(0.1))
+                    )
                 }
-            }
             
             if isLoading {
                 ProgressView("Loading micronutrient data...")
@@ -71,15 +84,55 @@ struct MicronutrientAnalysisCard: View {
                     QuickStatusItem(
                         title: "IBD Score",
                         value: calculateIBDScore(analysis),
-                        color: .blue,
+                        color: getIBDScoreColor(analysis),
                         icon: "heart.fill"
                     )
+                }
+                
+                // Key Deficiencies Preview (moved to top)
+                if !analysis.deficiencies.isEmpty {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("IBD-Specific Deficiencies")
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                            .foregroundColor(.primary)
+                        
+                        ForEach(analysis.deficiencies.prefix(3), id: \.id) { deficiency in
+                            HStack {
+                                Text(deficiency.nutrient)
+                                    .font(.caption)
+                                    .foregroundColor(.primary)
+                                
+                                Spacer()
+                                
+                                Text(deficiency.severity.rawValue.capitalized)
+                                    .font(.caption)
+                                    .foregroundColor(.red)
+                            }
+                        }
+                    }
+                    .padding(8)
+                    .background(Color.red.opacity(0.1))
+                    .cornerRadius(8)
+                } else {
+                    VStack(spacing: 8) {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.title2)
+                            .foregroundColor(.green)
+                        
+                        Text("All nutrients optimal!")
+                            .font(.subheadline)
+                            .fontWeight(.medium)
+                            .foregroundColor(.primary)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding()
                 }
                 
                 // Calculated Micronutrients Summary
                 if !calculatedMicronutrients.isEmpty {
                     VStack(alignment: .leading, spacing: 8) {
-                        Text("7-Day Average Micronutrients")
+                        Text("7 Day Daily Averages")
                             .font(.subheadline)
                             .fontWeight(.semibold)
                             .foregroundColor(.primary)
@@ -100,16 +153,16 @@ struct MicronutrientAnalysisCard: View {
                 // Food Sources with Serving Sizes
                 if !foodList.isEmpty {
                     VStack(alignment: .leading, spacing: 8) {
-                        Text("Food Sources (\(foodList.count) items)")
-                            .font(.caption)
+                        Text("Last 7 Day Food Portion Sizes")
+                            .font(.subheadline)
                             .fontWeight(.semibold)
-                            .foregroundColor(.blue)
+                            .foregroundColor(.primary)
                         
                         VStack(alignment: .leading, spacing: 4) {
                             ForEach(foodList, id: \.self) { food in
                                 HStack {
                                     Text(food)
-                                        .font(.caption2)
+                                        .font(.caption)
                                         .foregroundColor(.primary)
                                     
                                     Spacer()
@@ -118,10 +171,10 @@ struct MicronutrientAnalysisCard: View {
                                         Text(servingSize)
                                             .font(.caption2)
                                             .foregroundColor(.secondary)
-                                            .padding(.horizontal, 6)
-                                            .padding(.vertical, 2)
+                                            .padding(.horizontal, 8)
+                                            .padding(.vertical, 4)
                                             .background(Color.blue.opacity(0.1))
-                                            .cornerRadius(4)
+                                            .cornerRadius(6)
                                     }
                                 }
                             }
@@ -130,43 +183,6 @@ struct MicronutrientAnalysisCard: View {
                     .padding(8)
                     .background(Color.green.opacity(0.1))
                     .cornerRadius(8)
-                }
-                
-                // Key Deficiencies Preview
-                if !analysis.deficiencies.isEmpty {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Key Deficiencies")
-                            .font(.subheadline)
-                            .fontWeight(.semibold)
-                            .foregroundColor(.primary)
-                        
-                        ForEach(analysis.deficiencies.prefix(3), id: \.id) { deficiency in
-                            HStack {
-                                Text(deficiency.nutrient)
-                                    .font(.caption)
-                                    .foregroundColor(.primary)
-                                
-                                Spacer()
-                                
-                                Text(deficiency.severity.rawValue.capitalized)
-                                    .font(.caption)
-                                    .foregroundColor(.red)
-                            }
-                        }
-                    }
-                } else {
-                    VStack(spacing: 8) {
-                        Image(systemName: "checkmark.circle.fill")
-                            .font(.title2)
-                            .foregroundColor(.green)
-                        
-                        Text("All nutrients optimal!")
-                            .font(.subheadline)
-                            .fontWeight(.medium)
-                            .foregroundColor(.primary)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding()
                 }
             } else {
                 // No data state
@@ -187,9 +203,23 @@ struct MicronutrientAnalysisCard: View {
                 .padding()
             }
         }
-        .padding()
-        .background(Color(.systemGray6))
-        .cornerRadius(12)
+        .padding(20)
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color(.systemBackground))
+                .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 2)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 16)
+                .stroke(Color.blue.opacity(0.3), lineWidth: 1.5)
+        )
+        .buttonStyle(PlainButtonStyle())
+        .onTapGesture {
+            // Add haptic feedback
+            let impactFeedback = UIImpactFeedbackGenerator(style: .light)
+            impactFeedback.impactOccurred()
+            onTap()
+        }
         .padding(.horizontal)
         .onAppear {
             loadMicronutrientData()
@@ -205,190 +235,148 @@ struct MicronutrientAnalysisCard: View {
         }
         
         print("🥗 [MicronutrientAnalysisCard] Loading micronutrient data for user: \(userData.email)")
+        print("✅ [MicronutrientAnalysisCard] Using \(journalEntries.count) journal entries from HomeView")
         
-        // Fetch journal entries from the last 7 days
-        let calendar = Calendar.current
-        let endDate = Date()
-        let startDate = calendar.date(byAdding: .day, value: -7, to: endDate) ?? endDate
-        
-        let dateFormatter = DateFormatter()
-        dateFormatter.dateFormat = "yyyy-MM-dd"
-        let startDateString = dateFormatter.string(from: startDate)
-        let endDateString = dateFormatter.string(from: endDate)
-        
-        print("🔍 [MicronutrientAnalysisCard] Date range: \(startDateString) to \(endDateString)")
-        
-        guard let url = URL(string: "\(AppConfig.apiBaseURL)/journal/entries/\(userData.id)?startDate=\(startDateString)&endDate=\(endDateString)") else {
-            print("❌ [MicronutrientAnalysisCard] Invalid URL")
-            isLoading = false
-            return
-        }
-        
-        var request = URLRequest(url: url)
-        request.setValue("Bearer \(userData.token)", forHTTPHeaderField: "Authorization")
-        
-        print("🌐 [MicronutrientAnalysisCard] Fetching journal entries from: \(url)")
-        
-        URLSession.shared.dataTask(with: request) { data, response, error in
-            DispatchQueue.main.async {
-                self.isLoading = false
-                
-                if let error = error {
-                    print("❌ [MicronutrientAnalysisCard] Network error: \(error)")
-                    return
-                }
-                
-                guard let data = data else {
-                    print("❌ [MicronutrientAnalysisCard] No data received")
-                    return
-                }
-                
-                do {
-                    let journalEntries = try JSONDecoder().decode([JournalEntry].self, from: data)
-                    print("✅ [MicronutrientAnalysisCard] Successfully loaded \(journalEntries.count) journal entries")
-                    
-                            // Process foods and calculate micronutrients
-                            var allFoods: [String] = []
-                            var servingInfo: [String: String] = [:]
-                            var totalMeals = 0
-                            for entry in journalEntries {
-                                if let meals = entry.meals {
-                                    totalMeals += meals.count
-                                    for meal in meals {
-                                        if !meal.description.isEmpty {
-                                            allFoods.append(meal.description)
-                                            
-                                            // Capture serving size information
-                                            var servingText = ""
-                                            if let servingSize = meal.serving_size, let servingUnit = meal.serving_unit {
-                                                servingText = "\(servingSize) \(servingUnit)"
-                                            } else if let servingDescription = meal.serving_description, !servingDescription.isEmpty {
-                                                servingText = servingDescription
-                                            } else {
-                                                // Use fallback serving size from calculation
-                                                let fallbackSize = self.micronutrientCalculator.parseServingSize(from: meal.description)
-                                                servingText = "~\(String(format: "%.1f", fallbackSize)) cups (estimated)"
-                                            }
-                                            servingInfo[meal.description] = servingText
-                                        }
-                                    }
-                                }
-                            }
-                            
-                            self.foodList = allFoods
-                            self.servingSizeInfo = servingInfo
-                            print("🍽️ [MicronutrientAnalysisCard] Found \(totalMeals) meals, \(allFoods.count) food items")
-                            print("🍽️ [MicronutrientAnalysisCard] Food items: \(allFoods.joined(separator: ", "))")
-                            print("🍽️ [MicronutrientAnalysisCard] Serving sizes: \(servingInfo)")
-                    
-                    // Fetch user's actual micronutrient profile
-                    Task {
-                        do {
-                            let profile = try await self.fetchMicronutrientProfile(userId: userData.id)
-                            
-                            // Use the fetched profile or create a default one
-                            let profileToUse = profile ?? MicronutrientProfile(
-                                userId: userData.id,
-                                age: 30,
-                                weight: 70.0,
-                                height: 170.0,
-                                gender: "male",
-                                diseaseActivity: .remission,
-                                labResults: [],
-                                supplements: []
-                            )
-                            
-                            // Calculate micronutrient intake from journal entries
-                            let dailyIntakeResult = self.micronutrientCalculator.calculateDailyMicronutrientIntake(
-                                from: journalEntries,
-                                userProfile: profileToUse
-                            )
-                            
-                            // Analyze deficiencies and excesses
-                            let analysis = self.deficiencyAnalyzer.analyzeMicronutrientStatus(
-                                dailyIntakeResult.totalIntake,
-                                dailyIntakeResult.requirements,
-                                profileToUse.labResults
-                            )
-                            
-                            // Store the original dailyIntakeResult (without deficiencies/excesses)
-                            self.dailyIntake = dailyIntakeResult
-                            self.micronutrientAnalysis = analysis
-                            
-                            // Extract calculated micronutrients for display
-                            let intake = dailyIntakeResult.totalIntake
-                            print("🧪 [MicronutrientAnalysisCard] Success calculation - Vitamin C: \(intake.vitaminC), Iron: \(intake.iron)")
-                            
-                            self.calculatedMicronutrients = [
-                                "Vitamin A": intake.vitaminA,
-                                "Vitamin C": intake.vitaminC,
-                                "Iron": intake.iron,
-                                "Potassium": intake.potassium,
-                                "Vitamin B12": intake.vitaminB12,
-                                "Vitamin B9": intake.vitaminB9,
-                                "Zinc": intake.zinc,
-                                "Calcium": intake.calcium,
-                                "Vitamin D": intake.vitaminD,
-                                "Magnesium": intake.magnesium
-                            ]
-                            
-                            print("✅ [MicronutrientAnalysisCard] Calculated micronutrient intake")
-                            print("🧪 [MicronutrientAnalysisCard] Micronutrient totals: C=\(intake.vitaminC), Iron=\(intake.iron), K=\(intake.potassium)")
-                            print("🧪 [MicronutrientAnalysisCard] All micronutrients: \(self.calculatedMicronutrients)")
-                            print("🧪 [MicronutrientAnalysisCard] Success micronutrients set: \(self.calculatedMicronutrients.count) items")
-                            
-                        } catch {
-                            print("❌ [MicronutrientAnalysisCard] Failed to fetch profile: \(error)")
-                            
-                            // Fallback to default profile
-                            let dailyIntakeResult = self.micronutrientCalculator.calculateDailyMicronutrientIntake(
-                                from: journalEntries,
-                                userProfile: MicronutrientProfile(
-                                    userId: userData.id,
-                                    age: 30,
-                                    weight: 70.0,
-                                    height: 170.0,
-                                    gender: "male",
-                                    diseaseActivity: .remission,
-                                    labResults: [],
-                                    supplements: []
-                                )
-                            )
-                            
-                            let analysis = self.deficiencyAnalyzer.analyzeMicronutrientStatus(
-                                dailyIntakeResult.totalIntake,
-                                dailyIntakeResult.requirements,
-                                []
-                            )
-                            
-                            self.dailyIntake = dailyIntakeResult
-                            self.micronutrientAnalysis = analysis
-                            
-                            let intake = dailyIntakeResult.totalIntake
-                            print("🧪 [MicronutrientAnalysisCard] Fallback calculation - Vitamin C: \(intake.vitaminC), Iron: \(intake.iron)")
-                            
-                            self.calculatedMicronutrients = [
-                                "Vitamin A": intake.vitaminA,
-                                "Vitamin C": intake.vitaminC,
-                                "Iron": intake.iron,
-                                "Potassium": intake.potassium,
-                                "Vitamin B12": intake.vitaminB12,
-                                "Vitamin B9": intake.vitaminB9,
-                                "Zinc": intake.zinc,
-                                "Calcium": intake.calcium,
-                                "Vitamin D": intake.vitaminD,
-                                "Magnesium": intake.magnesium
-                            ]
-                            
-                            print("🧪 [MicronutrientAnalysisCard] Fallback micronutrients set: \(self.calculatedMicronutrients.count) items")
+        // Process foods and calculate micronutrients from the passed journal entries
+        var allFoods: [String] = []
+        var servingInfo: [String: String] = [:]
+        var totalMeals = 0
+        for entry in journalEntries {
+            if let meals = entry.meals {
+                totalMeals += meals.count
+                for meal in meals {
+                    if !meal.description.isEmpty {
+                        allFoods.append(meal.description)
+                        
+                        // Capture serving size information
+                        var servingText = ""
+                        if let servingSize = meal.serving_size, let servingUnit = meal.serving_unit {
+                            servingText = "\(servingSize) \(servingUnit)"
+                        } else if let servingDescription = meal.serving_description, !servingDescription.isEmpty {
+                            servingText = servingDescription
+                        } else {
+                            // Use fallback serving size from calculation
+                            let fallbackSize = self.micronutrientCalculator.parseServingSize(from: meal.description)
+                            servingText = "~\(String(format: "%.1f", fallbackSize)) cups (estimated)"
                         }
+                        servingInfo[meal.description] = servingText
                     }
-                    
-                } catch {
-                    print("❌ [MicronutrientAnalysisCard] JSON decode error: \(error)")
                 }
             }
-        }.resume()
+        }
+        
+        self.foodList = allFoods
+        self.servingSizeInfo = servingInfo
+        print("🍽️ [MicronutrientAnalysisCard] Found \(totalMeals) meals, \(allFoods.count) food items")
+        print("🍽️ [MicronutrientAnalysisCard] Food items: \(allFoods.joined(separator: ", "))")
+        print("🍽️ [MicronutrientAnalysisCard] Serving sizes: \(servingInfo)")
+        
+        // Fetch user's actual micronutrient profile
+        Task {
+            do {
+                let profile = try await self.fetchMicronutrientProfile(userId: userData.id)
+                
+                // Use the fetched profile or create a default one
+                let profileToUse = profile ?? MicronutrientProfile(
+                    userId: userData.id,
+                    age: 30,
+                    weight: 70.0,
+                    height: 170.0,
+                    gender: "male",
+                    diseaseActivity: .remission,
+                    labResults: [],
+                    supplements: []
+                )
+                            
+                // Calculate micronutrient intake from journal entries
+                let dailyIntakeResult = self.micronutrientCalculator.calculateDailyMicronutrientIntake(
+                    from: journalEntries,
+                    userProfile: profileToUse
+                )
+                
+                // Analyze deficiencies and excesses
+                let analysis = self.deficiencyAnalyzer.analyzeMicronutrientStatus(
+                    dailyIntakeResult.totalIntake,
+                    dailyIntakeResult.requirements,
+                    profileToUse.labResults
+                )
+                
+                // Store the original dailyIntakeResult (without deficiencies/excesses)
+                self.dailyIntake = dailyIntakeResult
+                self.micronutrientAnalysis = analysis
+                
+                // Extract calculated micronutrients for display
+                let intake = dailyIntakeResult.totalIntake
+                print("🧪 [MicronutrientAnalysisCard] Success calculation - Vitamin C: \(intake.vitaminC), Iron: \(intake.iron)")
+                
+                self.calculatedMicronutrients = [
+                    "Vitamin A": intake.vitaminA,
+                    "Vitamin C": intake.vitaminC,
+                    "Iron": intake.iron,
+                    "Potassium": intake.potassium,
+                    "Vitamin B12": intake.vitaminB12,
+                    "Vitamin B9": intake.vitaminB9,
+                    "Zinc": intake.zinc,
+                    "Calcium": intake.calcium,
+                    "Vitamin D": intake.vitaminD,
+                    "Magnesium": intake.magnesium
+                ]
+                
+                print("✅ [MicronutrientAnalysisCard] Calculated micronutrient intake")
+                print("🧪 [MicronutrientAnalysisCard] Micronutrient totals: C=\(intake.vitaminC), Iron=\(intake.iron), K=\(intake.potassium)")
+                print("🧪 [MicronutrientAnalysisCard] All micronutrients: \(self.calculatedMicronutrients)")
+                print("🧪 [MicronutrientAnalysisCard] Success micronutrients set: \(self.calculatedMicronutrients.count) items")
+                
+            } catch {
+                print("❌ [MicronutrientAnalysisCard] Failed to fetch profile: \(error)")
+                
+                // Fallback to default profile
+                let dailyIntakeResult = self.micronutrientCalculator.calculateDailyMicronutrientIntake(
+                    from: journalEntries,
+                    userProfile: MicronutrientProfile(
+                        userId: userData.id,
+                        age: 30,
+                        weight: 70.0,
+                        height: 170.0,
+                        gender: "male",
+                        diseaseActivity: .remission,
+                        labResults: [],
+                        supplements: []
+                    )
+                )
+                
+                let analysis = self.deficiencyAnalyzer.analyzeMicronutrientStatus(
+                    dailyIntakeResult.totalIntake,
+                    dailyIntakeResult.requirements,
+                    []
+                )
+                
+                self.dailyIntake = dailyIntakeResult
+                self.micronutrientAnalysis = analysis
+                
+                let intake = dailyIntakeResult.totalIntake
+                print("🧪 [MicronutrientAnalysisCard] Fallback calculation - Vitamin C: \(intake.vitaminC), Iron: \(intake.iron)")
+                
+                self.calculatedMicronutrients = [
+                    "Vitamin A": intake.vitaminA,
+                    "Vitamin C": intake.vitaminC,
+                    "Iron": intake.iron,
+                    "Potassium": intake.potassium,
+                    "Vitamin B12": intake.vitaminB12,
+                    "Vitamin B9": intake.vitaminB9,
+                    "Zinc": intake.zinc,
+                    "Calcium": intake.calcium,
+                    "Vitamin D": intake.vitaminD,
+                    "Magnesium": intake.magnesium
+                ]
+                
+                print("🧪 [MicronutrientAnalysisCard] Fallback micronutrients set: \(self.calculatedMicronutrients.count) items")
+            }
+        }
+        
+        DispatchQueue.main.async {
+            self.isLoading = false
+        }
     }
     
     private func fetchMicronutrientProfile(userId: String) async throws -> MicronutrientProfile? {
@@ -444,6 +432,23 @@ struct MicronutrientAnalysisCard: View {
             return "Fair"
         default:
             return "Needs Work"
+        }
+    }
+    
+    private func getIBDScoreColor(_ analysis: IBDMicronutrientAnalysis) -> Color {
+        let optimalCount = countOptimalNutrients(analysis)
+        let totalCount = 6
+        let percentage = Double(optimalCount) / Double(totalCount) * 100
+        
+        switch percentage {
+        case 80...100:
+            return .green
+        case 60..<80:
+            return .blue
+        case 40..<60:
+            return .orange
+        default:
+            return .orange  // "Needs Work" will be orange
         }
     }
 }
@@ -546,6 +551,7 @@ struct MicronutrientItem: View {
 #Preview {
     MicronutrientAnalysisCard(
         userData: UserData(id: "1", email: "test@example.com", name: "Test User", phoneNumber: nil, token: "token"),
+        journalEntries: [],
         onTap: {}
     )
 }

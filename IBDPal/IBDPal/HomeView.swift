@@ -12,65 +12,46 @@ struct HomeView: View {
     @State private var loadingNutrition = false
     @State private var showingMicronutrientAnalysis = false
     @State private var userProfile: MicronutrientProfile?
+    @State private var selectedTab = 0 // 0 for Overview, 1 for Micronutrients, 2 for Macronutrients
+    @State private var showingNutritionScoreInfo = false
+    @State private var showingFlareRiskInfo = false
     
     let userData: UserData?
     @ObservedObject var dataRefreshManager: DataRefreshManager
     
     var body: some View {
         NavigationView {
-            ScrollView {
-                VStack(spacing: 20) {
-                    // 1. Welcome Header - at the very top
-                    welcomeHeader
-                    
-                    // 2. Micronutrient Analysis Card
-                    MicronutrientAnalysisCard(userData: userData) {
-                        showingMicronutrientAnalysis = true
+            VStack(spacing: 0) {
+                // Welcome Header - always visible at the top
+                welcomeHeader
+                    .padding(.horizontal)
+                    .padding(.top, 10)
+                
+                // Tab Selector
+                tabSelector
+                
+                // Tab Content
+                ScrollView {
+                    VStack(spacing: 20) {
+                        if selectedTab == 0 {
+                            // Overview Tab
+                            overviewContent
+                        } else if selectedTab == 1 {
+                            // Micronutrients Tab
+                            micronutrientsContent
+                        } else {
+                            // Macronutrients Tab
+                            macronutrientsContent
+                        }
+                        
+                        // No common components - all content is tab-specific
+                        
+                        Spacer(minLength: 100)
                     }
-                    .accessibilityLabel("Micronutrient analysis for IBD patients")
-                    .accessibilityHint("Double tap to view detailed micronutrient breakdown and recommendations")
-                    
-                    // 3. Original Comprehensive Nutrition Analysis Section
-                    if loadingNutrition {
-                        ProgressView("Analyzing nutrition data...")
-                            .frame(maxWidth: .infinity)
-                            .padding()
-                            .background(Color.ibdSurfaceBackground)
-                            .cornerRadius(12)
-                            .padding(.horizontal)
-                    } else {
-                        // Nutrition Deficiencies Analysis
-                        NutritionDeficienciesCard(analysis: nutritionAnalysis)
-                            .accessibilityLabel("Nutrition deficiencies analysis")
-                            .accessibilityHint("Shows potential nutrient deficiencies based on your food intake")
-                        
-                        // Dietician Recommendations
-                        DieticianRecommendationsCard(analysis: nutritionAnalysis, userProfile: userProfile)
-                            .accessibilityLabel("Dietician recommendations")
-                            .accessibilityHint("Professional dietary recommendations for IBD management")
-                        
-                        // Weekly Nutrition Trends
-                        WeeklyNutritionTrendsCard(analysis: nutritionAnalysis, userProfile: userProfile)
-                            .accessibilityLabel("Weekly nutrition trends")
-                            .accessibilityHint("Compare your actual intake with recommended daily values")
-                        
-                        // Nutrition Insights Tab
-                        NutritionInsightsCard(analysis: nutritionAnalysis)
-                            .accessibilityLabel("Nutrition insights")
-                            .accessibilityHint("Detailed nutrition analysis and health insights")
-                    }
-                    
-                    // Quick Stats Grid - Now includes both Nutrition and Flare Risk
-                    quickStatsGrid
-                    
-                    // Recent Reminders
-                    recentReminders
-                    
-                    Spacer(minLength: 100)
+                    .padding(.vertical)
                 }
-                .padding(.vertical)
+                .background(Color.ibdBackground)
             }
-            .background(Color.ibdBackground)
             .navigationTitle("IBDPal")
             .navigationBarTitleDisplayMode(.large)
             .onAppear {
@@ -82,6 +63,12 @@ struct HomeView: View {
                 // Refresh data when refresh trigger changes
                 print("🏠 [HomeView] Refresh triggered - reloading data")
                 loadData()
+            }
+            .sheet(isPresented: $showingNutritionScoreInfo) {
+                NutritionScoreInfoView()
+            }
+            .sheet(isPresented: $showingFlareRiskInfo) {
+                FlareRiskInfoView()
             }
             .sheet(isPresented: $showingMicronutrientAnalysis) {
                 IBDNutritionAnalysisView(
@@ -97,6 +84,573 @@ struct HomeView: View {
                 }
             }
         }
+    }
+    
+    // MARK: - Tab Selector
+    @ViewBuilder
+    private var tabSelector: some View {
+        HStack(spacing: 0) {
+            Button(action: { selectedTab = 0 }) {
+                VStack(spacing: 8) {
+                    Text("Overview")
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                        .foregroundColor(selectedTab == 0 ? .ibdPrimary : .secondary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                    
+                    Rectangle()
+                        .fill(selectedTab == 0 ? Color.ibdPrimary : Color.clear)
+                        .frame(height: 3)
+                        .cornerRadius(1.5)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 12)
+            }
+            .buttonStyle(PlainButtonStyle())
+            
+            // Vertical separator
+            Rectangle()
+                .fill(Color.ibdPrimary.opacity(0.2))
+                .frame(width: 1, height: 40)
+            
+            Button(action: { selectedTab = 1 }) {
+                VStack(spacing: 8) {
+                    Text("Micronutrients")
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                        .foregroundColor(selectedTab == 1 ? .ibdPrimary : .secondary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                    
+                    Rectangle()
+                        .fill(selectedTab == 1 ? Color.ibdPrimary : Color.clear)
+                        .frame(height: 3)
+                        .cornerRadius(1.5)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 12)
+            }
+            .buttonStyle(PlainButtonStyle())
+            
+            // Vertical separator
+            Rectangle()
+                .fill(Color.ibdPrimary.opacity(0.2))
+                .frame(width: 1, height: 40)
+            
+            Button(action: { selectedTab = 2 }) {
+                VStack(spacing: 8) {
+                    Text("Macronutrients")
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                        .foregroundColor(selectedTab == 2 ? .ibdPrimary : .secondary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                    
+                    Rectangle()
+                        .fill(selectedTab == 2 ? Color.ibdPrimary : Color.clear)
+                        .frame(height: 3)
+                        .cornerRadius(1.5)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 12)
+            }
+            .buttonStyle(PlainButtonStyle())
+        }
+        .background(Color.ibdSurfaceBackground)
+        .cornerRadius(12)
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(Color.ibdPrimary.opacity(0.3), lineWidth: 2)
+        )
+        .padding(.horizontal)
+        .padding(.vertical, 8)
+    }
+    
+    // MARK: - Overview Content
+    @ViewBuilder
+    private var overviewContent: some View {
+        VStack(spacing: 20) {
+            // Today's Overview - moved from Other Nutrients tab
+            if loadingNutrition {
+                VStack(spacing: 16) {
+                    ProgressView()
+                        .scaleEffect(1.2)
+                    
+                    Text("Analyzing nutrition data...")
+                        .font(.headline)
+                        .foregroundColor(.primary)
+                    
+                    Text("Processing your nutrition data")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(40)
+                .background(
+                    RoundedRectangle(cornerRadius: 16)
+                        .fill(Color(.systemBackground))
+                        .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 2)
+                )
+            } else {
+                // Quick Stats Grid (Today's Overview)
+                quickStatsGrid
+                
+                // Daily Log Status - Completed and Pending Activities
+                dailyLogStatusCard
+            }
+        }
+        .padding(.horizontal)
+    }
+    
+    // MARK: - Micronutrients Content
+    @ViewBuilder
+    private var micronutrientsContent: some View {
+        VStack(spacing: 20) {
+            // Micronutrient Analysis Card
+            MicronutrientAnalysisCard(userData: userData, journalEntries: journalEntries) {
+                showingMicronutrientAnalysis = true
+            }
+            .accessibilityLabel("Micronutrient analysis for IBD patients")
+            .accessibilityHint("Double tap to view detailed micronutrient breakdown and recommendations")
+        }
+        .padding(.horizontal)
+    }
+    
+    // MARK: - Daily Log Status Card
+    @ViewBuilder
+    private var dailyLogStatusCard: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            // Header with icon
+            HStack {
+                Image(systemName: "checklist")
+                    .font(.title2)
+                    .foregroundColor(.blue)
+                
+                Text("Daily Log Status")
+                    .font(.title2)
+                    .fontWeight(.bold)
+                    .foregroundColor(.primary)
+                
+                Spacer()
+            }
+            
+            // Completed Activities
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundColor(.green)
+                        .font(.title3)
+                    
+                    Text("Completed")
+                        .font(.headline)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.green)
+                    
+                    Spacer()
+                }
+                
+                LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 2), spacing: 8) {
+                    ForEach(getCompletedActivities(), id: \.self) { activity in
+                        HStack {
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundColor(.green)
+                                .font(.caption)
+                            
+                            Text(activity)
+                                .font(.caption)
+                                .foregroundColor(.primary)
+                            
+                            Spacer()
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .background(
+                            RoundedRectangle(cornerRadius: 8)
+                                .fill(Color.green.opacity(0.1))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 8)
+                                        .stroke(Color.green.opacity(0.3), lineWidth: 1)
+                                )
+                        )
+                    }
+                }
+            }
+            
+            // Pending Activities
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    Image(systemName: "clock.circle.fill")
+                        .foregroundColor(.orange)
+                        .font(.title3)
+                    
+                    Text("Pending")
+                        .font(.headline)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.orange)
+                    
+                    Spacer()
+                }
+                
+                LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 2), spacing: 8) {
+                    ForEach(getPendingActivities(), id: \.self) { activity in
+                        HStack {
+                            Image(systemName: "clock.circle.fill")
+                                .foregroundColor(.orange)
+                                .font(.caption)
+                            
+                            Text(activity)
+                                .font(.caption)
+                                .foregroundColor(.primary)
+                            
+                            Spacer()
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .background(
+                            RoundedRectangle(cornerRadius: 8)
+                                .fill(Color.orange.opacity(0.1))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 8)
+                                        .stroke(Color.orange.opacity(0.3), lineWidth: 1)
+                                )
+                        )
+                    }
+                }
+            }
+        }
+        .padding(20)
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color(.systemBackground))
+                .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 2)
+        )
+    }
+    
+    // MARK: - Daily Log Status Helper Functions
+    private func parseJournalDate(_ dateString: String) -> Date {
+        // First try ISO8601 format (for server responses)
+        let isoFormatter = ISO8601DateFormatter()
+        isoFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        
+        if let date = isoFormatter.date(from: dateString) {
+            print("🔍 [DailyLogStatus] Parsed ISO8601 with fractional seconds: \(dateString) -> \(date)")
+            return date
+        }
+        
+        // Try ISO8601 without fractional seconds
+        let isoFormatter2 = ISO8601DateFormatter()
+        isoFormatter2.formatOptions = [.withInternetDateTime]
+        
+        if let date = isoFormatter2.date(from: dateString) {
+            print("🔍 [DailyLogStatus] Parsed ISO8601 without fractional seconds: \(dateString) -> \(date)")
+            return date
+        }
+        
+        // Try simple date format (yyyy-MM-dd) used when saving entries
+        let simpleFormatter = DateFormatter()
+        simpleFormatter.dateFormat = "yyyy-MM-dd"
+        simpleFormatter.timeZone = TimeZone(identifier: "UTC")
+        
+        if let date = simpleFormatter.date(from: dateString) {
+            print("🔍 [DailyLogStatus] Parsed simple date format: \(dateString) -> \(date)")
+            return date
+        }
+        
+        // Fallback to distant past if parsing fails
+        print("⚠️ [DailyLogStatus] Failed to parse date: \(dateString)")
+        return Date.distantPast
+    }
+    
+    private func getCompletedActivities() -> [String] {
+        var completed: [String] = []
+        
+        // Check if there's a journal entry for today
+        let today = Date()
+        var calendar = Calendar.current
+        calendar.timeZone = TimeZone(identifier: "UTC")!
+        let todayComponents = calendar.dateComponents([.year, .month, .day], from: today)
+        
+        print("🔍 [DailyLogStatus] Checking for today's entry. Today: \(todayComponents)")
+        print("🔍 [DailyLogStatus] Total journal entries: \(journalEntries.count)")
+        
+        for entry in journalEntries {
+            let entryDateString = entry.entry_date
+            let entryDate = parseJournalDate(entryDateString)
+            let entryComponents = calendar.dateComponents([.year, .month, .day], from: entryDate)
+            
+            print("🔍 [DailyLogStatus] Checking entry date: \(entryComponents) from string: \(entryDateString)")
+            
+            if entryComponents.year == todayComponents.year &&
+               entryComponents.month == todayComponents.month &&
+               entryComponents.day == todayComponents.day {
+                
+                print("✅ [DailyLogStatus] Found today's entry, analyzing completion status...")
+                
+                // Check each form completion
+                if hasMealsData(entry) {
+                    completed.append("Meals")
+                    print("✅ [DailyLogStatus] Meals: COMPLETED")
+                } else {
+                    print("❌ [DailyLogStatus] Meals: NOT COMPLETED")
+                }
+                
+                if hasSymptomsData(entry) {
+                    completed.append("Symptoms")
+                    print("✅ [DailyLogStatus] Symptoms: COMPLETED")
+                } else {
+                    print("❌ [DailyLogStatus] Symptoms: NOT COMPLETED")
+                }
+                
+                if hasBowelHealthData(entry) {
+                    completed.append("Bowel Health")
+                    print("✅ [DailyLogStatus] Bowel Health: COMPLETED")
+                } else {
+                    print("❌ [DailyLogStatus] Bowel Health: NOT COMPLETED")
+                }
+                
+                if hasMedicationData(entry) {
+                    completed.append("Medication")
+                    print("✅ [DailyLogStatus] Medication: COMPLETED")
+                } else {
+                    print("❌ [DailyLogStatus] Medication: NOT COMPLETED")
+                }
+                
+                if hasSupplementsData(entry) {
+                    completed.append("Supplements")
+                    print("✅ [DailyLogStatus] Supplements: COMPLETED")
+                } else {
+                    print("❌ [DailyLogStatus] Supplements: NOT COMPLETED")
+                }
+                
+                if hasSleepData(entry) {
+                    completed.append("Sleep")
+                    print("✅ [DailyLogStatus] Sleep: COMPLETED")
+                } else {
+                    print("❌ [DailyLogStatus] Sleep: NOT COMPLETED")
+                }
+                
+                if hasStressData(entry) {
+                    completed.append("Stress")
+                    print("✅ [DailyLogStatus] Stress: COMPLETED")
+                } else {
+                    print("❌ [DailyLogStatus] Stress: NOT COMPLETED")
+                }
+                
+                if hasHydrationData(entry) {
+                    completed.append("Hydration")
+                    print("✅ [DailyLogStatus] Hydration: COMPLETED")
+                } else {
+                    print("❌ [DailyLogStatus] Hydration: NOT COMPLETED")
+                }
+                
+                print("📊 [DailyLogStatus] Final completed activities: \(completed)")
+                break
+            }
+        }
+        
+        if completed.isEmpty {
+            print("⚠️ [DailyLogStatus] No journal entry found for today or no activities completed")
+            print("🔍 [DailyLogStatus] This means all activities will show as pending")
+        }
+        
+        return completed
+    }
+    
+    private func getPendingActivities() -> [String] {
+        let allActivities = ["Meals", "Symptoms", "Bowel Health", "Medication", "Supplements", "Sleep", "Stress", "Hydration"]
+        let completed = getCompletedActivities()
+        return allActivities.filter { !completed.contains($0) }
+    }
+    
+    private func hasMealsData(_ entry: JournalEntry) -> Bool {
+        return entry.meals?.isEmpty == false
+    }
+    
+    private func hasSymptomsData(_ entry: JournalEntry) -> Bool {
+        return entry.symptoms?.isEmpty == false
+    }
+    
+    private func hasBowelHealthData(_ entry: JournalEntry) -> Bool {
+        return entry.bowel_movements?.isEmpty == false || entry.bowel_frequency != nil
+    }
+    
+    private func hasMedicationData(_ entry: JournalEntry) -> Bool {
+        // Check if there's meaningful medication data
+        // Check for medication_type that's not "None" or has medication_taken
+        return (entry.medication_type != nil && entry.medication_type != "None") || 
+               entry.medication_taken == true ||
+               (entry.dosage_level != nil && entry.dosage_level != "0") ||
+               entry.last_taken_date != nil
+    }
+    
+    private func hasSupplementsData(_ entry: JournalEntry) -> Bool {
+        // Check if there's meaningful supplement data
+        return entry.supplements_taken == true ||
+               (entry.supplements_count != nil && entry.supplements_count! > 0) ||
+               (entry.supplement_details != nil && !entry.supplement_details!.isEmpty)
+    }
+    
+    private func hasSleepData(_ entry: JournalEntry) -> Bool {
+        // Check if there's meaningful sleep data
+        return entry.sleep_hours != nil ||
+               entry.sleep_quality != nil ||
+               (entry.sleep_notes != nil && !entry.sleep_notes!.isEmpty)
+    }
+    
+    private func hasStressData(_ entry: JournalEntry) -> Bool {
+        // Check if there's meaningful stress data
+        return entry.stress_level != nil ||
+               (entry.stress_source != nil && !entry.stress_source!.isEmpty) ||
+               (entry.coping_strategies != nil && !entry.coping_strategies!.isEmpty)
+    }
+    
+    private func hasHydrationData(_ entry: JournalEntry) -> Bool {
+        return (entry.water_intake != nil && Double(entry.water_intake ?? "0") ?? 0 > 0) ||
+               (entry.other_fluids != nil && Double(entry.other_fluids ?? "0") ?? 0 > 0)
+    }
+    
+    // MARK: - Flare Risk Calculation
+    
+    private func getFlareRiskLevel() -> String {
+        let riskScore = calculateFlareRiskScore()
+        
+        if riskScore >= 70 {
+            return "High"
+        } else if riskScore >= 40 {
+            return "Medium"
+        } else {
+            return "Low"
+        }
+    }
+    
+    private func getFlareRiskColor() -> Color {
+        let riskScore = calculateFlareRiskScore()
+        
+        if riskScore >= 70 {
+            return .red
+        } else if riskScore >= 40 {
+            return .orange
+        } else {
+            return .green
+        }
+    }
+    
+    private func calculateFlareRiskScore() -> Int {
+        guard !journalEntries.isEmpty else { return 0 }
+        
+        var totalScore = 0
+        var entryCount = 0
+        
+        // Get last 7 days of entries
+        let last7Days = journalEntries.prefix(7)
+        
+        for entry in last7Days {
+            var entryScore = 0
+            
+            // Blood present is a major risk factor
+            if let bloodPresent = entry.blood_present, bloodPresent {
+                entryScore += 40
+            }
+            
+            // Mucus present is also concerning
+            if let mucusPresent = entry.mucus_present, mucusPresent {
+                entryScore += 20
+            }
+            
+            // High pain severity
+            if let painSeverity = entry.pain_severity, painSeverity >= 4 {
+                entryScore += 30
+            } else if let painSeverity = entry.pain_severity, painSeverity >= 3 {
+                entryScore += 15
+            }
+            
+            // High urgency level
+            if let urgencyLevel = entry.urgency_level, urgencyLevel >= 4 {
+                entryScore += 25
+            } else if let urgencyLevel = entry.urgency_level, urgencyLevel >= 3 {
+                entryScore += 10
+            }
+            
+            // High stress level
+            if let stressLevel = entry.stress_level, stressLevel >= 4 {
+                entryScore += 20
+            } else if let stressLevel = entry.stress_level, stressLevel >= 3 {
+                entryScore += 10
+            }
+            
+            // High fatigue level
+            if let fatigueLevel = entry.fatigue_level, fatigueLevel >= 4 {
+                entryScore += 15
+            } else if let fatigueLevel = entry.fatigue_level, fatigueLevel >= 3 {
+                entryScore += 5
+            }
+            
+            // Poor sleep quality
+            if let sleepQuality = entry.sleep_quality, sleepQuality <= 2 {
+                entryScore += 15
+            } else if let sleepQuality = entry.sleep_quality, sleepQuality <= 3 {
+                entryScore += 5
+            }
+            
+            totalScore += entryScore
+            entryCount += 1
+        }
+        
+        // Calculate average score per day
+        let averageScore = entryCount > 0 ? totalScore / entryCount : 0
+        
+        // Cap the score at 100
+        return min(100, averageScore)
+    }
+    
+    // MARK: - Macronutrients Content
+    @ViewBuilder
+    private var macronutrientsContent: some View {
+        VStack(spacing: 20) {
+            if loadingNutrition {
+                VStack(spacing: 16) {
+                    ProgressView()
+                        .scaleEffect(1.2)
+                    
+                    Text("Analyzing nutrition data...")
+                        .font(.headline)
+                        .foregroundColor(.primary)
+                    
+                    Text("Processing your nutrition data")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(40)
+                .background(
+                    RoundedRectangle(cornerRadius: 16)
+                        .fill(Color(.systemBackground))
+                        .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 2)
+                )
+            } else {
+                // Nutrition Deficiencies Analysis (moved from Micronutrients)
+                NutritionDeficienciesCard(analysis: nutritionAnalysis)
+                    .accessibilityLabel("Nutrition deficiencies analysis")
+                    .accessibilityHint("Shows potential nutrient deficiencies based on your food intake")
+                
+                // Weekly Nutrition Trends
+                WeeklyNutritionTrendsCard(analysis: nutritionAnalysis, userProfile: userProfile)
+                    .accessibilityLabel("Weekly nutrition trends")
+                    .accessibilityHint("Compare your actual intake with recommended daily values")
+                
+                // IBDPal Recommendations
+                DieticianRecommendationsCard(analysis: nutritionAnalysis, userProfile: userProfile)
+                    .accessibilityLabel("IBDPal recommendations")
+                    .accessibilityHint("Professional dietary recommendations for IBD management")
+                
+                // Nutrition Insights Tab
+                NutritionInsightsCard(analysis: nutritionAnalysis)
+                    .accessibilityLabel("Nutrition insights")
+                    .accessibilityHint("Detailed nutrition analysis and health insights")
+            }
+        }
+        .padding(.horizontal)
     }
     
     // MARK: - Welcome Header
@@ -142,31 +696,67 @@ struct HomeView: View {
     // MARK: - Quick Stats Grid
     @ViewBuilder
     private var quickStatsGrid: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("Today's Overview")
-                .font(.headline)
-                .fontWeight(.semibold)
-                .foregroundColor(.ibdPrimaryText)
-                .padding(.horizontal)
+        VStack(alignment: .leading, spacing: 20) {
+            // Header with icon
+            HStack {
+                Image(systemName: "chart.bar.fill")
+                    .font(.title2)
+                    .foregroundColor(.blue)
+                
+                Text("Today's Overview")
+                    .font(.title2)
+                    .fontWeight(.bold)
+                    .foregroundColor(.primary)
+                
+                Spacer()
+            }
             
             LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 2), spacing: 12) {
-                // Nutrition Score
-                StatCard(
-                    title: "Nutrition Score",
-                    value: "\(nutritionAnalysis.overallScore)",
-                    subtitle: "/100",
-                    icon: "leaf.fill",
-                    color: nutritionAnalysis.overallScore >= 70 ? .green : nutritionAnalysis.overallScore >= 50 ? .orange : .red
-                )
+                // Nutrition Score with info button
+                VStack(spacing: 8) {
+                    StatCard(
+                        title: "Nutrition Score",
+                        value: "\(nutritionAnalysis.overallScore)",
+                        subtitle: "/100",
+                        icon: "leaf.fill",
+                        color: nutritionAnalysis.overallScore >= 70 ? .green : nutritionAnalysis.overallScore >= 50 ? .orange : .red
+                    )
+                    
+                    Button(action: {
+                        showingNutritionScoreInfo = true
+                    }) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "info.circle")
+                                .font(.caption)
+                            Text("How is this calculated?")
+                                .font(.caption)
+                        }
+                        .foregroundColor(.blue)
+                    }
+                }
                 
-                // Flare Risk
-                StatCard(
-                    title: "Flare Risk",
-                    value: "Low",
-                    subtitle: "Risk",
-                    icon: "heart.fill",
-                    color: .green
-                )
+                // Flare Risk with info button
+                VStack(spacing: 8) {
+                    StatCard(
+                        title: "Flare Risk",
+                        value: getFlareRiskLevel(),
+                        subtitle: "Risk",
+                        icon: "heart.fill",
+                        color: getFlareRiskColor()
+                    )
+                    
+                    Button(action: {
+                        showingFlareRiskInfo = true
+                    }) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "info.circle")
+                                .font(.caption)
+                            Text("How is this calculated?")
+                                .font(.caption)
+                        }
+                        .foregroundColor(.blue)
+                    }
+                }
                 
                 // Daily Meals
                 StatCard(
@@ -187,7 +777,12 @@ struct HomeView: View {
                 )
             }
         }
-        .padding(.horizontal)
+        .padding(20)
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color(.systemBackground))
+                .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 2)
+        )
     }
     
     // MARK: - Recent Reminders
@@ -692,30 +1287,25 @@ struct HomeView: View {
     }
     
     private func getRecommendedWeeklyIntake(profile: MicronutrientProfile) -> WeeklyNutritionTotals {
-        let requirements = IBDMicronutrientRequirements(
-            age: profile.age,
-            gender: profile.gender ?? "Unknown",
-            weight: profile.weight,
-            diseaseActivity: profile.diseaseActivity,
-            diseaseType: profile.diseaseType ?? "IBD"
-        )
+        // Use the same PersonalizedIBDTargets system as IBDPal Recommendations for consistency
+        let targets = PersonalizedIBDTargets.calculate(for: profile)
         
         var recommended = WeeklyNutritionTotals()
         
-        // Calculate weekly recommendations (7 days worth)
-        recommended.totalCalories = requirements.calories * 7
-        recommended.totalProtein = requirements.protein * 7
-        recommended.totalCarbs = 0 // Not available in IBDMicronutrientRequirements
-        recommended.totalFiber = requirements.fiber * 7
-        recommended.totalFat = 0 // Not available in IBDMicronutrientRequirements
+        // Calculate weekly recommendations (7 days worth) using NIH DRI-based targets
+        recommended.totalCalories = Double(targets.calorieTarget * 7)
+        recommended.totalProtein = Double(targets.proteinTarget * 7)
+        recommended.totalCarbs = Double(targets.carbTarget * 7)
+        recommended.totalFiber = Double(targets.fiberTarget * 7)
+        recommended.totalFat = Double(targets.fatTarget * 7)
         
-        // Set micronutrient recommendations
-        recommended.vitaminD = requirements.vitaminD * 7
-        recommended.vitaminB12 = requirements.vitaminB12 * 7
-        recommended.iron = requirements.iron * 7
-        recommended.calcium = requirements.calcium * 7
-        recommended.zinc = requirements.zinc * 7
-        recommended.omega3 = requirements.omega3 * 7
+        // Set micronutrient recommendations using NIH DRI-based targets
+        recommended.vitaminD = Double(targets.vitaminDTarget * 7)
+        recommended.vitaminB12 = Double(targets.vitaminB12Target * 7)
+        recommended.iron = Double(targets.ironTarget * 7)
+        recommended.calcium = Double(targets.calciumTarget * 7)
+        recommended.zinc = Double(targets.zincTarget * 7)
+        recommended.omega3 = Double(targets.omega3Target * 7)
         
         return recommended
     }
@@ -1164,11 +1754,11 @@ struct StatCard: View {
     let color: Color
     
     var body: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: 12) {
             HStack {
                 Image(systemName: icon)
                     .foregroundColor(color)
-                    .font(.title2)
+                    .font(.title3)
                 
                 Spacer()
             }
@@ -1176,26 +1766,33 @@ struct StatCard: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text(title)
                     .font(.caption)
-                    .foregroundColor(.ibdSecondaryText)
+                    .fontWeight(.medium)
+                    .foregroundColor(.secondary)
                 
                 HStack(alignment: .bottom, spacing: 2) {
                     Text(value)
                         .font(.title2)
                         .fontWeight(.bold)
-                        .foregroundColor(.ibdPrimaryText)
+                        .foregroundColor(.primary)
                     
                     Text(subtitle)
                         .font(.caption)
-                        .foregroundColor(.ibdSecondaryText)
+                        .foregroundColor(.secondary)
                 }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding()
-        .background(Color.ibdCardBackground)
+        .padding(16)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(color.opacity(0.1))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(color.opacity(0.3), lineWidth: 1)
+                )
+        )
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(title): \(value) \(subtitle)")
-        .cornerRadius(12)
     }
 }
 
@@ -1331,27 +1928,6 @@ struct NutritionDeficienciesCard: View {
                 }
             }
             
-            if !analysis.recommendations.isEmpty {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Recommendations")
-                        .font(.subheadline)
-                        .fontWeight(.semibold)
-                        .foregroundColor(.ibdPrimaryText)
-                    
-                    ForEach(analysis.recommendations.prefix(2), id: \.self) { recommendation in
-                        HStack(alignment: .top, spacing: 8) {
-                            Image(systemName: "lightbulb.fill")
-                                .font(.caption)
-                                .foregroundColor(.ibdAccent)
-                                .padding(.top, 2)
-                            
-                            Text(recommendation)
-                                .font(.caption)
-                                .foregroundColor(.ibdSecondaryText)
-                        }
-                    }
-                }
-            }
         }
         .padding()
         .background(Color.ibdSurfaceBackground)
@@ -1437,35 +2013,11 @@ struct DieticianRecommendationsCard: View {
             HStack {
                 Image(systemName: "lightbulb.fill")
                     .foregroundColor(.ibdAccent)
-                Text("Dietician Recommendations")
+                Text("IBDPal Recommendations")
                     .font(.headline)
                     .fontWeight(.semibold)
                     .foregroundColor(.ibdPrimaryText)
                 Spacer()
-            }
-            
-            // Immediate Actions
-            if !analysis.recommendations.isEmpty {
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("Immediate Actions")
-                        .font(.subheadline)
-                        .fontWeight(.medium)
-                        .foregroundColor(.ibdPrimaryText)
-                    
-                    ForEach(analysis.recommendations.prefix(3), id: \.self) { recommendation in
-                        HStack(alignment: .top, spacing: 8) {
-                            Image(systemName: "exclamationmark.triangle.fill")
-                                .font(.caption)
-                                .foregroundColor(.ibdWarning)
-                                .padding(.top, 2)
-                            
-                            Text(recommendation)
-                                .font(.caption)
-                                .foregroundColor(.ibdSecondaryText)
-                                .multilineTextAlignment(.leading)
-                        }
-                    }
-                }
             }
             
             // Weekly Goals
@@ -1516,6 +2068,30 @@ struct DieticianRecommendationsCard: View {
                         current: "\(Int(analysis.avgCalories * 7)) kcal/week",
                         progress: min((analysis.avgCalories * 7) / Double(targets.calorieTarget * 7), 1.0)
                     )
+                }
+            }
+            
+            // Immediate Actions
+            if !analysis.recommendations.isEmpty {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Immediate Actions")
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                        .foregroundColor(.ibdPrimaryText)
+                    
+                    ForEach(analysis.recommendations.prefix(3), id: \.self) { recommendation in
+                        HStack(alignment: .top, spacing: 8) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .font(.caption)
+                                .foregroundColor(.ibdWarning)
+                                .padding(.top, 2)
+                            
+                            Text(recommendation)
+                                .font(.caption)
+                                .foregroundColor(.ibdSecondaryText)
+                                .multilineTextAlignment(.leading)
+                        }
+                    }
                 }
             }
             
@@ -2175,5 +2751,555 @@ extension Date {
         
         // If all else fails, return a date far in the past to ensure it's filtered out
         return Date.distantPast
+    }
+}
+
+// MARK: - Nutrition Score Info View
+struct NutritionScoreInfoView: View {
+    @Environment(\.dismiss) private var dismiss
+    
+    var body: some View {
+        NavigationView {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 24) {
+                    // Header
+                    VStack(alignment: .leading, spacing: 12) {
+                        HStack {
+                            Image(systemName: "leaf.fill")
+                                .font(.title)
+                                .foregroundColor(.green)
+                            
+                            Text("Nutrition Score")
+                                .font(.title)
+                                .fontWeight(.bold)
+                                .foregroundColor(.primary)
+                        }
+                        
+                        Text("Your personalized nutrition score (0-100) based on your food intake and IBD-specific needs.")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                    }
+                    
+                    // How it works section
+                    VStack(alignment: .leading, spacing: 16) {
+                        Text("How Your Score is Calculated")
+                            .font(.headline)
+                            .fontWeight(.semibold)
+                            .foregroundColor(.primary)
+                        
+                        VStack(alignment: .leading, spacing: 12) {
+                            InfoRow(
+                                icon: "100.circle.fill",
+                                iconColor: .green,
+                                title: "Starting Score",
+                                description: "Every day starts with a perfect score of 100 points"
+                            )
+                            
+                            InfoRow(
+                                icon: "minus.circle.fill",
+                                iconColor: .red,
+                                title: "Points Deducted",
+                                description: "Points are subtracted when you're missing important nutrients"
+                            )
+                            
+                            InfoRow(
+                                icon: "plus.circle.fill",
+                                iconColor: .blue,
+                                title: "Bonus Points",
+                                description: "Extra points are added when you meet all nutrition goals"
+                            )
+                        }
+                    }
+                    
+                    // Scoring details
+                    VStack(alignment: .leading, spacing: 16) {
+                        Text("Scoring Details")
+                            .font(.headline)
+                            .fontWeight(.semibold)
+                            .foregroundColor(.primary)
+                        
+                        VStack(alignment: .leading, spacing: 12) {
+                            ScoringDetail(
+                                nutrient: "Protein",
+                                good: "60g+ daily",
+                                points: "No deduction",
+                                poor: "Less than 50g",
+                                deduction: "-20 points"
+                            )
+                            
+                            ScoringDetail(
+                                nutrient: "Fiber",
+                                good: "25g+ daily",
+                                points: "No deduction",
+                                poor: "Less than 20g",
+                                deduction: "-20 points"
+                            )
+                            
+                            ScoringDetail(
+                                nutrient: "Calories",
+                                good: "1800+ daily",
+                                points: "No deduction",
+                                poor: "Less than 1500",
+                                deduction: "-20 points"
+                            )
+                            
+                            ScoringDetail(
+                                nutrient: "Bonus",
+                                good: "All goals met",
+                                points: "+10 points",
+                                poor: "Missing goals",
+                                deduction: "No bonus"
+                            )
+                        }
+                    }
+                    
+                    // Score interpretation
+                    VStack(alignment: .leading, spacing: 16) {
+                        Text("What Your Score Means")
+                            .font(.headline)
+                            .fontWeight(.semibold)
+                            .foregroundColor(.primary)
+                        
+                        VStack(alignment: .leading, spacing: 12) {
+                            ScoreInterpretation(
+                                range: "80-100",
+                                color: .green,
+                                description: "Excellent nutrition! You're meeting most of your IBD-specific needs."
+                            )
+                            
+                            ScoreInterpretation(
+                                range: "60-79",
+                                color: .blue,
+                                description: "Good nutrition with room for improvement in some areas."
+                            )
+                            
+                            ScoreInterpretation(
+                                range: "40-59",
+                                color: .orange,
+                                description: "Fair nutrition. Focus on increasing protein, fiber, or calories."
+                            )
+                            
+                            ScoreInterpretation(
+                                range: "0-39",
+                                color: .red,
+                                description: "Poor nutrition. Consider consulting with a dietitian for personalized guidance."
+                            )
+                        }
+                    }
+                    
+                    // Tips section
+                    VStack(alignment: .leading, spacing: 16) {
+                        Text("Tips to Improve Your Score")
+                            .font(.headline)
+                            .fontWeight(.semibold)
+                            .foregroundColor(.primary)
+                        
+                        VStack(alignment: .leading, spacing: 8) {
+                            TipItem(text: "Include lean proteins like chicken, fish, or beans in each meal")
+                            TipItem(text: "Add fiber-rich foods like oats, quinoa, and vegetables")
+                            TipItem(text: "Eat regular meals to meet your calorie needs")
+                            TipItem(text: "Consider IBD-friendly foods that are easier to digest")
+                        }
+                    }
+                }
+                .padding(20)
+            }
+            .navigationTitle("Nutrition Score")
+            .navigationBarTitleDisplayMode(.inline)
+            .navigationBarItems(trailing: Button("Done") {
+                dismiss()
+            })
+        }
+    }
+}
+
+// MARK: - Supporting Views for Nutrition Score Info
+
+struct InfoRow: View {
+    let icon: String
+    let iconColor: Color
+    let title: String
+    let description: String
+    
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: icon)
+                .font(.title3)
+                .foregroundColor(iconColor)
+                .frame(width: 24)
+            
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.primary)
+                
+                Text(description)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+            
+            Spacer()
+        }
+    }
+}
+
+struct ScoringDetail: View {
+    let nutrient: String
+    let good: String
+    let points: String
+    let poor: String
+    let deduction: String
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(nutrient)
+                .font(.subheadline)
+                .fontWeight(.semibold)
+                .foregroundColor(.primary)
+            
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("✅ \(good)")
+                        .font(.caption)
+                        .foregroundColor(.green)
+                    Text(points)
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
+                
+                Spacer()
+                
+                VStack(alignment: .trailing, spacing: 4) {
+                    Text("❌ \(poor)")
+                        .font(.caption)
+                        .foregroundColor(.red)
+                    Text(deduction)
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
+            }
+        }
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(Color(.systemGray6))
+        )
+    }
+}
+
+struct ScoreInterpretation: View {
+    let range: String
+    let color: Color
+    let description: String
+    
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Text(range)
+                .font(.subheadline)
+                .fontWeight(.bold)
+                .foregroundColor(color)
+                .frame(width: 60, alignment: .leading)
+            
+            Text(description)
+                .font(.caption)
+                .foregroundColor(.secondary)
+            
+            Spacer()
+        }
+    }
+}
+
+struct TipItem: View {
+    let text: String
+    
+    var body: some View {
+        HStack(alignment: .top, spacing: 8) {
+            Image(systemName: "lightbulb.fill")
+                .font(.caption)
+                .foregroundColor(.yellow)
+                .frame(width: 16)
+            
+            Text(text)
+                .font(.caption)
+                .foregroundColor(.secondary)
+            
+            Spacer()
+        }
+    }
+}
+
+// MARK: - Flare Risk Info View
+struct FlareRiskInfoView: View {
+    @Environment(\.dismiss) private var dismiss
+    
+    var body: some View {
+        NavigationView {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 24) {
+                    // Header
+                    VStack(alignment: .leading, spacing: 12) {
+                        HStack {
+                            Image(systemName: "heart.fill")
+                                .font(.title)
+                                .foregroundColor(.red)
+                            
+                            Text("Flare Risk Assessment")
+                                .font(.title)
+                                .fontWeight(.bold)
+                                .foregroundColor(.primary)
+                        }
+                        
+                        Text("Your personalized flare risk assessment based on IBD symptoms and warning signs from the last 7 days.")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                    }
+                    
+                    // How it works section
+                    VStack(alignment: .leading, spacing: 16) {
+                        Text("How Your Risk is Calculated")
+                            .font(.headline)
+                            .fontWeight(.semibold)
+                            .foregroundColor(.primary)
+                        
+                        VStack(alignment: .leading, spacing: 12) {
+                            FlareRiskInfoRow(
+                                icon: "drop.fill",
+                                iconColor: .red,
+                                title: "Blood Present",
+                                description: "Blood in stool is a major warning sign (+40 points per day)",
+                                points: "40 points"
+                            )
+                            
+                            FlareRiskInfoRow(
+                                icon: "exclamationmark.triangle.fill",
+                                iconColor: .orange,
+                                title: "High Pain Severity",
+                                description: "Severe pain (4-5/10) indicates potential inflammation (+30 points)",
+                                points: "30 points"
+                            )
+                            
+                            FlareRiskInfoRow(
+                                icon: "arrow.up.circle.fill",
+                                iconColor: .orange,
+                                title: "High Urgency",
+                                description: "Frequent urgent bowel movements (+25 points)",
+                                points: "25 points"
+                            )
+                            
+                            FlareRiskInfoRow(
+                                icon: "brain.head.profile",
+                                iconColor: .blue,
+                                title: "Stress & Fatigue",
+                                description: "High stress and fatigue levels (+20 points each)",
+                                points: "20 points"
+                            )
+                            
+                            FlareRiskInfoRow(
+                                icon: "moon.zzz.fill",
+                                iconColor: .purple,
+                                title: "Poor Sleep",
+                                description: "Poor sleep quality affects IBD symptoms (+15 points)",
+                                points: "15 points"
+                            )
+                        }
+                    }
+                    
+                    // Risk levels
+                    VStack(alignment: .leading, spacing: 16) {
+                        Text("Risk Levels")
+                            .font(.headline)
+                            .fontWeight(.semibold)
+                            .foregroundColor(.primary)
+                        
+                        VStack(alignment: .leading, spacing: 12) {
+                            FlareRiskLevelView(
+                                level: "High Risk",
+                                color: .red,
+                                range: "70-100 points",
+                                description: "Multiple warning signs present. Consider contacting your healthcare provider.",
+                                action: "Contact your doctor"
+                            )
+                            
+                            FlareRiskLevelView(
+                                level: "Medium Risk",
+                                color: .orange,
+                                range: "40-69 points",
+                                description: "Some concerning symptoms. Monitor closely and follow your care plan.",
+                                action: "Monitor symptoms"
+                            )
+                            
+                            FlareRiskLevelView(
+                                level: "Low Risk",
+                                color: .green,
+                                range: "0-39 points",
+                                description: "Few warning signs. Continue with your current management plan.",
+                                action: "Maintain routine"
+                            )
+                        }
+                    }
+                    
+                    // Important factors
+                    VStack(alignment: .leading, spacing: 16) {
+                        Text("Key Warning Signs")
+                            .font(.headline)
+                            .fontWeight(.semibold)
+                            .foregroundColor(.primary)
+                        
+                        VStack(alignment: .leading, spacing: 8) {
+                            WarningSignItem(text: "Blood in stool - Contact your doctor immediately")
+                            WarningSignItem(text: "Severe abdominal pain (4-5/10) - Monitor closely")
+                            WarningSignItem(text: "Frequent urgent bowel movements - Track patterns")
+                            WarningSignItem(text: "High stress levels - Practice stress management")
+                            WarningSignItem(text: "Poor sleep quality - Focus on sleep hygiene")
+                            WarningSignItem(text: "Persistent fatigue - Rest and gentle activity")
+                        }
+                    }
+                    
+                    // Tips section
+                    VStack(alignment: .leading, spacing: 16) {
+                        Text("Managing Your Risk")
+                            .font(.headline)
+                            .fontWeight(.semibold)
+                            .foregroundColor(.primary)
+                        
+                        VStack(alignment: .leading, spacing: 8) {
+                            FlareRiskTipItem(text: "Track symptoms daily in your journal")
+                            FlareRiskTipItem(text: "Follow your prescribed medication schedule")
+                            FlareRiskTipItem(text: "Maintain a balanced, IBD-friendly diet")
+                            FlareRiskTipItem(text: "Practice stress management techniques")
+                            FlareRiskTipItem(text: "Get adequate sleep and rest")
+                            FlareRiskTipItem(text: "Stay hydrated and avoid trigger foods")
+                        }
+                    }
+                }
+                .padding(20)
+            }
+            .navigationTitle("Flare Risk")
+            .navigationBarTitleDisplayMode(.inline)
+            .navigationBarItems(trailing: Button("Done") {
+                dismiss()
+            })
+        }
+    }
+}
+
+// MARK: - Supporting Views for Flare Risk Info
+
+struct FlareRiskInfoRow: View {
+    let icon: String
+    let iconColor: Color
+    let title: String
+    let description: String
+    let points: String
+    
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: icon)
+                .font(.title3)
+                .foregroundColor(iconColor)
+                .frame(width: 24)
+            
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    Text(title)
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.primary)
+                    
+                    Spacer()
+                    
+                    Text(points)
+                        .font(.caption)
+                        .fontWeight(.bold)
+                        .foregroundColor(iconColor)
+                }
+                
+                Text(description)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+        }
+    }
+}
+
+struct FlareRiskLevelView: View {
+    let level: String
+    let color: Color
+    let range: String
+    let description: String
+    let action: String
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text(level)
+                    .font(.subheadline)
+                    .fontWeight(.bold)
+                    .foregroundColor(color)
+                
+                Spacer()
+                
+                Text(range)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+            
+            Text(description)
+                .font(.caption)
+                .foregroundColor(.secondary)
+            
+            Text("Action: \(action)")
+                .font(.caption2)
+                .fontWeight(.medium)
+                .foregroundColor(color)
+        }
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(color.opacity(0.1))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke(color.opacity(0.3), lineWidth: 1)
+                )
+        )
+    }
+}
+
+struct WarningSignItem: View {
+    let text: String
+    
+    var body: some View {
+        HStack(alignment: .top, spacing: 8) {
+            Image(systemName: "exclamationmark.circle.fill")
+                .font(.caption)
+                .foregroundColor(.red)
+                .frame(width: 16)
+            
+            Text(text)
+                .font(.caption)
+                .foregroundColor(.secondary)
+            
+            Spacer()
+        }
+    }
+}
+
+struct FlareRiskTipItem: View {
+    let text: String
+    
+    var body: some View {
+        HStack(alignment: .top, spacing: 8) {
+            Image(systemName: "checkmark.circle.fill")
+                .font(.caption)
+                .foregroundColor(.green)
+                .frame(width: 16)
+            
+            Text(text)
+                .font(.caption)
+                .foregroundColor(.secondary)
+            
+            Spacer()
+        }
     }
 }

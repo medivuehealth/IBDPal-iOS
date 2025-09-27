@@ -282,7 +282,24 @@ struct DiscoverView: View {
                     fluid_type: "Water, herbal tea",
                     notes: "Feeling better today",
                     created_at: dateString,
-                    updated_at: dateString
+                    updated_at: dateString,
+                    // New required parameters
+                    medication_taken: Bool.random(),
+                    medication_type: Bool.random() ? "biologic" : "None",
+                    dosage_level: Bool.random() ? "40" : "0",
+                    last_taken_date: Bool.random() ? dateString : nil,
+                    supplements_taken: Bool.random(),
+                    supplements_count: Int.random(in: 0...3),
+                    supplement_details: nil,
+                    sleep_hours: Int.random(in: 6...9),
+                    sleep_quality: Int.random(in: 3...5),
+                    sleep_notes: Bool.random() ? "Slept well" : nil,
+                    stress_level: Int.random(in: 1...5),
+                    stress_source: Bool.random() ? "Work" : nil,
+                    coping_strategies: Bool.random() ? "Meditation" : nil,
+                    fatigue_level: Int.random(in: 2...5),
+                    mood_level: Int.random(in: 3...5),
+                    menstruation: "not_applicable"
                 )
                 entries.append(entry)
             }
@@ -301,8 +318,8 @@ struct DiscoverView: View {
             nutrition: nutritionData,
             symptoms: symptomData,
             healthMetrics: healthMetricsData,
-            insights: generateInsights(from: nutritionData, symptomData: symptomData),
-            summary: calculateSummary(from: nutritionData, symptomData: symptomData)
+            insights: generateInsights(from: nutritionData, symptomData: symptomData, entries: entries),
+            summary: calculateSummary(from: nutritionData, symptomData: symptomData, entries: entries)
         )
     }
     
@@ -354,8 +371,8 @@ struct DiscoverView: View {
     
     private func processHealthMetricsData(entries: [JournalEntry]) -> [HealthMetricPoint] {
         return entries.compactMap { entry in
-            // Calculate medication adherence (simplified - would need medication data)
-            let medicationAdherence = 85.0 // Placeholder - would calculate from medication data
+            // Calculate medication adherence based on actual medication data
+            let medicationAdherence = calculateMedicationAdherence(for: entry)
             
             // Get bowel health data - use actual bowel_frequency from database
             let bowelFrequency = entry.bowel_frequency ?? 0
@@ -417,9 +434,10 @@ struct DiscoverView: View {
             totalFiber += Double(meal.fiber ?? 0)
         }
         
+        // Use the same calculation logic as HomeView for consistency
         var score = 100
         
-        // Deduct points for deficiencies
+        // Deduct points for deficiencies (same logic as HomeView)
         if totalProtein < 50 {
             score -= 20
         } else if totalProtein < 60 {
@@ -438,8 +456,8 @@ struct DiscoverView: View {
             score -= 10
         }
         
-        // Bonus for good nutrition
-        if totalProtein >= 60 && totalFiber >= 25 && totalCalories >= 1800 {
+        // Bonus for good nutrition (same logic as HomeView)
+        if totalProtein >= 60 && totalFiber >= 20 && totalCalories >= 1500 {
             score += 10
         }
         
@@ -450,7 +468,7 @@ struct DiscoverView: View {
         return []
     }
     
-    private func generateInsights(from nutritionData: [NutritionTrendPoint], symptomData: [SymptomTrendPoint]) -> [Insight] {
+    private func generateInsights(from nutritionData: [NutritionTrendPoint], symptomData: [SymptomTrendPoint], entries: [JournalEntry]) -> [Insight] {
         var insights: [Insight] = []
         
         guard !nutritionData.isEmpty && !symptomData.isEmpty else {
@@ -542,9 +560,8 @@ struct DiscoverView: View {
             ))
         }
         
-        // Medication adherence insight (based on symptom patterns and health metrics)
-        let goodDays = symptomData.filter { $0.pain < 4 && $0.stress < 6 }.count
-        let adherenceRate = Int((Double(goodDays) / Double(symptomData.count)) * 100)
+        // Medication adherence insight (based on actual medication data)
+        let adherenceRate = calculateOverallMedicationAdherence(from: entries)
         
         if adherenceRate < 80 {
             insights.append(Insight(
@@ -601,7 +618,7 @@ struct DiscoverView: View {
         )
     }
     
-    private func calculateSummary(from nutritionData: [NutritionTrendPoint], symptomData: [SymptomTrendPoint]) -> Summary {
+    private func calculateSummary(from nutritionData: [NutritionTrendPoint], symptomData: [SymptomTrendPoint], entries: [JournalEntry]) -> Summary {
         let totalEntries = nutritionData.count
         
         // Calculate total calories from nutrition data (cumulative for the week)
@@ -610,10 +627,9 @@ struct DiscoverView: View {
         // Calculate average pain from symptom data
         let avgPain = symptomData.isEmpty ? 0.0 : Double(symptomData.map { $0.pain }.reduce(0, +)) / Double(totalEntries)
         
-        // For now, simulate blood episodes and medication adherence based on symptom data
-        // In a real implementation, these would come from the actual journal entries
+        // Calculate blood episodes and medication adherence from actual journal data
         let bloodEpisodes = symptomData.filter { $0.pain > 5 || $0.flareRisk > 40 }.count
-        let medicationAdherence = symptomData.isEmpty ? 0 : Int((Double(symptomData.filter { $0.pain < 4 && $0.stress < 6 }.count) / Double(totalEntries)) * 100)
+        let medicationAdherence = calculateOverallMedicationAdherence(from: entries)
         
         return Summary(
             totalEntries: totalEntries,
@@ -628,6 +644,83 @@ struct DiscoverView: View {
         let formatter = DateFormatter()
         formatter.dateFormat = "MMM d"
         return formatter
+    }
+    
+    // MARK: - Medication Adherence Calculation
+    
+    /// Calculate medication adherence for a single journal entry
+    private func calculateMedicationAdherence(for entry: JournalEntry) -> Double {
+        // Check if medication was taken on this day
+        let medicationTaken = entry.medication_taken ?? false
+        let medicationType = entry.medication_type ?? "None"
+        let dosageLevel = entry.dosage_level ?? "0"
+        let lastTakenDate = entry.last_taken_date
+        
+        // If no medication type is set or it's "None", adherence is 0
+        guard medicationType != "None" && medicationType != "" else {
+            return 0.0
+        }
+        
+        // If medication was taken today, adherence is 100%
+        if medicationTaken {
+            return 100.0
+        }
+        
+        // If there's a last taken date, check if it's recent (within expected frequency)
+        if let lastTaken = lastTakenDate, !lastTaken.isEmpty {
+            let adherence = calculateAdherenceFromLastTaken(lastTaken: lastTaken, dosageLevel: dosageLevel)
+            return adherence
+        }
+        
+        // If no clear indication, assume partial adherence based on dosage level
+        if dosageLevel != "0" && dosageLevel != "" {
+            return 50.0 // Partial adherence if dosage is set but not taken today
+        }
+        
+        return 0.0
+    }
+    
+    /// Calculate overall medication adherence across all entries
+    private func calculateOverallMedicationAdherence(from entries: [JournalEntry]) -> Int {
+        guard !entries.isEmpty else { return 0 }
+        
+        let totalAdherence = entries.reduce(0.0) { sum, entry in
+            sum + calculateMedicationAdherence(for: entry)
+        }
+        
+        let averageAdherence = totalAdherence / Double(entries.count)
+        return Int(averageAdherence)
+    }
+    
+    /// Calculate adherence based on last taken date and dosage frequency
+    private func calculateAdherenceFromLastTaken(lastTaken: String, dosageLevel: String) -> Double {
+        // Parse the last taken date
+        let lastTakenDate = Date.fromISOString(lastTaken)
+        
+        let daysSinceLastTaken = Calendar.current.dateComponents([.day], from: lastTakenDate, to: Date()).day ?? 0
+        
+        // Determine expected frequency based on dosage level
+        let expectedFrequency: Int
+        switch dosageLevel.lowercased() {
+        case "daily", "1":
+            expectedFrequency = 1
+        case "weekly", "7":
+            expectedFrequency = 7
+        case "biweekly", "14":
+            expectedFrequency = 14
+        case "monthly", "30":
+            expectedFrequency = 30
+        default:
+            expectedFrequency = 1 // Default to daily
+        }
+        
+        // Calculate adherence based on how close we are to the expected frequency
+        if daysSinceLastTaken <= expectedFrequency {
+            let adherence = max(0.0, 100.0 - (Double(daysSinceLastTaken) / Double(expectedFrequency)) * 100.0)
+            return adherence
+        } else {
+            return 0.0 // Overdue
+        }
     }
 }
 
