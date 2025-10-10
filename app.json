@@ -2,7 +2,7 @@
   "expo": {
     "name": "IBDPal",
     "slug": "ibdpal",
-    "version": "1.0.0",
+    "version": "1.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -16,7 +16,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.medivuehealth.ibdpal",
-      "buildNumber": "31",
+      "buildNumber": "358765",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NSAppTransportSecurity": {
