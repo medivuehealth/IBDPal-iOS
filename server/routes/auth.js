@@ -433,6 +433,18 @@ router.post('/login', validateLogin, formatValidationErrors, async (req, res) =>
       });
     }
 
+    // Check account status and reactivate if inactive
+    if (user.account_status === 'inactive') {
+      // Reactivate the account
+      await db.query(
+        `UPDATE users 
+         SET account_status = 'active', updated_at = CURRENT_TIMESTAMP
+         WHERE user_id = $1`,
+        [user.user_id]
+      );
+      console.log(`Account reactivated for user: ${user.email}`);
+    }
+
     // Check if account is locked
     if (user.account_locked) {
       return res.status(423).json({

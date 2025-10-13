@@ -6,6 +6,9 @@ struct MoreView: View {
     
     @State private var showingLogoutAlert = false
     @State private var isSigningOut = false
+    @State private var showingDeleteAccountAlert = false
+    @State private var isDeletingAccount = false
+    @State private var showingDeleteConfirmation = false
     
     // Updated API URL to match your backend
     private let apiBaseURL = AppConfig.apiBaseURL
@@ -97,6 +100,22 @@ struct MoreView: View {
                         }
                     }
                     .disabled(isSigningOut)
+                    
+                    Button(action: {
+                        showingDeleteAccountAlert = true
+                    }) {
+                        HStack {
+                            MoreRow(icon: "trash.fill", title: "Delete Account", subtitle: "Permanently delete your account and data")
+                                .foregroundColor(.red)
+                            
+                            if isDeletingAccount {
+                                Spacer()
+                                ProgressView()
+                                    .scaleEffect(0.8)
+                            }
+                        }
+                    }
+                    .disabled(isDeletingAccount)
                 }
             }
             .navigationTitle("More")
@@ -108,6 +127,22 @@ struct MoreView: View {
                 }
             } message: {
                 Text("Are you sure you want to sign out?")
+            }
+            .alert("Delete Account", isPresented: $showingDeleteAccountAlert) {
+                Button("Cancel", role: .cancel) { }
+                Button("Continue", role: .destructive) {
+                    showingDeleteConfirmation = true
+                }
+            } message: {
+                Text("This action cannot be undone. All your data will be permanently deleted.")
+            }
+            .alert("Confirm Account Deletion", isPresented: $showingDeleteConfirmation) {
+                Button("Cancel", role: .cancel) { }
+                Button("Delete Account", role: .destructive) {
+                    handleDeleteAccount()
+                }
+            } message: {
+                Text("Are you absolutely sure you want to permanently delete your account? This action cannot be undone and all your data will be lost.")
             }
         }
     }
@@ -158,6 +193,54 @@ struct MoreView: View {
                 
                 // Always sign out locally regardless of server response
                 onSignOut()
+            }
+        }.resume()
+    }
+    
+    private func handleDeleteAccount() {
+        guard let userData = userData else {
+            print("❌ [MoreView] No user data available for account deletion")
+            return
+        }
+        
+        isDeletingAccount = true
+        print("🗑️ [MoreView] Starting account deletion process...")
+        
+        // Call server delete account endpoint
+        guard let url = URL(string: "\(apiBaseURL)/api/users/account") else {
+            print("❌ [MoreView] Invalid delete account URL")
+            isDeletingAccount = false
+            return
+        }
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "DELETE"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("Bearer \(userData.token)", forHTTPHeaderField: "Authorization")
+        request.timeoutInterval = 30.0
+        
+        NetworkManager.shared.dataTask(with: request) { data, response, error in
+            DispatchQueue.main.async {
+                isDeletingAccount = false
+                
+                if let error = error {
+                    print("❌ [MoreView] Delete account network error: \(error)")
+                    // Show error alert
+                    return
+                }
+                
+                if let httpResponse = response as? HTTPURLResponse {
+                    print("📥 [MoreView] Delete account HTTP Status: \(httpResponse.statusCode)")
+                    
+                    if httpResponse.statusCode == 200 {
+                        print("✅ [MoreView] Account deletion successful")
+                        // Sign out locally after successful deletion
+                        onSignOut()
+                    } else {
+                        print("⚠️ [MoreView] Account deletion failed with status: \(httpResponse.statusCode)")
+                        // Show error alert
+                    }
+                }
             }
         }.resume()
     }
