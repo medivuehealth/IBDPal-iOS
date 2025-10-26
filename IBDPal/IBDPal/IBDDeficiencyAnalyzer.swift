@@ -39,15 +39,16 @@ class IBDDeficiencyAnalyzer: ObservableObject {
     private func calculateDeficiencies(_ intake: MicronutrientData, _ requirements: IBDMicronutrientRequirements, _ labResults: [LabResult]) -> [MicronutrientDeficiency] {
         var deficiencies: [MicronutrientDeficiency] = []
         
-        // Check Vitamin D
-        if intake.vitaminD < requirements.vitaminD {
+        // Check Vitamin D (convert requirement from IU to mcg)
+        let vitaminDRequirementInMcg = requirements.vitaminD / 40.0 // Convert IU to mcg (1 mcg = 40 IU)
+        if intake.vitaminD < vitaminDRequirementInMcg {
             let labResult = labResults.first { $0.nutrient.contains("Vitamin D") }
-            let severity = determineDeficiencySeverity(intake.vitaminD, requirements.vitaminD, labResult)
+            let severity = determineDeficiencySeverity(intake.vitaminD, vitaminDRequirementInMcg, labResult)
             
             let deficiency = MicronutrientDeficiency(
                 nutrient: "Vitamin D",
                 currentIntake: intake.vitaminD,
-                requiredIntake: requirements.vitaminD,
+                requiredIntake: vitaminDRequirementInMcg,
                 symptoms: getVitaminDSymptoms(severity),
                 recommendations: getVitaminDRecommendations(severity, labResult)
             )
@@ -180,7 +181,9 @@ class IBDDeficiencyAnalyzer: ObservableObject {
     
     private func createIBDSpecificNutrients(_ intake: MicronutrientData, _ requirements: IBDMicronutrientRequirements, _ labResults: [LabResult]) -> IBDSpecificNutrients {
         
-        let vitaminDStatus = createNutrientStatus("Vitamin D", intake.vitaminD, requirements.vitaminD, labResults)
+        // Convert Vitamin D requirement from IU to mcg for proper comparison
+        let vitaminDRequirementInMcg = requirements.vitaminD / 40.0 // Convert IU to mcg (1 mcg = 40 IU)
+        let vitaminDStatus = createNutrientStatus("Vitamin D", intake.vitaminD, vitaminDRequirementInMcg, labResults)
         let vitaminB12Status = createNutrientStatus("Vitamin B12", intake.vitaminB12, requirements.vitaminB12, labResults)
         let ironStatus = createNutrientStatus("Iron", intake.iron, requirements.iron, labResults)
         let calciumStatus = createNutrientStatus("Calcium", intake.calcium, requirements.calcium, labResults)

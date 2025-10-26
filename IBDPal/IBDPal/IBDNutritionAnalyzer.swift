@@ -222,11 +222,13 @@ class IBDNutritionAnalyzer: ObservableObject {
     private var currentNutritionRequirements: [String: Double] = [:]
     
     // EVIDENCE-BASED IBD NUTRITION REQUIREMENTS
-    // Research Sources:
-    // 1. AGA Clinical Practice Update (2024): "Diet and nutritional therapies in patients with IBD"
-    // 2. Crohn's & Colitis Congress (2024): Latest research on IBD nutrition
-    // 3. Institute of Medicine: Dietary Reference Intakes (baseline RDA values)
-    // 4. European Society for Clinical Nutrition: IBD-specific guidelines
+    // Research Sources (See HealthCitationsView for full citations):
+    // 1. American Gastroenterological Association (2024): Clinical Practice Update on Diet and Nutritional Therapies in IBD
+    // 2. National Institutes of Health: Dietary Reference Intakes (DRI) for Healthcare Professionals
+    // 3. Crohn's & Colitis Foundation: Diet and Nutrition in IBD Patient Guide
+    // 4. European Society for Clinical Nutrition: ESPEN Guidelines on Clinical Nutrition in IBD
+    // 5. World Journal of Gastroenterology: Nutritional Therapy in Inflammatory Bowel Disease
+    // 6. Monash University: FODMAP Research and Food Database
     
     // UPDATED: Evidence-based requirements vs previous general population values
     private func getIBDNutritionRequirements(for userProfile: MicronutrientProfile, diseaseActivity: DiseaseActivity = .remission, diseaseType: String = "IBD") -> [String: Double] {

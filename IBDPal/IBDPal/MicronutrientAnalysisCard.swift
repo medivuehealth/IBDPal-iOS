@@ -159,7 +159,7 @@ struct MicronutrientAnalysisCard: View {
                             .foregroundColor(.primary)
                         
                         VStack(alignment: .leading, spacing: 4) {
-                            ForEach(foodList, id: \.self) { food in
+                            ForEach(Array(foodList.enumerated()), id: \.offset) { index, food in
                                 HStack {
                                     Text(food)
                                         .font(.caption)
@@ -267,7 +267,7 @@ struct MicronutrientAnalysisCard: View {
         
         self.foodList = allFoods
         self.servingSizeInfo = servingInfo
-        print("🍽️ [MicronutrientAnalysisCard] Found \(totalMeals) meals, \(allFoods.count) food items")
+        print("🍽️ [MicronutrientAnalysisCard] Found \(totalMeals) meals, \(allFoods.count) total food items")
         print("🍽️ [MicronutrientAnalysisCard] Food items: \(allFoods.joined(separator: ", "))")
         print("🍽️ [MicronutrientAnalysisCard] Serving sizes: \(servingInfo)")
         
@@ -305,21 +305,34 @@ struct MicronutrientAnalysisCard: View {
                 self.dailyIntake = dailyIntakeResult
                 self.micronutrientAnalysis = analysis
                 
-                // Extract calculated micronutrients for display
+                // Extract calculated micronutrients for display - convert to daily averages
                 let intake = dailyIntakeResult.totalIntake
+                
+                // Calculate unique days from journal entries (not just entry count)
+                let uniqueDays = Set(journalEntries.map { entry in
+                    let entryDate = Date.fromISOString(entry.entry_date)
+                    let calendar = Calendar.current
+                    return calendar.startOfDay(for: entryDate)
+                }).count
+                let daysCount = max(1, uniqueDays) // Number of unique days in the calculation
+                
                 print("🧪 [MicronutrientAnalysisCard] Success calculation - Vitamin C: \(intake.vitaminC), Iron: \(intake.iron)")
+                print("🧪 [MicronutrientAnalysisCard] Journal entries: \(journalEntries.count), Unique days: \(uniqueDays)")
+                print("🧪 [MicronutrientAnalysisCard] Raw Vitamin D (mcg): \(intake.vitaminD)")
+                print("🧪 [MicronutrientAnalysisCard] Daily average Vitamin D (mcg): \(intake.vitaminD / Double(daysCount))")
+                print("🧪 [MicronutrientAnalysisCard] Converted to IU: \(convertVitaminForDisplay(intake.vitaminD / Double(daysCount), vitamin: "Vitamin D"))")
                 
                 self.calculatedMicronutrients = [
-                    "Vitamin A": intake.vitaminA,
-                    "Vitamin C": intake.vitaminC,
-                    "Iron": intake.iron,
-                    "Potassium": intake.potassium,
-                    "Vitamin B12": intake.vitaminB12,
-                    "Vitamin B9": intake.vitaminB9,
-                    "Zinc": intake.zinc,
-                    "Calcium": intake.calcium,
-                    "Vitamin D": intake.vitaminD,
-                    "Magnesium": intake.magnesium
+                    "Vitamin A": intake.vitaminA / Double(daysCount), // Convert to daily average
+                    "Vitamin C": intake.vitaminC / Double(daysCount), // Convert to daily average
+                    "Iron": intake.iron / Double(daysCount), // Convert to daily average
+                    "Potassium": intake.potassium / Double(daysCount), // Convert to daily average
+                    "Vitamin B12": intake.vitaminB12 / Double(daysCount), // Convert to daily average
+                    "Vitamin B9": intake.vitaminB9 / Double(daysCount), // Convert to daily average
+                    "Zinc": intake.zinc / Double(daysCount), // Convert to daily average
+                    "Calcium": intake.calcium / Double(daysCount), // Convert to daily average
+                    "Vitamin D": intake.vitaminD / Double(daysCount), // Convert to daily average
+                    "Magnesium": intake.magnesium / Double(daysCount) // Convert to daily average
                 ]
                 
                 print("✅ [MicronutrientAnalysisCard] Calculated micronutrient intake")
@@ -355,19 +368,32 @@ struct MicronutrientAnalysisCard: View {
                 self.micronutrientAnalysis = analysis
                 
                 let intake = dailyIntakeResult.totalIntake
+                
+                // Calculate unique days from journal entries (not just entry count)
+                let uniqueDays = Set(journalEntries.map { entry in
+                    let entryDate = Date.fromISOString(entry.entry_date)
+                    let calendar = Calendar.current
+                    return calendar.startOfDay(for: entryDate)
+                }).count
+                let daysCount = max(1, uniqueDays) // Number of unique days in the calculation
+                
                 print("🧪 [MicronutrientAnalysisCard] Fallback calculation - Vitamin C: \(intake.vitaminC), Iron: \(intake.iron)")
+                print("🧪 [MicronutrientAnalysisCard] Journal entries: \(journalEntries.count), Unique days: \(uniqueDays)")
+                print("🧪 [MicronutrientAnalysisCard] Raw Vitamin D (mcg): \(intake.vitaminD)")
+                print("🧪 [MicronutrientAnalysisCard] Daily average Vitamin D (mcg): \(intake.vitaminD / Double(daysCount))")
+                print("🧪 [MicronutrientAnalysisCard] Converted to IU: \(convertVitaminForDisplay(intake.vitaminD / Double(daysCount), vitamin: "Vitamin D"))")
                 
                 self.calculatedMicronutrients = [
-                    "Vitamin A": intake.vitaminA,
-                    "Vitamin C": intake.vitaminC,
-                    "Iron": intake.iron,
-                    "Potassium": intake.potassium,
-                    "Vitamin B12": intake.vitaminB12,
-                    "Vitamin B9": intake.vitaminB9,
-                    "Zinc": intake.zinc,
-                    "Calcium": intake.calcium,
-                    "Vitamin D": intake.vitaminD,
-                    "Magnesium": intake.magnesium
+                    "Vitamin A": intake.vitaminA / Double(daysCount), // Convert to daily average
+                    "Vitamin C": intake.vitaminC / Double(daysCount), // Convert to daily average
+                    "Iron": intake.iron / Double(daysCount), // Convert to daily average
+                    "Potassium": intake.potassium / Double(daysCount), // Convert to daily average
+                    "Vitamin B12": intake.vitaminB12 / Double(daysCount), // Convert to daily average
+                    "Vitamin B9": intake.vitaminB9 / Double(daysCount), // Convert to daily average
+                    "Zinc": intake.zinc / Double(daysCount), // Convert to daily average
+                    "Calcium": intake.calcium / Double(daysCount), // Convert to daily average
+                    "Vitamin D": intake.vitaminD / Double(daysCount), // Convert to daily average
+                    "Magnesium": intake.magnesium / Double(daysCount) // Convert to daily average
                 ]
                 
                 print("🧪 [MicronutrientAnalysisCard] Fallback micronutrients set: \(self.calculatedMicronutrients.count) items")
@@ -531,22 +557,15 @@ struct MicronutrientItem: View {
     
     private func formatValue(_ value: Double, for nutrient: String) -> String {
         let unit = getUnit(for: nutrient)
-        return String(format: "%.1f %@", value, unit)
+        let displayValue = convertVitaminForDisplay(value, vitamin: nutrient)
+        return String(format: "%.1f %@", displayValue, unit)
     }
     
     private func getUnit(for nutrient: String) -> String {
-        switch nutrient {
-        case "Vitamin A", "Vitamin B12", "Vitamin B9", "Vitamin D":
-            return "mcg"
-        case "Iron", "Zinc", "Magnesium":
-            return "mg"
-        case "Vitamin C", "Potassium", "Calcium":
-            return "mg"
-        default:
-            return "mg"
-        }
+        return getDisplayUnit(for: nutrient)
     }
 }
+
 
 #Preview {
     MicronutrientAnalysisCard(

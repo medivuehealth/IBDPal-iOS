@@ -254,13 +254,30 @@ struct MicronutrientProfileView: View {
         }
         .navigationTitle("Nutrition Profile")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .navigationBarTrailing) {
+                NavigationLink(destination: HealthCitationsView()) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "book.closed")
+                        Text("Sources")
+                    }
+                    .font(.caption)
+                    .foregroundColor(.blue)
+                }
+            }
+        }
         .onAppear {
             loadExistingProfile()
         }
         .sheet(isPresented: $showingAddSupplement) {
-            AddSupplementView { supplement in
-                micronutrients.append(supplement)
-            }
+            AddSupplementView(
+                onSave: { supplement in
+                    micronutrients.append(supplement)
+                },
+                onSaveProfile: {
+                    try await saveProfileAsync()
+                }
+            )
         }
         .sheet(isPresented: $showingAddLabResult) {
             AddLabResultView { labResult in
@@ -349,6 +366,27 @@ struct MicronutrientProfileView: View {
                 }
             }
         }
+    }
+    
+    private func saveProfileAsync() async throws {
+        guard let userId = userData?.id,
+              let ageInt = Int(age),
+              let weightDouble = Double(weight) else {
+            throw NSError(domain: "Invalid profile data", code: 0)
+        }
+        
+        let heightDouble = height.isEmpty ? nil : Double(height)
+        let profile = MicronutrientProfile(
+            userId: userId,
+            age: ageInt,
+            weight: weightDouble,
+            height: heightDouble,
+            gender: gender == "Prefer not to say" ? nil : gender,
+            labResults: labResults,
+            supplements: micronutrients
+        )
+        
+        try await saveMicronutrientProfile(profile)
     }
     
     private func removeSupplement(_ supplement: MicronutrientSupplement) {
@@ -442,6 +480,7 @@ struct MicronutrientProfileView: View {
             throw NSError(domain: "Save failed", code: 0)
         }
     }
+    
 }
 
 // MARK: - Supplement Card View
@@ -464,7 +503,7 @@ struct SupplementCard: View {
                     .font(.headline)
                     .foregroundColor(.ibdPrimaryText)
                 
-                Text("\(supplement.dosage) \(supplement.unit) • \(supplement.frequency.rawValue)")
+                Text("\(supplement.dosage, specifier: "%.1f") \(supplement.unit.rawValue) • \(supplement.frequency.rawValue)")
                     .font(.subheadline)
                     .foregroundColor(.ibdSecondaryText)
                 
@@ -492,9 +531,11 @@ struct SupplementCard: View {
     
     private func colorForCategory(_ category: MicronutrientCategory) -> Color {
         switch category {
-        case .vitamin: return .blue
-        case .mineral: return .green
-        case .traceElement: return .orange
+        case .vitamins: return .blue
+        case .minerals: return .green
+        case .probiotics: return .mint
+        case .omega3: return .cyan
+        case .antioxidants: return .purple
         case .other: return .gray
         }
     }
@@ -503,18 +544,22 @@ struct SupplementCard: View {
 
     private func iconForCategory(_ category: MicronutrientCategory) -> String {
         switch category {
-        case .vitamin: return "pills.fill"
-        case .mineral: return "diamond.fill"
-        case .traceElement: return "atom"
+        case .vitamins: return "pills.fill"
+        case .minerals: return "diamond.fill"
+        case .probiotics: return "bacteria.fill"
+        case .omega3: return "fish.fill"
+        case .antioxidants: return "leaf.fill"
         case .other: return "questionmark.circle.fill"
         }
     }
     
     private func colorForCategory(_ category: MicronutrientCategory) -> Color {
         switch category {
-        case .vitamin: return .blue
-        case .mineral: return .green
-        case .traceElement: return .orange
+        case .vitamins: return .blue
+        case .minerals: return .green
+        case .probiotics: return .mint
+        case .omega3: return .cyan
+        case .antioxidants: return .purple
         case .other: return .gray
         }
     }
@@ -524,22 +569,95 @@ struct SupplementCard: View {
 struct AddSupplementView: View {
     @Environment(\.dismiss) private var dismiss
     
-    @State private var name: String = ""
-    @State private var category: MicronutrientCategory = .vitamin
+    @State private var selectedSupplement: SupplementOption?
+    @State private var customName: String = ""
+    @State private var category: MicronutrientCategory = .vitamins
     @State private var dosage: String = ""
     @State private var unit: DosageUnit = .mg
     @State private var frequency: SupplementFrequency = .daily
     @State private var notes: String = ""
     @State private var showingCommonSupplements = false
+    @State private var searchText = ""
+    @State private var showingSupplementPicker = false
+    @State private var useCustomName = false
+    @State private var isLoading = false
+    @State private var showingErrorAlert = false
+    @State private var errorMessage = ""
     
     let onSave: (MicronutrientSupplement) -> Void
+    let onSaveProfile: () async throws -> Void
+    
+    /// Get appropriate units based on category and supplement name
+    private var appropriateUnits: [DosageUnit] {
+        let supplementName = selectedSupplement?.name ?? customName
+        return DosageUnit.appropriateUnits(for: category, supplementName: supplementName)
+    }
+    
+    /// Get current supplement name
+    private var currentSupplementName: String {
+        return selectedSupplement?.name ?? customName
+    }
+    
+    /// Get default unit based on category and supplement name
+    private var defaultUnit: DosageUnit {
+        let supplementName = selectedSupplement?.name ?? customName
+        let appropriateUnits = DosageUnit.appropriateUnits(for: category, supplementName: supplementName)
+        let defaultUnit = appropriateUnits.first ?? .mg
+        print("🔍 [SUPPLEMENT UNIT] Name: '\(supplementName)', Category: \(category.rawValue), Appropriate units: \(appropriateUnits.map { $0.rawValue }), Default: \(defaultUnit.rawValue)")
+        return defaultUnit
+    }
+    
+    /// Get filtered supplements based on search and category
+    private var filteredSupplements: [SupplementOption] {
+        let supplements = searchText.isEmpty ? 
+            SupplementDatabase.supplementsForCategory(category) : 
+            SupplementDatabase.searchSupplements(query: searchText)
+        return supplements
+    }
     
     var body: some View {
         NavigationView {
             Form {
                 Section("Supplement Details") {
-                    // Name
-                    TextField("Supplement name", text: $name)
+                    // Supplement Selection
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            Text("Supplement")
+                                .font(.headline)
+                            Spacer()
+                            Button(useCustomName ? "Use Custom Name" : "Select from List") {
+                                useCustomName.toggle()
+                            }
+                            .font(.caption)
+                            .foregroundColor(.blue)
+                        }
+                        
+                        if useCustomName {
+                            TextField("Enter supplement name", text: $customName)
+                        } else {
+                            Button(action: {
+                                showingSupplementPicker = true
+                            }) {
+                                HStack {
+                                    if let selected = selectedSupplement {
+                                        HStack {
+                                            Image(systemName: selected.categoryIcon)
+                                                .foregroundColor(Color(selected.categoryColor))
+                                            Text(selected.name)
+                                                .foregroundColor(.primary)
+                                        }
+                                    } else {
+                                        Text("Select a supplement")
+                                            .foregroundColor(.secondary)
+                                    }
+                                    Spacer()
+                                    Image(systemName: "chevron.right")
+                                        .foregroundColor(.secondary)
+                                        .font(.caption)
+                                }
+                            }
+                        }
+                    }
                     
                     // Category
                     Picker("Category", selection: $category) {
@@ -550,6 +668,20 @@ struct AddSupplementView: View {
                             }.tag(category)
                         }
                     }
+                    .onChange(of: selectedSupplement) { _, supplement in
+                        if let supplement = supplement {
+                            category = supplement.category
+                            unit = supplement.unit
+                            // Set a common dosage if available
+                            if let firstDosage = supplement.commonDosages.first {
+                                dosage = String(firstDosage)
+                            }
+                        }
+                    }
+                    .onAppear {
+                        // Set default unit based on current category and name
+                        unit = defaultUnit
+                    }
                     
                     // Dosage
                     HStack {
@@ -557,11 +689,23 @@ struct AddSupplementView: View {
                             .keyboardType(.decimalPad)
                         
                         Picker("Unit", selection: $unit) {
-                            ForEach(DosageUnit.allCases, id: \.self) { unit in
+                            ForEach(appropriateUnits, id: \.self) { unit in
                                 Text(unit.rawValue).tag(unit)
                             }
                         }
                         .pickerStyle(MenuPickerStyle())
+                        .onChange(of: category) { _, _ in
+                            // Reset unit to first appropriate unit when category changes
+                            if !appropriateUnits.contains(unit) {
+                                unit = defaultUnit
+                            }
+                        }
+                        .onChange(of: customName) { _, _ in
+                            // Reset unit to first appropriate unit when name changes
+                            if !appropriateUnits.contains(unit) {
+                                unit = defaultUnit
+                            }
+                        }
                     }
                     
                     // Frequency
@@ -592,24 +736,36 @@ struct AddSupplementView: View {
                 }
                 
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Save") {
+                    Button(isLoading ? "Saving..." : "Save") {
                         saveSupplement()
                     }
-                    .disabled(name.isEmpty || dosage.isEmpty)
+                    .disabled(currentSupplementName.isEmpty || dosage.isEmpty || isLoading)
                 }
+            }
+            .sheet(isPresented: $showingSupplementPicker) {
+                SupplementPickerView(
+                    selectedSupplement: $selectedSupplement,
+                    searchText: $searchText,
+                    category: $category
+                )
             }
             .sheet(isPresented: $showingCommonSupplements) {
                 CommonSupplementsView { supplementName in
-                    name = supplementName
+                    customName = supplementName
                     showingCommonSupplements = false
                 }
+            }
+            .alert("Error", isPresented: $showingErrorAlert) {
+                Button("OK") { }
+            } message: {
+                Text(errorMessage)
             }
         }
     }
     
     private func saveSupplement() {
         let supplement = MicronutrientSupplement(
-            name: name,
+            name: currentSupplementName,
             category: category,
             dosage: Double(dosage) ?? 0.0,
             unit: unit,
@@ -618,8 +774,177 @@ struct AddSupplementView: View {
             notes: notes.isEmpty ? nil : notes
         )
         
-        onSave(supplement)
-        dismiss()
+        isLoading = true
+        
+        Task {
+            do {
+                // Add to local array first
+                await MainActor.run {
+                    onSave(supplement)
+                }
+                
+                // Then save the entire profile to database
+                try await onSaveProfile()
+                
+                await MainActor.run {
+                    isLoading = false
+                    dismiss()
+                }
+            } catch {
+                await MainActor.run {
+                    isLoading = false
+                    errorMessage = error.localizedDescription
+                    showingErrorAlert = true
+                }
+            }
+        }
+    }
+}
+
+// MARK: - Supplement Picker View
+
+struct SupplementPickerView: View {
+    @Environment(\.dismiss) private var dismiss
+    @Binding var selectedSupplement: SupplementOption?
+    @Binding var searchText: String
+    @Binding var category: MicronutrientCategory
+    
+    var body: some View {
+        NavigationView {
+            VStack {
+                // Search Bar
+                SearchBar(text: $searchText)
+                    .padding(.horizontal)
+                
+                // Category Filter
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 12) {
+                        ForEach(MicronutrientCategory.allCases, id: \.self) { cat in
+                            Button(action: {
+                                category = cat
+                            }) {
+                                HStack {
+                                    Image(systemName: iconForCategory(cat))
+                                    Text(cat.rawValue)
+                                }
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 8)
+                                .background(category == cat ? Color.blue : Color.gray.opacity(0.2))
+                                .foregroundColor(category == cat ? .white : .primary)
+                                .cornerRadius(20)
+                            }
+                        }
+                    }
+                    .padding(.horizontal)
+                }
+                .padding(.vertical, 8)
+                
+                // Supplements List
+                List {
+                    ForEach(filteredSupplements) { supplement in
+                        SupplementRowView(supplement: supplement) {
+                            selectedSupplement = supplement
+                            dismiss()
+                        }
+                    }
+                }
+            }
+            .navigationTitle("Select Supplement")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                }
+            }
+        }
+    }
+    
+    private var filteredSupplements: [SupplementOption] {
+        let supplements = searchText.isEmpty ? 
+            SupplementDatabase.supplementsForCategory(category) : 
+            SupplementDatabase.searchSupplements(query: searchText)
+        return supplements
+    }
+}
+
+// MARK: - Supplement Row View
+
+struct SupplementRowView: View {
+    let supplement: SupplementOption
+    let onTap: () -> Void
+    
+    var body: some View {
+        Button(action: onTap) {
+            HStack {
+                // Icon
+                Image(systemName: supplement.categoryIcon)
+                    .foregroundColor(Color(supplement.categoryColor))
+                    .frame(width: 30)
+                
+                // Info
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(supplement.name)
+                        .font(.headline)
+                        .foregroundColor(.primary)
+                    
+                    Text(supplement.description)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .lineLimit(2)
+                    
+                    // Common dosages
+                    if !supplement.commonDosages.isEmpty {
+                        HStack {
+                            Text("Common dosages:")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                            Text(supplement.commonDosages.map { "\($0) \(supplement.unit.rawValue)" }.joined(separator: ", "))
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                }
+                
+                Spacer()
+                
+                Image(systemName: "chevron.right")
+                    .foregroundColor(.secondary)
+                    .font(.caption)
+            }
+            .padding(.vertical, 4)
+        }
+        .buttonStyle(PlainButtonStyle())
+    }
+}
+
+// MARK: - Search Bar
+
+struct SearchBar: View {
+    @Binding var text: String
+    
+    var body: some View {
+        HStack {
+            Image(systemName: "magnifyingglass")
+                .foregroundColor(.secondary)
+            
+            TextField("Search supplements...", text: $text)
+                .textFieldStyle(PlainTextFieldStyle())
+            
+            if !text.isEmpty {
+                Button(action: {
+                    text = ""
+                }) {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundColor(.secondary)
+                }
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(Color(.systemGray6))
+        .cornerRadius(10)
     }
 }
 
@@ -667,9 +992,11 @@ struct CommonSupplementsView: View {
     
     private func supplementsForCategory(_ category: MicronutrientCategory) -> [String] {
         switch category {
-        case .vitamin: return CommonMicronutrients.criticalVitamins
-        case .mineral: return CommonMicronutrients.criticalMinerals
-        case .traceElement: return CommonMicronutrients.commonSupplements
+        case .vitamins: return CommonMicronutrients.criticalVitamins
+        case .minerals: return CommonMicronutrients.criticalMinerals
+        case .probiotics: return CommonMicronutrients.commonSupplements
+        case .omega3: return CommonMicronutrients.commonSupplements
+        case .antioxidants: return CommonMicronutrients.commonSupplements
         case .other: return CommonMicronutrients.commonSupplements
         }
     }

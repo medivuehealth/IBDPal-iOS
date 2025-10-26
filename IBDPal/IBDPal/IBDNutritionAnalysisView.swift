@@ -79,6 +79,17 @@ struct IBDNutritionAnalysisView: View {
             .navigationTitle("Micronutrient Analysis")
             .navigationBarTitleDisplayMode(.large)
             .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    NavigationLink(destination: HealthCitationsView()) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "book.closed")
+                            Text("Sources")
+                        }
+                        .font(.caption)
+                        .foregroundColor(.blue)
+                    }
+                }
+                
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("Close") {
                         dismiss()
@@ -113,7 +124,7 @@ struct IBDNutritionAnalysisView: View {
                     .font(.title2)
                     .foregroundColor(.blue)
                 
-                Text("Overall Status")
+                Text("Overall Status (Last 7 Days)")
                     .font(.title2)
                     .fontWeight(.bold)
                     .foregroundColor(.primary)
@@ -175,10 +186,16 @@ struct IBDNutritionAnalysisView: View {
                     .font(.title2)
                     .foregroundColor(.purple)
                 
-                Text("IBD-Specific Nutrients")
-                    .font(.title2)
-                    .fontWeight(.bold)
-                    .foregroundColor(.primary)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("IBD-Specific Nutrients")
+                        .font(.title2)
+                        .fontWeight(.bold)
+                        .foregroundColor(.primary)
+                    
+                    Text("7-Day Total vs 7-Day Target")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
                 
                 Spacer()
             }
@@ -190,8 +207,8 @@ struct IBDNutritionAnalysisView: View {
                 IBDNutrientCard(
                     name: "Vitamin D",
                     status: analysis.ibdSpecificNutrients.vitaminD.status,
-                    value: analysis.ibdSpecificNutrients.vitaminD.currentIntake,
-                    target: analysis.ibdSpecificNutrients.vitaminD.requiredIntake,
+                    value: convertVitaminForDisplay(analysis.ibdSpecificNutrients.vitaminD.currentIntake, vitamin: "Vitamin D"),
+                    target: convertVitaminForDisplay(analysis.ibdSpecificNutrients.vitaminD.requiredIntake, vitamin: "Vitamin D"),
                     unit: "IU"
                 )
                 
@@ -230,9 +247,9 @@ struct IBDNutritionAnalysisView: View {
                 IBDNutrientCard(
                     name: "Omega-3",
                     status: analysis.ibdSpecificNutrients.omega3.status,
-                    value: analysis.ibdSpecificNutrients.omega3.currentIntake,
-                    target: analysis.ibdSpecificNutrients.omega3.requiredIntake,
-                    unit: "mg"
+                    value: analysis.ibdSpecificNutrients.omega3.currentIntake / 1000.0, // Convert mg to g
+                    target: analysis.ibdSpecificNutrients.omega3.requiredIntake / 1000.0, // Convert mg to g
+                    unit: "g"
                 )
             }
         }
@@ -676,7 +693,7 @@ struct FoodMicronutrientCard: View {
                 MicronutrientValueItem(name: "Vitamin B9", value: micronutrients.vitaminB9, unit: "mcg")
                 MicronutrientValueItem(name: "Zinc", value: micronutrients.zinc, unit: "mg")
                 MicronutrientValueItem(name: "Calcium", value: micronutrients.calcium, unit: "mg")
-                MicronutrientValueItem(name: "Vitamin D", value: micronutrients.vitaminD, unit: "mcg")
+                MicronutrientValueItem(name: "Vitamin D", value: convertVitaminForDisplay(micronutrients.vitaminD, vitamin: "Vitamin D"), unit: getDisplayUnit(for: "Vitamin D"))
                 MicronutrientValueItem(name: "Magnesium", value: micronutrients.magnesium, unit: "mg")
             }
         }
@@ -929,7 +946,9 @@ struct IBDNutrientCard: View {
                 }
                 
                 // Progress bar
-                ProgressView(value: value, total: target)
+                let safeValue = max(0, min(value, max(target, 0.1)))
+                let safeTarget = max(0.1, target)
+                ProgressView(value: safeValue, total: safeTarget)
                     .progressViewStyle(LinearProgressViewStyle(tint: statusColor(status)))
                     .scaleEffect(y: 1.5)
             }
@@ -1075,6 +1094,57 @@ struct RecommendationCard: View {
             return "Low"
         }
     }
+}
+
+// MARK: - Vitamin Display Conversion Functions
+
+/// Convert vitamin values for display based on standard units
+func convertVitaminForDisplay(_ value: Double, vitamin: String) -> Double {
+    let vitaminName = vitamin.lowercased()
+    
+    // Vitamin D: Convert from mcg (internal) to IU (display)
+    if vitaminName.contains("vitamin d") || vitaminName.contains("d3") {
+        return value * 40  // 1 mcg = 40 IU
+    }
+    
+    // Vitamin A: Convert from mcg (internal) to IU (display)
+    if vitaminName.contains("vitamin a") || vitaminName.contains("retinol") {
+        return value * 3.33  // 1 mcg = 3.33 IU
+    }
+    
+    // Vitamin E: Convert from mg (internal) to IU (display)
+    if vitaminName.contains("vitamin e") || vitaminName.contains("tocopherol") {
+        return value * 1.49  // 1 mg = 1.49 IU
+    }
+    
+    // For other vitamins, return as-is
+    return value
+}
+
+/// Get the appropriate display unit for each vitamin
+func getDisplayUnit(for vitamin: String) -> String {
+    let vitaminName = vitamin.lowercased()
+    
+    // Vitamins that should display in IU
+    if vitaminName.contains("vitamin d") || vitaminName.contains("d3") ||
+       vitaminName.contains("vitamin a") || vitaminName.contains("retinol") ||
+       vitaminName.contains("vitamin e") || vitaminName.contains("tocopherol") {
+        return "IU"
+    }
+    
+    // B vitamins and folate in mcg
+    if vitaminName.contains("vitamin b12") || vitaminName.contains("b12") ||
+       vitaminName.contains("vitamin b9") || vitaminName.contains("folate") {
+        return "mcg"
+    }
+    
+    // Other vitamins in mg
+    if vitaminName.contains("vitamin c") || vitaminName.contains("ascorbic") {
+        return "mg"
+    }
+    
+    // Default to mcg for unknown vitamins
+    return "mcg"
 }
 
 #Preview {

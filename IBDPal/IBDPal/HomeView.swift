@@ -716,10 +716,10 @@ struct HomeView: View {
                 VStack(spacing: 8) {
                     StatCard(
                         title: "Nutrition Score",
-                        value: "\(nutritionAnalysis.overallScore)",
-                        subtitle: "/100",
+                        value: nutritionAnalysis.overallScore == 0 && nutritionAnalysis.avgCalories < 1 ? "No Data" : "\(nutritionAnalysis.overallScore)",
+                        subtitle: nutritionAnalysis.overallScore == 0 && nutritionAnalysis.avgCalories < 1 ? "" : "/100",
                         icon: "leaf.fill",
-                        color: nutritionAnalysis.overallScore >= 70 ? .green : nutritionAnalysis.overallScore >= 50 ? .orange : .red
+                        color: nutritionAnalysis.overallScore == 0 && nutritionAnalysis.avgCalories < 1 ? .gray : (nutritionAnalysis.overallScore >= 70 ? .green : nutritionAnalysis.overallScore >= 50 ? .orange : .red)
                     )
                     
                     Button(action: {
@@ -1051,10 +1051,21 @@ struct HomeView: View {
         print("🔍 [HomeView]   Analysis Fiber: \(analysis.fiber)")
         print("🔍 [HomeView]   Analysis Fat: \(analysis.fat)")
         
-        // Calculate micronutrient analysis
+        // Calculate micronutrient analysis - use cumulative totals for IBD-Specific Nutrients
+        // This shows cumulative 7-day actuals vs cumulative 7-day targets for proper comparison
+        let cumulativeRequirements = IBDMicronutrientRequirements(
+            age: dailyIntake.requirements.age,
+            gender: dailyIntake.requirements.gender,
+            weight: dailyIntake.requirements.weight,
+            height: dailyIntake.requirements.height,
+            diseaseActivity: dailyIntake.requirements.diseaseActivity,
+            medications: dailyIntake.requirements.medications,
+            diseaseType: dailyIntake.requirements.diseaseType
+        )
+        
         let micronutrientAnalysis = deficiencyAnalyzer.analyzeMicronutrientStatus(
-            dailyIntake.totalIntake,
-            dailyIntake.requirements,
+            dailyIntake.totalIntake,  // Cumulative 7-day totals for actuals
+            cumulativeRequirements,   // Cumulative 7-day targets for comparison
             profile.labResults
         )
         
@@ -1335,26 +1346,26 @@ struct HomeView: View {
             unit: "g/week"
         ))
         
-        // Micronutrient trends - also show weekly totals
+        // Micronutrient trends - show daily averages
         trends.append(NutritionTrend(
             nutrient: "Vitamin D",
-            actual: actual.vitaminD,
-            recommended: recommended.vitaminD,
-            unit: "IU/week"
+            actual: actual.vitaminD / Double(daysCount), // Convert to daily average
+            recommended: recommended.vitaminD / 7.0, // Convert to daily average
+            unit: "IU/day"
         ))
         
         trends.append(NutritionTrend(
             nutrient: "Iron",
-            actual: actual.iron,
-            recommended: recommended.iron,
-            unit: "mg/week"
+            actual: actual.iron / Double(daysCount), // Convert to daily average
+            recommended: recommended.iron / 7.0, // Convert to daily average
+            unit: "mg/day"
         ))
         
         trends.append(NutritionTrend(
             nutrient: "Calcium",
-            actual: actual.calcium,
-            recommended: recommended.calcium,
-            unit: "mg/week"
+            actual: actual.calcium / Double(daysCount), // Convert to daily average
+            recommended: recommended.calcium / 7.0, // Convert to daily average
+            unit: "mg/day"
         ))
         
         return trends
@@ -1377,8 +1388,8 @@ struct HomeView: View {
             let todayComponents = utcCalendar.dateComponents([.year, .month, .day], from: today)
             let entryComponents = utcCalendar.dateComponents([.year, .month, .day], from: entryDate)
             
-            print("🔍 [HomeView] Today components (UTC): year=\(todayComponents.year), month=\(todayComponents.month), day=\(todayComponents.day)")
-            print("🔍 [HomeView] Entry components (UTC): year=\(entryComponents.year), month=\(entryComponents.month), day=\(entryComponents.day)")
+            print("🔍 [HomeView] Today components (UTC): year=\(todayComponents.year ?? 0), month=\(todayComponents.month ?? 0), day=\(todayComponents.day ?? 0)")
+            print("🔍 [HomeView] Entry components (UTC): year=\(entryComponents.year ?? 0), month=\(entryComponents.month ?? 0), day=\(entryComponents.day ?? 0)")
             
             let isToday = todayComponents.year == entryComponents.year &&
                         todayComponents.month == entryComponents.month &&
@@ -1411,8 +1422,8 @@ struct HomeView: View {
             let todayComponents = utcCalendar.dateComponents([.year, .month, .day], from: today)
             let entryComponents = utcCalendar.dateComponents([.year, .month, .day], from: entryDate)
             
-            print("🔍 [HomeView] Symptom today components (UTC): year=\(todayComponents.year), month=\(todayComponents.month), day=\(todayComponents.day)")
-            print("🔍 [HomeView] Symptom entry components (UTC): year=\(entryComponents.year), month=\(entryComponents.month), day=\(entryComponents.day)")
+            print("🔍 [HomeView] Symptom today components (UTC): year=\(todayComponents.year ?? 0), month=\(todayComponents.month ?? 0), day=\(todayComponents.day ?? 0)")
+            print("🔍 [HomeView] Symptom entry components (UTC): year=\(entryComponents.year ?? 0), month=\(entryComponents.month ?? 0), day=\(entryComponents.day ?? 0)")
             
             let isToday = todayComponents.year == entryComponents.year &&
                         todayComponents.month == entryComponents.month &&
@@ -1589,6 +1600,14 @@ struct HomeView: View {
     }
     
     private func calculateOverallScore(from analysis: NutritionAnalysis) -> Int {
+        // Check if there's no data (all averages are 0 or very low)
+        let hasNoData = analysis.avgProtein < 1 && analysis.avgFiber < 1 && analysis.avgCalories < 1
+        
+        if hasNoData {
+            print("🔍 [HomeView] No nutrition data available - returning 0 score")
+            return 0
+        }
+        
         var score = 100
         
         print("🔍 [HomeView] Calculating nutrition score - starting with 100")
@@ -1655,7 +1674,7 @@ struct HomeView: View {
                         foodFrequency[foodName]?.totalCalories += Double(meal.calories ?? 0)
                         foodFrequency[foodName]?.totalProtein += Double(meal.protein ?? 0)
                         foodFrequency[foodName]?.totalFiber += Double(meal.fiber ?? 0)
-                        foodFrequency[foodName]?.mealTypes.insert(meal.meal_type ?? "Unknown")
+                        foodFrequency[foodName]?.mealTypes.insert(meal.meal_type)
                     }
                 } else {
                     print("🔍 [HomeView] Entry has no meals")
@@ -1854,10 +1873,17 @@ struct NutritionDeficienciesCard: View {
                 
                 Spacer()
                 
-                Text("Score: \(analysis.overallScore)/100")
-                    .font(.caption)
-                    .fontWeight(.medium)
-                    .foregroundColor(analysis.overallScore >= 70 ? .green : analysis.overallScore >= 50 ? .orange : .red)
+                if analysis.overallScore == 0 && analysis.avgCalories < 1 {
+                    Text("No Data")
+                        .font(.caption)
+                        .fontWeight(.medium)
+                        .foregroundColor(.gray)
+                } else {
+                    Text("Score: \(analysis.overallScore)/100")
+                        .font(.caption)
+                        .fontWeight(.medium)
+                        .foregroundColor(analysis.overallScore >= 70 ? .green : analysis.overallScore >= 50 ? .orange : .red)
+                }
             }
             
             // Nutrition Summary Section
@@ -2018,6 +2044,15 @@ struct DieticianRecommendationsCard: View {
                     .fontWeight(.semibold)
                     .foregroundColor(.ibdPrimaryText)
                 Spacer()
+                
+                NavigationLink(destination: HealthCitationsView()) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "book.closed")
+                        Text("Sources")
+                    }
+                    .font(.caption)
+                    .foregroundColor(.blue)
+                }
             }
             
             // Weekly Goals

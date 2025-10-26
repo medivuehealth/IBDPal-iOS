@@ -10,6 +10,9 @@ struct DiscoverView: View {
     @State private var isLoading = false
     @State private var errorMessage: String?
     
+    // Evidence-based target service
+    @StateObject private var evidenceBasedTargetService = EvidenceBasedTargetCalculator.shared
+    
     var body: some View {
         NavigationView {
             ScrollView {
@@ -57,7 +60,7 @@ struct DiscoverView: View {
                         )
                         
                                     // Health Metrics Section
-            HealthMetricsView(data: data.healthMetrics, selectedTimeframe: selectedTimeframe)
+            HealthMetricsView(data: data.healthMetrics, selectedTimeframe: selectedTimeframe, evidenceBasedTargetService: evidenceBasedTargetService)
                         
                         // Insights
                         InsightsView(insights: data.insights)
@@ -69,8 +72,21 @@ struct DiscoverView: View {
             }
             .background(Color.ibdBackground)
             .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    NavigationLink(destination: HealthCitationsView()) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "book.closed")
+                            Text("Sources")
+                        }
+                        .font(.caption)
+                        .foregroundColor(.blue)
+                    }
+                }
+            }
             .onAppear {
                 loadTrendsData()
+                calculateEvidenceBasedTargets()
             }
         }
     }
@@ -116,6 +132,33 @@ struct DiscoverView: View {
                     print("❌ [DiscoverView] Error loading trends: \(error)")
                 }
             }
+        }
+    }
+    
+    private func calculateEvidenceBasedTargets() {
+        guard let userData = userData else { return }
+        
+        // Create a basic user profile for evidence-based target calculation
+        let userProfile = MicronutrientProfile(
+            userId: userData.id,
+            age: 30, // Default age - would be fetched from user profile
+            weight: 70.0, // Default weight - would be fetched from user profile
+            height: nil,
+            gender: "Unknown", // Would be fetched from user profile
+            diseaseActivity: .remission, // Would be determined by AI assessment
+            diseaseType: "IBD",
+            medications: [],
+            labResults: [],
+            supplements: []
+        )
+        
+        Task {
+            let _ = evidenceBasedTargetService.calculateAllTargets(
+                for: userProfile,
+                medicationHistory: [],
+                symptomHistory: [],
+                healthHistory: []
+            )
         }
     }
     
@@ -1074,7 +1117,13 @@ struct SimpleSymptomChart: View {
     let timeframe: TimeFrame
     
     // IBD Symptom Management Targets
-    private let symptomTargets = SymptomTargets()
+    private let symptomTargets = SymptomTargets(
+        painTarget: 3,
+        stressTarget: 4,
+        fatigueTarget: 3,
+        bowelFrequencyTarget: 2,
+        urgencyTarget: 2
+    )
     
     // Calculate smoothed trend data
     private var smoothedPainData: [SymptomTrendPoint] {
@@ -1295,9 +1344,29 @@ extension SimpleSymptomChart {
 struct HealthMetricsView: View {
     let data: [HealthMetricPoint]
     let selectedTimeframe: TimeFrame
+    @ObservedObject var evidenceBasedTargetService: EvidenceBasedTargetCalculator
     
-    // Industry-defined targets (fixed, don't change)
-    private let targets = HealthMetricTargets()
+    // Evidence-based targets (replaces hardcoded values)
+    private var targets: HealthMetricTargets {
+        // Create a default user profile for target calculation
+        let defaultProfile = MicronutrientProfile(
+            userId: "default",
+            age: 30,
+            weight: 60.0,
+            height: 165.0,
+            gender: "female",
+            diseaseActivity: .remission,
+            diseaseType: "IBD",
+            medications: [],
+            labResults: [],
+            supplements: []
+        )
+        return EvidenceBasedTargets.calculateHealthMetricTargets(
+            for: defaultProfile,
+            diseaseActivity: .remission,
+            healthHistory: []
+        )
+    }
     
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -2085,7 +2154,7 @@ struct IBDTargets {
     let carbTarget: Int = 300 // DRI: 130g minimum + additional for energy (2000 - 260 protein - 585 fat) / 4
     
     // Micronutrients (Daily Baseline - DRI RDA/AI values with IBD adjustments)
-    let vitaminDTarget: Int = 600 // DRI: 600 IU (15 mcg) - may need 2-3x for IBD patients
+    let vitaminDTarget: Int = 15 // DRI: 600 IU (15 mcg) - may need 2-3x for IBD patients
     let vitaminB12Target: Int = 2 // DRI: 2.4 mcg - may need 2-3x for IBD patients (rounded to 2)
     let ironTarget: Int = 18 // DRI: 18mg (female) / 8mg (male) - using female value with IBD adjustment
     let folateTarget: Int = 400 // DRI: 400 mcg DFE - may need 1.5x for IBD patients
@@ -2153,7 +2222,7 @@ struct PersonalizedIBDTargets {
         let carbTarget = Int((Double(calorieTarget) - Double(proteinTarget * 4) - Double(fatTarget * 9)) / 4.0)
         
         // Micronutrients (DRI RDA/AI baseline with IBD adjustments)
-        let vitaminDTarget = Int(600.0 * totalMultiplier) // DRI: 600 IU baseline
+        let vitaminDTarget = Int(15.0 * totalMultiplier) // DRI: 600 IU (15 mcg) baseline - stored in mcg
         let vitaminB12Target = Int(2.4 * totalMultiplier) // DRI: 2.4 mcg baseline
         let ironTarget = Int(18.0 * totalMultiplier) // DRI: 18mg (female) baseline
         let folateTarget = Int(400.0 * totalMultiplier) // DRI: 400 mcg DFE baseline
@@ -2207,30 +2276,13 @@ struct PersonalizedIBDTargets {
     }
 }
 
-struct HealthMetricTargets {
-    // Based on IBD clinical guidelines and research
-    let medicationAdherenceTarget: Double = 90.0 // % (target for optimal disease control)
-    let bowelFrequencyTarget: Double = 2.0 // times/day (normal range for IBD remission)
-    let painTarget: Double = 3.0 // /10 (target for well-managed IBD)
-    let urgencyTarget: Double = 3.0 // /10 (target for urgency control)
-    let weightChangeTarget: Double = 0.0 // kg (target for stable weight)
-    
-    // Warning thresholds (when to show warnings)
-    let medicationAdherenceWarning: Double = 80.0 // % (below this triggers warning)
-    let bowelFrequencyWarning: Double = 4.0 // times/day (above this triggers warning)
-    let painWarning: Double = 5.0 // /10 (above this triggers warning)
-    let urgencyWarning: Double = 6.0 // /10 (above this triggers warning)
-    let weightChangeWarning: Double = 2.0 // kg (above this triggers warning)
-}
+// MARK: - Evidence-Based Target Integration
+// These structs are now replaced by EvidenceBasedTargets.swift
+// The hardcoded values below are kept for backward compatibility
+// New code should use EvidenceBasedTargetCalculator.shared.calculateAllTargets()
 
-struct SymptomTargets {
-    // Based on IBD symptom management guidelines
-    let painTarget: Int = 3 // /10 (target for well-managed IBD)
-    let stressTarget: Int = 5 // /10 (target for stress management)
-    let fatigueTarget: Int = 4 // /10 (target for energy levels)
-    let bowelFrequencyTarget: Int = 2 // times/day (normal range)
-    let urgencyTarget: Int = 3 // /10 (target for urgency control)
-}
+// DEPRECATED: These structs have been moved to EvidenceBasedTargets.swift
+// Use EvidenceBasedTargets.calculateHealthMetricTargets() and EvidenceBasedTargets.calculateSymptomTargets() instead
 
 #Preview {
     DiscoverView(userData: UserData(

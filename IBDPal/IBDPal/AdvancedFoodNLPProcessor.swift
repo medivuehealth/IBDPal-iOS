@@ -61,6 +61,8 @@ class AdvancedFoodNLPProcessor: ObservableObject {
         "chicken wings": FoodPattern(name: "Chicken Wings", category: "Appetizer", cuisine: "American", confidence: 0.95),
         "bbq ribs": FoodPattern(name: "BBQ Ribs", category: "Meat", cuisine: "American", confidence: 0.9),
         "pizza": FoodPattern(name: "Pizza", category: "Bread", cuisine: "Italian", confidence: 0.95),
+        "cheese pizza": FoodPattern(name: "Cheese Pizza", category: "Italian", cuisine: "Italian", confidence: 0.95),
+        "pizza slice": FoodPattern(name: "Pizza", category: "Bread", cuisine: "Italian", confidence: 0.9),
         "corn dog": FoodPattern(name: "Corn Dog", category: "Sandwich", cuisine: "American", confidence: 0.9),
         "chili": FoodPattern(name: "Chili", category: "Soups", cuisine: "American", confidence: 0.9),
         
@@ -105,6 +107,8 @@ class AdvancedFoodNLPProcessor: ObservableObject {
         "sandwhich": FoodPattern(name: "Sandwich", category: "Sandwich", cuisine: "International", confidence: 0.9),
         "egg sandwich": FoodPattern(name: "Egg Sandwich", category: "Sandwich", cuisine: "International", confidence: 0.9),
         "chicken sandwich": FoodPattern(name: "Chicken Sandwich", category: "Sandwich", cuisine: "International", confidence: 0.9),
+        "chicken tortilla": FoodPattern(name: "Chicken Tortilla", category: "Mexican", cuisine: "Mexican", confidence: 0.95),
+        "tortilla": FoodPattern(name: "Tortilla", category: "Bread", cuisine: "Mexican", confidence: 0.8),
         "salad": FoodPattern(name: "Salad", category: "Salad", cuisine: "International", confidence: 0.7),
         "soup": FoodPattern(name: "Soup", category: "Soups", cuisine: "International", confidence: 0.7),
         "bread": FoodPattern(name: "Bread", category: "Bread", cuisine: "International", confidence: 0.8),
@@ -117,6 +121,9 @@ class AdvancedFoodNLPProcessor: ObservableObject {
         "tuna": FoodPattern(name: "Tuna", category: "Seafood", cuisine: "International", confidence: 0.9),
         "eggs": FoodPattern(name: "Eggs", category: "Protein", cuisine: "International", confidence: 0.8),
         "egg": FoodPattern(name: "Eggs", category: "Protein", cuisine: "International", confidence: 0.8),
+        "boiled egg": FoodPattern(name: "Boiled Egg", category: "Protein", cuisine: "International", confidence: 0.95),
+        "boiled eggs": FoodPattern(name: "Boiled Egg", category: "Protein", cuisine: "International", confidence: 0.9),
+        "hard boiled egg": FoodPattern(name: "Boiled Egg", category: "Protein", cuisine: "International", confidence: 0.95),
         "egg omelette": FoodPattern(name: "Egg Omelette", category: "Protein", cuisine: "International", confidence: 0.95),
         "egg omlete": FoodPattern(name: "Egg Omelette", category: "Protein", cuisine: "International", confidence: 0.9),
         "egg omlette": FoodPattern(name: "Egg Omelette", category: "Protein", cuisine: "International", confidence: 0.9),
@@ -128,6 +135,8 @@ class AdvancedFoodNLPProcessor: ObservableObject {
         "greek yogurt": FoodPattern(name: "Greek Yogurt", category: "Dairy", cuisine: "International", confidence: 0.9),
         "apple": FoodPattern(name: "Apple", category: "Fruits", cuisine: "International", confidence: 0.9),
         "banana": FoodPattern(name: "Banana", category: "Fruits", cuisine: "International", confidence: 0.9),
+        "banana smoothie": FoodPattern(name: "Banana Smoothie", category: "Beverages", cuisine: "International", confidence: 0.95),
+        "smoothie": FoodPattern(name: "Fruit Smoothie", category: "Beverages", cuisine: "International", confidence: 0.8),
         "orange": FoodPattern(name: "Orange", category: "Fruits", cuisine: "International", confidence: 0.9),
         "strawberry": FoodPattern(name: "Strawberry", category: "Fruits", cuisine: "International", confidence: 0.9),
         "blueberry": FoodPattern(name: "Blueberry", category: "Fruits", cuisine: "International", confidence: 0.9),
@@ -212,7 +221,16 @@ class AdvancedFoodNLPProcessor: ObservableObject {
         "tamarind sauce": "tamarind sauce",
         "tahini sauce": "tahini sauce",
         "dashi stock": "dashi stock",
-        "miso paste": "miso paste"
+        "miso paste": "miso paste",
+        "banana smoothie": "banana smoothie",
+        "smoothie": "smoothie",
+        "boiled egg": "boiled egg",
+        "boiled eggs": "boiled egg",
+        "hard boiled egg": "boiled egg",
+        "chicken sandwich": "chicken sandwich",
+        "chicken tortilla": "chicken tortilla",
+        "cheese pizza": "cheese pizza",
+        "pizza": "pizza"
     ]
     
     // MARK: - Context Words (to be ignored)

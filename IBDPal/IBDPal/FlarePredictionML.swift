@@ -952,12 +952,13 @@ struct WeeklyNutritionTotals {
     var omega3: Double = 0
     
     mutating func addMicronutrients(_ micronutrients: MicronutrientData) {
-        vitaminD += micronutrients.vitaminD
-        vitaminB12 += micronutrients.vitaminB12
-        iron += micronutrients.iron
-        calcium += micronutrients.calcium
-        zinc += micronutrients.zinc
-        omega3 += micronutrients.omega3
+        // Store micronutrients in their internal units (mcg for vitamins, mg for minerals)
+        vitaminD += micronutrients.vitaminD  // Already in mcg
+        vitaminB12 += micronutrients.vitaminB12  // Already in mcg
+        iron += micronutrients.iron  // Already in mg
+        calcium += micronutrients.calcium  // Already in mg
+        zinc += micronutrients.zinc  // Already in mg
+        omega3 += micronutrients.omega3  // Already in mg
     }
 }
 

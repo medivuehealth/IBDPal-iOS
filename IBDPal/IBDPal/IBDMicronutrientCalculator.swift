@@ -24,24 +24,8 @@ class IBDMicronutrientCalculator: ObservableObject {
         let recognizedFoods = enhancedFoodRecognition(from: correctedDescription)
         print("🔍 [NLP DEBUG] Recognized foods: \(recognizedFoods)")
         
-        // Try to find compound dishes first
-        for compoundFood in recognizedFoods.compoundFoods {
-            if let compoundFoodItem = findCompoundFood(in: compoundFood.lowercased()) {
-                print("🔍 [NLP DEBUG] Found compound food: \(compoundFood)")
-                return calculateFromCompoundFood(compoundFoodItem, servingSize: servingSize)
-            }
-        }
-        
-        // Then try enhanced individual foods
-        for foodEntity in recognizedFoods.individualFoods {
-            if let enhancedFood = findEnhancedFood(in: foodEntity.lowercased()) {
-                print("🔍 [NLP DEBUG] Found enhanced food: \(foodEntity)")
-                return calculateFromEnhancedFood(enhancedFood, servingSize: servingSize)
-            }
-        }
-        
-        // Enhanced fallback with better categorization
-        return enhancedEstimateMicronutrients(for: correctedDescription, servingSize: servingSize)
+        // Process recognized foods using the helper function
+        return processRecognizedFoods(recognizedFoods, servingSize: servingSize)
     }
     
     /// Calculate micronutrients from a meal with actual serving size data
@@ -64,45 +48,40 @@ class IBDMicronutrientCalculator: ObservableObject {
         let recognizedFoods = enhancedFoodRecognition(from: correctedDescription)
         print("🔍 [MEAL NLP DEBUG] Recognized foods: \(recognizedFoods)")
         
-        // Try to find compound dishes first
-        for compoundFood in recognizedFoods.compoundFoods {
-            if let compoundFoodItem = findCompoundFood(in: compoundFood.lowercased()) {
-                print("🔍 [MEAL NLP DEBUG] Found compound food: \(compoundFood)")
-                return calculateFromCompoundFood(compoundFoodItem, servingSize: servingSize)
-            }
-        }
-        
-        // Then try enhanced individual foods
-        for foodEntity in recognizedFoods.individualFoods {
-            if let enhancedFood = findEnhancedFood(in: foodEntity.lowercased()) {
-                print("🔍 [MEAL NLP DEBUG] Found enhanced food: \(foodEntity)")
-                return calculateFromEnhancedFood(enhancedFood, servingSize: servingSize)
-            }
-        }
-        
-        // Enhanced fallback with better categorization
-        return enhancedEstimateMicronutrients(for: correctedDescription, servingSize: servingSize)
+        // Process recognized foods using the helper function
+        return processRecognizedFoods(recognizedFoods, servingSize: servingSize)
     }
     
     /// Calculate micronutrients with explicit serving size (for backward compatibility)
     func calculateMicronutrients(for foodDescription: String, servingSize: Double = 1.0) -> MicronutrientData {
         let correctedDescription = correctSpelling(foodDescription)
         
-        // Use NLP processor for intelligent food recognition
-        let nlpResult = FoodNLPProcessor.shared.processFoodDescription(correctedDescription)
+        // Use Advanced NLP processor for intelligent food recognition
+        let nlpResult = AdvancedFoodNLPProcessor.shared.processFoodDescription(correctedDescription)
         
-        // First, try to find compound dishes
-        for compoundFood in nlpResult.compoundFoods {
-            if let compoundFoodItem = findCompoundFood(in: compoundFood.name.lowercased()) {
-                return calculateFromCompoundFood(compoundFoodItem, servingSize: servingSize)
-            }
-        }
+        print("🧠 [ADVANCED NLP] Original: '\(nlpResult.originalText)'")
+        print("🧠 [ADVANCED NLP] Normalized: '\(nlpResult.normalizedText)'")
+        print("🧠 [ADVANCED NLP] Recognized: \(nlpResult.recognizedFood?.name ?? "None")")
+        print("🧠 [ADVANCED NLP] Confidence: \(nlpResult.confidence)")
+        print("🧠 [ADVANCED NLP] Method: \(nlpResult.processingMethod)")
         
-        // Then try enhanced individual foods
-        for foodEntity in nlpResult.individualFoods {
-            if let enhancedFood = findEnhancedFood(in: foodEntity.normalizedText) {
+        // If we found a recognized food, try to find it in our databases
+        if let recognizedFood = nlpResult.recognizedFood {
+            // First try enhanced food database
+            if let enhancedFood = findEnhancedFood(in: recognizedFood.name.lowercased()) {
+                print("🔍 [ADVANCED NLP] Found in Enhanced DB: \(enhancedFood.name)")
                 return calculateFromEnhancedFood(enhancedFood, servingSize: servingSize)
             }
+            
+            // Then try compound food database
+            if let compoundFood = findCompoundFood(in: recognizedFood.name.lowercased()) {
+                print("🔍 [ADVANCED NLP] Found in Compound DB: \(compoundFood.name)")
+                return calculateFromCompoundFood(compoundFood, servingSize: servingSize)
+            }
+            
+            // If not found in databases, use the recognized food category for estimation
+            print("🔍 [ADVANCED NLP] Using category estimation for: \(recognizedFood.category)")
+            return getEstimatedMicronutrients(for: recognizedFood.category.lowercased(), servingSize: servingSize)
         }
         
         // Fallback to estimated micronutrients based on food category
@@ -145,11 +124,39 @@ class IBDMicronutrientCalculator: ObservableObject {
         print("🔍 [MICRONUTRIENT DEBUG] Final food sources count: \(foodSources.count)")
         print("🔍 [MICRONUTRIENT DEBUG] Food sources: \(Array(foodSources.keys))")
         
-        // Calculate from supplements
+        // Calculate from supplements in journal entries (daily log supplements)
+        for entry in journalEntries {
+            if let supplementDetails = entry.supplement_details {
+                for supplementDetail in supplementDetails {
+                    let supplementMicronutrients = calculateSupplementMicronutrientsFromDetail(supplementDetail)
+                    totalMicronutrients = addMicronutrients(totalMicronutrients, supplementMicronutrients)
+                    
+                    // Accumulate supplement values instead of overwriting
+                    if let existingMicronutrients = supplementSources[supplementDetail.supplement_name] {
+                        supplementSources[supplementDetail.supplement_name] = addMicronutrients(existingMicronutrients, supplementMicronutrients)
+                        print("🔍 [SUPPLEMENT DEBUG] Accumulated supplement from daily log: \(supplementDetail.supplement_name) - \(supplementDetail.dosage) \(supplementDetail.unit)")
+                    } else {
+                        supplementSources[supplementDetail.supplement_name] = supplementMicronutrients
+                        print("🔍 [SUPPLEMENT DEBUG] Added supplement from daily log: \(supplementDetail.supplement_name) - \(supplementDetail.dosage) \(supplementDetail.unit)")
+                    }
+                }
+            }
+        }
+        
+        // Calculate from saved supplements in profile (if not already taken in daily log)
+        print("🔍 [SUPPLEMENT DEBUG] Processing \(userProfile.supplements.count) saved supplements")
         for supplement in userProfile.supplements where supplement.isActive {
-            let supplementMicronutrients = calculateSupplementMicronutrients(supplement)
-            totalMicronutrients = addMicronutrients(totalMicronutrients, supplementMicronutrients)
-            supplementSources[supplement.name] = supplementMicronutrients
+            print("🔍 [SUPPLEMENT DEBUG] Checking saved supplement: \(supplement.name) - \(supplement.dosage) \(supplement.unit)")
+            
+            // Only add if not already processed from daily log
+            if !supplementSources.keys.contains(supplement.name) {
+                let supplementMicronutrients = calculateSupplementMicronutrients(supplement)
+                totalMicronutrients = addMicronutrients(totalMicronutrients, supplementMicronutrients)
+                supplementSources[supplement.name] = supplementMicronutrients
+                print("🔍 [SUPPLEMENT DEBUG] Added saved supplement: \(supplement.name) - \(supplement.dosage) \(supplement.unit)")
+            } else {
+                print("🔍 [SUPPLEMENT DEBUG] Skipped saved supplement (already in daily log): \(supplement.name)")
+            }
         }
         
         // Create evidence-based requirements with disease type consideration
@@ -179,9 +186,18 @@ class IBDMicronutrientCalculator: ObservableObject {
     // MARK: - Private Calculation Methods
     
     private func calculateFromEnhancedFood(_ food: EnhancedFoodItem, servingSize: Double) -> MicronutrientData {
+        print("🔍 [ENHANCED FOOD] Found: \(food.name)")
+        print("🔍 [ENHANCED FOOD] Vitamins: \(food.vitamins)")
+        print("🔍 [ENHANCED FOOD] Minerals: \(food.minerals)")
+        
         // Convert vitamins and minerals dictionaries to MicronutrientData
         let micronutrientData = createMicronutrientDataFromEnhancedFood(food)
-        return scaleMicronutrients(micronutrientData, by: servingSize)
+        print("🔍 [ENHANCED FOOD] Converted micronutrients: C=\(micronutrientData.vitaminC), Iron=\(micronutrientData.iron), D=\(micronutrientData.vitaminD)")
+        
+        let scaledData = scaleMicronutrients(micronutrientData, by: servingSize)
+        print("🔍 [ENHANCED FOOD] Scaled micronutrients (serving: \(servingSize)): C=\(scaledData.vitaminC), Iron=\(scaledData.iron), D=\(scaledData.vitaminD)")
+        
+        return scaledData
     }
     
     private func calculateFromCompoundFood(_ food: CompoundFoodItem, servingSize: Double) -> MicronutrientData {
@@ -206,15 +222,78 @@ class IBDMicronutrientCalculator: ObservableObject {
     private func calculateSupplementMicronutrients(_ supplement: MicronutrientSupplement) -> MicronutrientData {
         // Convert supplement to micronutrient data based on category and dosage
         switch supplement.category {
-        case .vitamin:
+        case .vitamins:
             return getVitaminMicronutrients(supplement.name, dosage: supplement.dosage, unit: supplement.unit)
-        case .mineral:
+        case .minerals:
             return getMineralMicronutrients(supplement.name, dosage: supplement.dosage, unit: supplement.unit)
-        case .traceElement:
+        case .probiotics, .omega3, .antioxidants, .other:
             return getTraceElementMicronutrients(supplement.name, dosage: supplement.dosage, unit: supplement.unit)
-        case .other:
-            return MicronutrientData() // Unknown supplement
         }
+    }
+    
+    /// Calculate micronutrients from a supplement detail (from daily log)
+    private func calculateSupplementMicronutrientsFromDetail(_ supplementDetail: SupplementDetail) -> MicronutrientData {
+        guard let dosage = Double(supplementDetail.dosage) else {
+            print("🔍 [SUPPLEMENT DEBUG] Invalid dosage for \(supplementDetail.supplement_name): \(supplementDetail.dosage)")
+            return MicronutrientData()
+        }
+        
+        let unit = DosageUnit.fromString(supplementDetail.unit)
+        
+        print("🔍 [SUPPLEMENT DEBUG] Processing daily log supplement: \(supplementDetail.supplement_name) - \(dosage) \(supplementDetail.unit)")
+        print("🔍 [SUPPLEMENT DEBUG] Parsed unit: \(unit), Original unit string: '\(supplementDetail.unit)'")
+        
+        // Determine category based on supplement name and category
+        let category = determineSupplementCategory(supplementDetail.supplement_name, categoryString: supplementDetail.category)
+        
+        switch category {
+        case .vitamins:
+            return getVitaminMicronutrients(supplementDetail.supplement_name, dosage: dosage, unit: unit)
+        case .minerals:
+            return getMineralMicronutrients(supplementDetail.supplement_name, dosage: dosage, unit: unit)
+        case .probiotics, .omega3, .antioxidants, .other:
+            return getTraceElementMicronutrients(supplementDetail.supplement_name, dosage: dosage, unit: unit)
+        }
+    }
+    
+    /// Determine supplement category from name and category string
+    private func determineSupplementCategory(_ name: String, categoryString: String) -> MicronutrientCategory {
+        let lowerName = name.lowercased()
+        let lowerCategory = categoryString.lowercased()
+        
+        // Check category string first
+        if lowerCategory.contains("vitamin") {
+            return .vitamins
+        } else if lowerCategory.contains("mineral") {
+            return .minerals
+        } else if lowerCategory.contains("probiotic") {
+            return .probiotics
+        } else if lowerCategory.contains("omega") {
+            return .omega3
+        } else if lowerCategory.contains("antioxidant") {
+            return .antioxidants
+        } else if lowerCategory.contains("trace") {
+            return .other
+        }
+        
+        // Check supplement name for common patterns
+        if lowerName.contains("vitamin") || lowerName.contains("d3") || lowerName.contains("b12") || 
+           lowerName.contains("folate") || lowerName.contains("ascorbic") {
+            return .vitamins
+        } else if lowerName.contains("calcium") || lowerName.contains("iron") || lowerName.contains("zinc") ||
+                  lowerName.contains("magnesium") || lowerName.contains("selenium") {
+            return .minerals
+        } else if lowerName.contains("probiotic") || lowerName.contains("lactobacillus") || lowerName.contains("bifidobacterium") {
+            return .probiotics
+        } else if lowerName.contains("omega") || lowerName.contains("fish oil") || lowerName.contains("epa") || lowerName.contains("dha") {
+            return .omega3
+        } else if lowerName.contains("curcumin") || lowerName.contains("turmeric") || lowerName.contains("glutamine") {
+            return .antioxidants
+        } else if lowerName.contains("iodine") || lowerName.contains("chromium") || lowerName.contains("molybdenum") {
+            return .other
+        }
+        
+        return .other
     }
     
     // MARK: - Micronutrient Arithmetic
@@ -378,10 +457,25 @@ class IBDMicronutrientCalculator: ObservableObject {
     // MARK: - Helper Methods
     
     private func findEnhancedFood(in name: String) -> EnhancedFoodItem? {
-        return enhancedFoodDB.allFoods.first { food in
-            food.name.lowercased().contains(name.lowercased()) ||
+        print("🔍 [FIND ENHANCED] Looking for: '\(name)' in \(enhancedFoodDB.allFoods.count) foods")
+        
+        let found = enhancedFoodDB.allFoods.first { food in
+            let nameMatch = food.name.lowercased().contains(name.lowercased()) ||
             name.lowercased().contains(food.name.lowercased())
+            if nameMatch {
+                print("🔍 [FIND ENHANCED] Found match: '\(food.name)' for '\(name)'")
+            }
+            return nameMatch
         }
+        
+        if found == nil {
+            print("🔍 [FIND ENHANCED] No match found for: '\(name)'")
+            // Print first few food names for debugging
+            let sampleFoods = enhancedFoodDB.allFoods.prefix(5).map { $0.name }
+            print("🔍 [FIND ENHANCED] Sample foods in database: \(sampleFoods)")
+        }
+        
+        return found
     }
     
     private func findCompoundFood(in name: String) -> CompoundFoodItem? {
@@ -771,8 +865,59 @@ class IBDMicronutrientCalculator: ObservableObject {
     }
     
     private func correctSpelling(_ text: String) -> String {
-        // Basic spelling correction - can be enhanced with more sophisticated algorithms
-        return text.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+        var corrected = text.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        // Essential spelling corrections for common food typos (no duplicates)
+        let corrections: [String: String] = [
+            "sandwhich": "sandwich", "sandwiche": "sandwich", "sandwch": "sandwich",
+            "omlete": "omelette", "omlette": "omelette", "omlet": "omelette",
+            "avacado": "avocado", "avacados": "avocados",
+            "keenwa": "quinoa",
+            "padthai": "pad thai", "pad-thai": "pad thai",
+            "biriyani": "biryani",
+            "shwarma": "shawarma",
+            "falafal": "falafel",
+            "humus": "hummus",
+            "tzaziki": "tzatziki",
+            "bruscheta": "bruschetta",
+            "ratatouile": "ratatouille",
+            "bouillabaise": "bouillabaisse",
+            "bourguignonne": "bourguignon",
+            "dhal": "dal",
+            "guac": "guacamole",
+            "mac n cheese": "mac and cheese", "mac n c heese": "mac and cheese",
+            "macaroni and cheese": "mac and cheese",
+            "hotdog": "hot dog", "hot-dog": "hot dog",
+            "oragne": "orange", "oranges": "oranges",
+            "aple": "apple", "apples": "apples",
+            "bananna": "banana", "bananas": "bananas",
+            "strawbery": "strawberry", "strawberries": "strawberries",
+            "bluebery": "blueberry", "blueberries": "blueberries",
+            "pineaple": "pineapple",
+            "brocoli": "broccoli",
+            "chiken": "chicken",
+            "yoghurt": "yogurt",
+            "veggies": "vegetables", "veggie": "vegetable",
+            "stir-fry": "stir fry", "stirfry": "stir fry",
+            "stir fried": "stir fried", "stir-fried": "stir fried",
+            "sauteed": "sauteed", "sautéed": "sauteed", "saute": "sauteed",
+            "roast": "roasted", "grill": "grilled",
+            "steam": "steamed", "boil": "boiled",
+            "fry": "fried", "bake": "baked",
+            "cook": "cooked"
+        ]
+        
+        // Apply corrections
+        for (incorrect, correct) in corrections {
+            corrected = corrected.replacingOccurrences(of: incorrect, with: correct, options: .caseInsensitive)
+        }
+        
+        // Handle common patterns
+        corrected = corrected.replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+        corrected = corrected.trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        print("🔍 [SPELL CORRECTION] '\(text)' -> '\(corrected)'")
+        return corrected
     }
     
     private func determineFoodCategory(_ foodDescription: String) -> String {
@@ -782,7 +927,7 @@ class IBDMicronutrientCalculator: ObservableObject {
         
         // Comprehensive food categorization for international cuisines
         let fruitKeywords = [
-            "fruit", "apple", "banana", "orange", "grape", "berry", "strawberry", "blueberry", "raspberry",
+            "fruit", "apple", "banana", "orange", "oranges", "grape", "berry", "strawberry", "blueberry", "raspberry",
             "mango", "pineapple", "papaya", "kiwi", "peach", "pear", "plum", "cherry", "lemon", "lime",
             "smoothie", "juice", "fresh", "citrus", "tropical", "melon", "watermelon", "cantaloupe",
             "avocado", "coconut", "date", "fig", "pomegranate", "passion", "guava", "lychee"
@@ -973,24 +1118,83 @@ class IBDMicronutrientCalculator: ObservableObject {
     
     private func getVitaminMicronutrients(_ supplementName: String, dosage: Double, unit: DosageUnit) -> MicronutrientData {
         let name = supplementName.lowercased()
-        let convertedDosage = convertDosage(dosage, from: unit, to: .mg)
         
-        if name.contains("vitamin d") {
+        print("🔍 [VITAMIN DEBUG] Processing: \(supplementName) - \(dosage) \(unit)")
+        
+        // Vitamin D - IU to mcg conversion
+        if name.contains("vitamin d") || name.contains("d3") || name.contains("cholecalciferol") {
+            let convertedDosage = convertDosage(dosage, from: unit, to: .mcg, for: supplementName)
+            print("🔍 [VITAMIN D DEBUG] Original: \(dosage) \(unit) -> Converted: \(convertedDosage) mcg")
             return MicronutrientData(vitaminD: convertedDosage)
-        } else if name.contains("vitamin b12") {
-            return MicronutrientData(vitaminB12: convertedDosage)
-        } else if name.contains("vitamin c") {
-            return MicronutrientData(vitaminC: convertedDosage)
-        } else if name.contains("folate") || name.contains("folic acid") {
-            return MicronutrientData(vitaminB9: convertedDosage) // Fixed: was folate
         }
-        // Add more vitamin mappings as needed
+        // Vitamin A - IU to mcg conversion
+        else if name.contains("vitamin a") || name.contains("retinol") || name.contains("beta carotene") {
+            let convertedDosage = convertDosage(dosage, from: unit, to: .mcg, for: supplementName)
+            return MicronutrientData(vitaminA: convertedDosage)
+        }
+        // Vitamin E - IU to mg conversion
+        else if name.contains("vitamin e") || name.contains("tocopherol") || name.contains("alpha tocopherol") {
+            let convertedDosage = convertDosage(dosage, from: unit, to: .mg, for: supplementName)
+            return MicronutrientData(vitaminE: convertedDosage)
+        }
+        // Vitamin K - IU to mcg conversion (for K1/K2)
+        else if name.contains("vitamin k") || name.contains("k1") || name.contains("k2") || name.contains("menaquinone") {
+            let convertedDosage = convertDosage(dosage, from: unit, to: .mcg, for: supplementName)
+            return MicronutrientData(vitaminK: convertedDosage)
+        }
+        // B12 - mcg conversion
+        else if name.contains("vitamin b12") || name.contains("b12") || name.contains("cobalamin") || name.contains("methylcobalamin") {
+            let convertedDosage = convertDosage(dosage, from: unit, to: .mcg, for: supplementName)
+            return MicronutrientData(vitaminB12: convertedDosage)
+        }
+        // Folate/B9 - mcg conversion
+        else if name.contains("folate") || name.contains("folic acid") || name.contains("vitamin b9") {
+            let convertedDosage = convertDosage(dosage, from: unit, to: .mcg, for: supplementName)
+            return MicronutrientData(vitaminB9: convertedDosage)
+        }
+        // Biotin/B7 - mcg conversion
+        else if name.contains("biotin") || name.contains("vitamin b7") || name.contains("b7") {
+            let convertedDosage = convertDosage(dosage, from: unit, to: .mcg, for: supplementName)
+            return MicronutrientData(vitaminB7: convertedDosage)
+        }
+        // Vitamin C - mg conversion
+        else if name.contains("vitamin c") || name.contains("ascorbic acid") {
+            let convertedDosage = convertDosage(dosage, from: unit, to: .mg, for: supplementName)
+            return MicronutrientData(vitaminC: convertedDosage)
+        }
+        // B1 (Thiamine) - mg conversion
+        else if name.contains("thiamine") || name.contains("vitamin b1") || name.contains("b1") {
+            let convertedDosage = convertDosage(dosage, from: unit, to: .mg, for: supplementName)
+            return MicronutrientData(vitaminB1: convertedDosage)
+        }
+        // B2 (Riboflavin) - mg conversion
+        else if name.contains("riboflavin") || name.contains("vitamin b2") || name.contains("b2") {
+            let convertedDosage = convertDosage(dosage, from: unit, to: .mg, for: supplementName)
+            return MicronutrientData(vitaminB2: convertedDosage)
+        }
+        // B3 (Niacin) - mg conversion
+        else if name.contains("niacin") || name.contains("vitamin b3") || name.contains("b3") {
+            let convertedDosage = convertDosage(dosage, from: unit, to: .mg, for: supplementName)
+            return MicronutrientData(vitaminB3: convertedDosage)
+        }
+        // B5 (Pantothenic Acid) - mg conversion
+        else if name.contains("pantothenic") || name.contains("vitamin b5") || name.contains("b5") {
+            let convertedDosage = convertDosage(dosage, from: unit, to: .mg, for: supplementName)
+            return MicronutrientData(vitaminB5: convertedDosage)
+        }
+        // B6 (Pyridoxine) - mg conversion
+        else if name.contains("pyridoxine") || name.contains("vitamin b6") || name.contains("b6") {
+            let convertedDosage = convertDosage(dosage, from: unit, to: .mg, for: supplementName)
+            return MicronutrientData(vitaminB6: convertedDosage)
+        }
+        
+        // No match found
         return MicronutrientData()
     }
     
     private func getMineralMicronutrients(_ supplementName: String, dosage: Double, unit: DosageUnit) -> MicronutrientData {
         let name = supplementName.lowercased()
-        let convertedDosage = convertDosage(dosage, from: unit, to: .mg)
+        let convertedDosage = convertDosage(dosage, from: unit, to: .mg, for: supplementName)
         
         if name.contains("iron") {
             return MicronutrientData(iron: convertedDosage)
@@ -1007,7 +1211,7 @@ class IBDMicronutrientCalculator: ObservableObject {
     
     private func getTraceElementMicronutrients(_ supplementName: String, dosage: Double, unit: DosageUnit) -> MicronutrientData {
         let name = supplementName.lowercased()
-        let convertedDosage = convertDosage(dosage, from: unit, to: .mcg)
+        let convertedDosage = convertDosage(dosage, from: unit, to: .mcg, for: supplementName)
         
         if name.contains("selenium") {
             return MicronutrientData(selenium: convertedDosage)
@@ -1020,13 +1224,48 @@ class IBDMicronutrientCalculator: ObservableObject {
         return MicronutrientData()
     }
     
-    private func convertDosage(_ dosage: Double, from fromUnit: DosageUnit, to toUnit: DosageUnit) -> Double {
+    private func convertDosage(_ dosage: Double, from fromUnit: DosageUnit, to toUnit: DosageUnit, for vitamin: String = "") -> Double {
         // Convert between different dosage units
-        // This is a simplified conversion - in production, you'd have more comprehensive conversions
         if fromUnit == toUnit {
             return dosage
         }
         
+        // Handle IU conversions based on vitamin type
+        if fromUnit == .iu || toUnit == .iu {
+            let vitaminName = vitamin.lowercased()
+            
+            if vitaminName.contains("vitamin d") || vitaminName.contains("d3") {
+                // Vitamin D: 1 IU = 0.025 mcg (1 mcg = 40 IU)
+                if fromUnit == .iu && toUnit == .mcg {
+                    return dosage * 0.025
+                } else if fromUnit == .mcg && toUnit == .iu {
+                    return dosage / 0.025
+                }
+            } else if vitaminName.contains("vitamin a") || vitaminName.contains("retinol") {
+                // Vitamin A: 1 IU = 0.3 mcg (1 mcg = 3.33 IU)
+                if fromUnit == .iu && toUnit == .mcg {
+                    return dosage * 0.3
+                } else if fromUnit == .mcg && toUnit == .iu {
+                    return dosage / 0.3
+                }
+            } else if vitaminName.contains("vitamin e") || vitaminName.contains("tocopherol") {
+                // Vitamin E: 1 IU = 0.67 mg (1 mg = 1.49 IU)
+                if fromUnit == .iu && toUnit == .mg {
+                    return dosage * 0.67
+                } else if fromUnit == .mg && toUnit == .iu {
+                    return dosage / 0.67
+                }
+            } else if vitaminName.contains("vitamin k") || vitaminName.contains("k1") || vitaminName.contains("k2") {
+                // Vitamin K: 1 IU = 0.025 mcg (1 mcg = 40 IU) - for K1/K2
+                if fromUnit == .iu && toUnit == .mcg {
+                    return dosage * 0.025
+                } else if fromUnit == .mcg && toUnit == .iu {
+                    return dosage / 0.025
+                }
+            }
+        }
+        
+        // Handle standard unit conversions
         switch (fromUnit, toUnit) {
         case (.mg, .mcg):
             return dosage * 1000
@@ -1036,6 +1275,10 @@ class IBDMicronutrientCalculator: ObservableObject {
             return dosage * 1000
         case (.mg, .g):
             return dosage / 1000
+        case (.g, .mcg):
+            return dosage * 1000000
+        case (.mcg, .g):
+            return dosage / 1000000
         default:
             return dosage // No conversion available
         }
@@ -1044,34 +1287,34 @@ class IBDMicronutrientCalculator: ObservableObject {
     // Add helper function to convert EnhancedFoodItem to MicronutrientData
     private func createMicronutrientDataFromEnhancedFood(_ food: EnhancedFoodItem) -> MicronutrientData {
         return MicronutrientData(
-            vitaminA: food.vitamins["vitaminA"] ?? 0,
-            vitaminB1: food.vitamins["vitaminB1"] ?? 0,
-            vitaminB2: food.vitamins["vitaminB2"] ?? 0,
-            vitaminB3: food.vitamins["vitaminB3"] ?? 0,
-            vitaminB5: food.vitamins["vitaminB5"] ?? 0,
-            vitaminB6: food.vitamins["vitaminB6"] ?? 0,
-            vitaminB7: food.vitamins["vitaminB7"] ?? 0,
-            vitaminB9: food.vitamins["vitaminB9"] ?? 0,
-            vitaminB12: food.vitamins["vitaminB12"] ?? 0,
-            vitaminC: food.vitamins["vitaminC"] ?? 0,
-            vitaminD: food.vitamins["vitaminD"] ?? 0,
-            vitaminE: food.vitamins["vitaminE"] ?? 0,
-            vitaminK: food.vitamins["vitaminK"] ?? 0,
-            calcium: food.minerals["calcium"] ?? 0,
-            iron: food.minerals["iron"] ?? 0,
-            magnesium: food.minerals["magnesium"] ?? 0,
-            phosphorus: food.minerals["phosphorus"] ?? 0,
-            potassium: food.minerals["potassium"] ?? 0,
-            sodium: food.minerals["sodium"] ?? 0,
-            zinc: food.minerals["zinc"] ?? 0,
-            copper: food.minerals["copper"] ?? 0,
-            manganese: food.minerals["manganese"] ?? 0,
-            selenium: food.minerals["selenium"] ?? 0,
-            iodine: food.minerals["iodine"] ?? 0,
-            chromium: food.minerals["chromium"] ?? 0,
-            molybdenum: food.minerals["molybdenum"] ?? 0,
-            boron: food.minerals["boron"] ?? 0,
-            silicon: food.minerals["silicon"] ?? 0
+            vitaminA: food.vitamins["A"] ?? 0,
+            vitaminB1: food.vitamins["B1"] ?? 0,
+            vitaminB2: food.vitamins["B2"] ?? 0,
+            vitaminB3: food.vitamins["B3"] ?? 0,
+            vitaminB5: food.vitamins["B5"] ?? 0,
+            vitaminB6: food.vitamins["B6"] ?? 0,
+            vitaminB7: food.vitamins["B7"] ?? 0,
+            vitaminB9: food.vitamins["B9"] ?? 0,
+            vitaminB12: food.vitamins["B12"] ?? 0,
+            vitaminC: food.vitamins["C"] ?? 0,
+            vitaminD: food.vitamins["D"] ?? 0,
+            vitaminE: food.vitamins["E"] ?? 0,
+            vitaminK: food.vitamins["K"] ?? 0,
+            calcium: food.minerals["Calcium"] ?? 0,
+            iron: food.minerals["Iron"] ?? 0,
+            magnesium: food.minerals["Magnesium"] ?? 0,
+            phosphorus: food.minerals["Phosphorus"] ?? 0,
+            potassium: food.minerals["Potassium"] ?? 0,
+            sodium: food.minerals["Sodium"] ?? 0,
+            zinc: food.minerals["Zinc"] ?? 0,
+            copper: food.minerals["Copper"] ?? 0,
+            manganese: food.minerals["Manganese"] ?? 0,
+            selenium: food.minerals["Selenium"] ?? 0,
+            iodine: food.minerals["Iodine"] ?? 0,
+            chromium: food.minerals["Chromium"] ?? 0,
+            molybdenum: food.minerals["Molybdenum"] ?? 0,
+            boron: food.minerals["Boron"] ?? 0,
+            silicon: food.minerals["Silicon"] ?? 0
         )
     }
 
@@ -1091,7 +1334,7 @@ class IBDMicronutrientCalculator: ObservableObject {
             return amount * 4.2 // 1 liter ≈ 4.2 cups
         case "ml", "milliliter":
             return amount * 0.0042 // 1000 ml = 1 liter
-        case "fl oz", "fluid ounce", "oz":
+        case "fl oz", "fluid ounce":
             return amount * 0.125 // 8 fl oz = 1 cup
         case "pint", "pt":
             return amount * 2.0 // 1 pint = 2 cups
@@ -1205,8 +1448,260 @@ class IBDMicronutrientCalculator: ObservableObject {
             return 1.0 // Standard grain serving
         } else if description.contains("meat") || description.contains("chicken") || description.contains("fish") {
             return 0.5 // Protein servings are typically smaller
+        } else if description.contains("orange") || description.contains("apple") || description.contains("banana") ||
+                  description.contains("fruit") || description.contains("berry") {
+            return 0.5 // Single piece of fruit is typically 0.5 cups
         } else {
             return 1.0 // Default serving size
         }
+    }
+    
+    /// Process recognized foods and return micronutrient data
+    private func processRecognizedFoods(_ recognizedFoods: (compoundFoods: [String], individualFoods: [String]), servingSize: Double) -> MicronutrientData {
+        // Try compound foods first
+        for compoundFood in recognizedFoods.compoundFoods {
+            if let compoundFoodItem = findCompoundFood(in: compoundFood.lowercased()) {
+                print("🔍 [PROCESS] Found compound food: \(compoundFood)")
+                return calculateFromCompoundFood(compoundFoodItem, servingSize: servingSize)
+            }
+        }
+        
+        // For mixed dishes with multiple individual foods, combine micronutrients
+        if recognizedFoods.individualFoods.count > 1 {
+            print("🔍 [PROCESS] Mixed dish detected with \(recognizedFoods.individualFoods.count) components: \(recognizedFoods.individualFoods)")
+            return calculateMixedDishMicronutrients(recognizedFoods.individualFoods, servingSize: servingSize)
+        }
+        
+        // Single individual food
+        for foodName in recognizedFoods.individualFoods {
+            if let enhancedFood = findEnhancedFood(in: foodName.lowercased()) {
+                print("🔍 [PROCESS] Found individual food: \(foodName)")
+                return calculateFromEnhancedFood(enhancedFood, servingSize: servingSize)
+            }
+        }
+        
+        // Fallback to estimation
+        print("🔍 [PROCESS] No exact matches found, using fallback estimation")
+        return enhancedEstimateMicronutrients(for: recognizedFoods.individualFoods.joined(separator: " "), servingSize: servingSize)
+    }
+    
+    /// Calculate micronutrients for mixed dishes by combining individual components
+    private func calculateMixedDishMicronutrients(_ foodComponents: [String], servingSize: Double) -> MicronutrientData {
+        var totalMicronutrients = MicronutrientData()
+        let componentServingSize = servingSize / Double(foodComponents.count) // Distribute serving size among components
+        
+        print("🔍 [MIXED DISH] Calculating for \(foodComponents.count) components with \(componentServingSize) cups each")
+        
+        for component in foodComponents {
+            print("🔍 [MIXED DISH] Processing component: '\(component)'")
+            
+            // Try to find the component in enhanced food database
+            if let enhancedFood = findEnhancedFood(in: component.lowercased()) {
+                let componentMicronutrients = calculateFromEnhancedFood(enhancedFood, servingSize: componentServingSize)
+                totalMicronutrients = addMicronutrients(totalMicronutrients, componentMicronutrients)
+                print("🔍 [MIXED DISH] Added \(component): Vitamin C = \(componentMicronutrients.vitaminC) mg")
+            } else {
+                // Fallback to category-based estimation
+                let category = determineFoodCategory(component)
+                let estimatedMicronutrients = estimateMicronutrientsForCategory(category, servingSize: componentServingSize)
+                totalMicronutrients = addMicronutrients(totalMicronutrients, estimatedMicronutrients)
+                print("🔍 [MIXED DISH] Estimated \(component) (\(category)): Vitamin C = \(estimatedMicronutrients.vitaminC) mg")
+            }
+        }
+        
+        print("🔍 [MIXED DISH] Total Vitamin C: \(totalMicronutrients.vitaminC) mg")
+        return totalMicronutrients
+    }
+    
+    /// Estimate micronutrients for a specific food category
+    private func estimateMicronutrientsForCategory(_ category: String, servingSize: Double) -> MicronutrientData {
+        let baseMicronutrients: MicronutrientData
+        
+        switch category.lowercased() {
+        case "fruit":
+            baseMicronutrients = MicronutrientData(
+                vitaminA: 50,      // mcg
+                vitaminB1: 0.1,    // mg
+                vitaminB2: 0.1,    // mg
+                vitaminB3: 1,      // mg
+                vitaminB5: 0.2,    // mg
+                vitaminB6: 0.2,    // mg
+                vitaminB7: 0.5,    // mcg
+                vitaminB9: 20,     // mcg (folate)
+                vitaminB12: 0,     // mcg
+                vitaminC: 50,      // mg
+                vitaminD: 0,       // mcg
+                vitaminE: 1,       // mg
+                vitaminK: 20,      // mcg
+                calcium: 20,       // mg
+                iron: 0.5,         // mg
+                magnesium: 15,     // mg
+                phosphorus: 20,    // mg
+                potassium: 200,    // mg
+                sodium: 2,         // mg
+                zinc: 0.2,         // mg
+                copper: 0.1,       // mg
+                manganese: 0.1,    // mg
+                selenium: 0.5,     // mcg
+                iodine: 0,         // mcg
+                chromium: 0.1,     // mcg
+                molybdenum: 0.1,   // mcg
+                boron: 0.1,        // mg
+                silicon: 0.1,      // mg
+                vanadium: 0.1,     // mcg
+                omega3: 0,         // mg
+                glutamine: 0,      // mg
+                probiotics: 0,     // CFU
+                prebiotics: 3      // g (fiber)
+            )
+        case "vegetable":
+            baseMicronutrients = MicronutrientData(
+                vitaminA: 100,     // mcg
+                vitaminB1: 0.1,    // mg
+                vitaminB2: 0.1,    // mg
+                vitaminB3: 1,      // mg
+                vitaminB5: 0.3,    // mg
+                vitaminB6: 0.2,    // mg
+                vitaminB7: 0.5,    // mcg
+                vitaminB9: 30,     // mcg (folate)
+                vitaminB12: 0,     // mcg
+                vitaminC: 50,      // mg
+                vitaminD: 0,       // mcg
+                vitaminE: 1,       // mg
+                vitaminK: 50,      // mcg
+                calcium: 30,       // mg
+                iron: 1,           // mg
+                magnesium: 20,     // mg
+                phosphorus: 30,    // mg
+                potassium: 300,    // mg
+                sodium: 5,         // mg
+                zinc: 0.3,         // mg
+                copper: 0.1,       // mg
+                manganese: 0.2,    // mg
+                selenium: 0.5,     // mcg
+                iodine: 0,         // mcg
+                chromium: 0.1,     // mcg
+                molybdenum: 0.1,   // mcg
+                boron: 0.1,        // mg
+                silicon: 0.1,      // mg
+                vanadium: 0.1,     // mcg
+                omega3: 0,         // mg
+                glutamine: 0,      // mg
+                probiotics: 0,     // CFU
+                prebiotics: 4      // g (fiber)
+            )
+        case "grain":
+            baseMicronutrients = MicronutrientData(
+                vitaminA: 0,       // mcg
+                vitaminB1: 0.2,    // mg
+                vitaminB2: 0.1,    // mg
+                vitaminB3: 2,      // mg
+                vitaminB5: 0.3,    // mg
+                vitaminB6: 0.1,    // mg
+                vitaminB7: 0.5,    // mcg
+                vitaminB9: 10,     // mcg (folate)
+                vitaminB12: 0,     // mcg
+                vitaminC: 0,       // mg
+                vitaminD: 0,       // mcg
+                vitaminE: 0.5,     // mg
+                vitaminK: 1,       // mcg
+                calcium: 10,       // mg
+                iron: 1,           // mg
+                magnesium: 25,     // mg
+                phosphorus: 50,    // mg
+                potassium: 50,     // mg
+                sodium: 1,         // mg
+                zinc: 0.5,         // mg
+                copper: 0.1,       // mg
+                manganese: 0.5,    // mg
+                selenium: 0.5,     // mcg
+                iodine: 0,         // mcg
+                chromium: 0.1,     // mcg
+                molybdenum: 0.1,   // mcg
+                boron: 0.1,        // mg
+                silicon: 0.1,      // mg
+                vanadium: 0.1,     // mcg
+                omega3: 0,         // mg
+                glutamine: 0,      // mg
+                probiotics: 0,     // CFU
+                prebiotics: 2      // g (fiber)
+            )
+        case "protein":
+            baseMicronutrients = MicronutrientData(
+                vitaminA: 0,       // mcg
+                vitaminB1: 0.1,    // mg
+                vitaminB2: 0.2,    // mg
+                vitaminB3: 3,      // mg
+                vitaminB5: 0.5,    // mg
+                vitaminB6: 0.3,    // mg
+                vitaminB7: 0.5,    // mcg
+                vitaminB9: 5,      // mcg (folate)
+                vitaminB12: 1,     // mcg
+                vitaminC: 0,       // mg
+                vitaminD: 0,       // mcg
+                vitaminE: 0.5,     // mg
+                vitaminK: 0,       // mcg
+                calcium: 20,       // mg
+                iron: 2,           // mg
+                magnesium: 20,     // mg
+                phosphorus: 100,   // mg
+                potassium: 200,    // mg
+                sodium: 50,        // mg
+                zinc: 2,           // mg
+                copper: 0.1,       // mg
+                manganese: 0.1,    // mg
+                selenium: 1,       // mcg
+                iodine: 0,         // mcg
+                chromium: 0.1,     // mcg
+                molybdenum: 0.1,   // mcg
+                boron: 0.1,        // mg
+                silicon: 0.1,      // mg
+                vanadium: 0.1,     // mcg
+                omega3: 100,       // mg
+                glutamine: 0,      // mg
+                probiotics: 0,     // CFU
+                prebiotics: 0      // g (fiber)
+            )
+        case "dairy":
+            baseMicronutrients = MicronutrientData(
+                vitaminA: 50,      // mcg
+                vitaminB1: 0.1,    // mg
+                vitaminB2: 0.2,    // mg
+                vitaminB3: 0.1,    // mg
+                vitaminB5: 0.3,    // mg
+                vitaminB6: 0.1,    // mg
+                vitaminB7: 0.5,    // mcg
+                vitaminB9: 5,      // mcg (folate)
+                vitaminB12: 1,     // mcg
+                vitaminC: 0,       // mg
+                vitaminD: 1,       // mcg
+                vitaminE: 0.1,     // mg
+                vitaminK: 1,       // mcg
+                calcium: 200,      // mg
+                iron: 0.1,         // mg
+                magnesium: 20,     // mg
+                phosphorus: 150,   // mg
+                potassium: 150,    // mg
+                sodium: 100,       // mg
+                zinc: 0.5,         // mg
+                copper: 0.1,       // mg
+                manganese: 0.1,    // mg
+                selenium: 0.5,     // mcg
+                iodine: 0,         // mcg
+                chromium: 0.1,     // mcg
+                molybdenum: 0.1,   // mcg
+                boron: 0.1,        // mg
+                silicon: 0.1,      // mg
+                vanadium: 0.1,     // mcg
+                omega3: 0,         // mg
+                glutamine: 0,      // mg
+                probiotics: 0,     // CFU
+                prebiotics: 0      // g (fiber)
+            )
+        default:
+            baseMicronutrients = MicronutrientData() // Empty for unknown categories
+        }
+        
+        return scaleMicronutrients(baseMicronutrients, by: servingSize)
     }
 }

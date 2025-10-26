@@ -159,7 +159,7 @@ struct MicronutrientProfile: Codable {
         if let heightDouble = try? container.decodeIfPresent(Double.self, forKey: .height) {
             height = heightDouble
         } else if let heightString = try? container.decodeIfPresent(String.self, forKey: .height) {
-            height = Double(heightString ?? "0")
+            height = Double(heightString)
         } else {
             height = nil
         }
@@ -322,7 +322,7 @@ struct MicronutrientSupplement: Codable, Identifiable, Hashable {
         
         // Handle unit string and convert to enum
         let unitString = try container.decode(String.self, forKey: .unit)
-        unit = DosageUnit(rawValue: unitString.lowercased()) ?? .mg
+        unit = DosageUnit.fromString(unitString)
         
         // Handle frequency string and convert to enum
         let frequencyString = try container.decode(String.self, forKey: .frequency)
@@ -353,22 +353,28 @@ enum MicronutrientCategory: String, Codable, CaseIterable, Hashable {
         let rawValue = try container.decode(String.self)
         
         switch rawValue.lowercased() {
-        case "vitamin", "vitamins": self = .vitamin
-        case "mineral", "minerals": self = .mineral
-        case "trace_element", "trace element": self = .traceElement
+        case "vitamin", "vitamins": self = .vitamins
+        case "mineral", "minerals": self = .minerals
+        case "probiotic", "probiotics": self = .probiotics
+        case "omega-3", "omega3": self = .omega3
+        case "antioxidant", "antioxidants": self = .antioxidants
         default: self = .other
         }
     }
-    case vitamin = "vitamin"
-    case mineral = "mineral"
-    case traceElement = "trace_element"
-    case other = "other"
+    case vitamins = "Vitamins"
+    case minerals = "Minerals"
+    case probiotics = "Probiotics"
+    case omega3 = "Omega-3"
+    case antioxidants = "Antioxidants"
+    case other = "Other"
     
     var displayName: String {
         switch self {
-        case .vitamin: return "Vitamin"
-        case .mineral: return "Mineral"
-        case .traceElement: return "Trace Element"
+        case .vitamins: return "Vitamins"
+        case .minerals: return "Minerals"
+        case .probiotics: return "Probiotics"
+        case .omega3: return "Omega-3"
+        case .antioxidants: return "Antioxidants"
         case .other: return "Other"
         }
     }
@@ -385,8 +391,11 @@ enum DosageUnit: String, Codable, CaseIterable, Hashable {
         case "g": self = .g
         case "iu": self = .iu
         case "ml": self = .ml
-        case "tablet", "tablets": self = .tablet
-        case "capsule", "capsules": self = .capsule
+        case "tablet", "tablets": self = .tablets
+        case "capsule", "capsules": self = .capsules
+        case "drops": self = .drops
+        case "tsp": self = .tsp
+        case "tbsp": self = .tbsp
         default: self = .mg
         }
     }
@@ -395,11 +404,150 @@ enum DosageUnit: String, Codable, CaseIterable, Hashable {
     case g = "g"
     case iu = "IU"
     case ml = "ml"
-    case tablet = "tablet"
-    case capsule = "capsule"
+    case tablets = "tablets"
+    case capsules = "capsules"
+    case drops = "drops"
+    case tsp = "tsp"
+    case tbsp = "tbsp"
     
     var displayName: String {
         return self.rawValue
+    }
+    
+    /// Create DosageUnit from string
+    static func fromString(_ string: String) -> DosageUnit {
+        switch string.lowercased() {
+        case "mg": return .mg
+        case "mcg": return .mcg
+        case "g": return .g
+        case "iu": return .iu
+        case "ml": return .ml
+        case "tablet", "tablets": return .tablets
+        case "capsule", "capsules": return .capsules
+        default: return .mg
+        }
+    }
+    
+    /// Get appropriate units for a specific supplement category
+    static func appropriateUnits(for category: MicronutrientCategory, supplementName: String = "") -> [DosageUnit] {
+        let name = supplementName.lowercased()
+        
+        print("🔍 [UNIT SELECTION] Category: \(category.rawValue), Name: '\(supplementName)'")
+        
+        switch category {
+        case .vitamins:
+            // Vitamin D - International Units preferred
+            if name.contains("vitamin d") || name.contains("d3") || name.contains("cholecalciferol") {
+                let units: [DosageUnit] = [.iu, .mcg, .mg]
+                print("🔍 [UNIT SELECTION] Vitamin D detected - returning: \(units.map { $0.rawValue })")
+                return units
+            }
+            // Vitamin A - IU preferred for retinol
+            else if name.contains("vitamin a") || name.contains("retinol") || name.contains("beta carotene") {
+                return [DosageUnit.iu, .mcg, .mg]
+            }
+            // B12 and Folate - mcg preferred
+            else if name.contains("vitamin b12") || name.contains("b12") || name.contains("methylcobalamin") || 
+                    name.contains("folate") || name.contains("folic acid") || name.contains("vitamin b9") {
+                return [DosageUnit.mcg, .mg]
+            }
+            // Vitamin K - mcg preferred
+            else if name.contains("vitamin k") || name.contains("k1") || name.contains("k2") || name.contains("menaquinone") {
+                return [DosageUnit.mcg, .mg]
+            }
+            // B-complex vitamins - mg preferred
+            else if name.contains("vitamin b1") || name.contains("thiamine") ||
+                    name.contains("vitamin b2") || name.contains("riboflavin") ||
+                    name.contains("vitamin b3") || name.contains("niacin") ||
+                    name.contains("vitamin b5") || name.contains("pantothenic") ||
+                    name.contains("vitamin b6") || name.contains("pyridoxine") ||
+                    name.contains("vitamin b7") || name.contains("biotin") {
+                return [DosageUnit.mg, .mcg]
+            }
+            // Vitamin C and E - mg preferred
+            else if name.contains("vitamin c") || name.contains("ascorbic acid") ||
+                    name.contains("vitamin e") || name.contains("tocopherol") {
+                return [DosageUnit.mg, .mcg]
+            }
+            // Multivitamins - mg preferred for most components
+            else if name.contains("multivitamin") || name.contains("multi-vitamin") || name.contains("vitamin complex") {
+                return [DosageUnit.mg, .mcg, .iu]
+            }
+            // Generic vitamins - mcg preferred for most vitamins
+            else {
+                let units: [DosageUnit] = [.mcg, .iu]
+                print("🔍 [UNIT SELECTION] Generic vitamin - returning: \(units.map { $0.rawValue })")
+                return units
+            }
+            
+        case .minerals:
+            // Calcium - mg preferred
+            if name.contains("calcium") {
+                return [DosageUnit.mg, .mcg, .g]
+            }
+            // Iron - mg preferred
+            else if name.contains("iron") {
+                return [DosageUnit.mg, .mcg]
+            }
+            // Zinc - mg preferred
+            else if name.contains("zinc") {
+                return [DosageUnit.mg, .mcg]
+            }
+            // Magnesium - mg preferred
+            else if name.contains("magnesium") {
+                return [DosageUnit.mg, .mcg, .g]
+            }
+            // Generic minerals
+            else {
+                return [DosageUnit.mg, .mcg, .g]
+            }
+            
+        case .probiotics:
+            // Probiotics - CFU preferred
+            if name.contains("probiotic") || name.contains("lactobacillus") || name.contains("bifidobacterium") {
+                return [DosageUnit.tablets, .capsules, .g]
+            }
+            // Generic probiotics
+            else {
+                return [DosageUnit.tablets, .capsules, .g]
+            }
+            
+        case .omega3:
+            // Omega-3 - mg preferred
+            if name.contains("omega") || name.contains("fish oil") || name.contains("epa") || name.contains("dha") {
+                return [DosageUnit.mg, .g]
+            }
+            // Generic omega-3
+            else {
+                return [DosageUnit.mg, .g]
+            }
+            
+        case .antioxidants:
+            // Antioxidants - mg preferred
+            if name.contains("curcumin") || name.contains("turmeric") || name.contains("glutamine") {
+                return [DosageUnit.mg, .g]
+            }
+            // Generic antioxidants
+            else {
+                return [DosageUnit.mg, .g]
+            }
+            
+        case .other:
+            // Selenium, Iodine, Chromium - mcg preferred
+            if name.contains("selenium") || name.contains("iodine") || name.contains("chromium") {
+                return [DosageUnit.mcg, .mg]
+            }
+            // Generic trace elements
+            else {
+                return [DosageUnit.mcg, .mg]
+            }
+        }
+    }
+    
+    /// Check if a unit is appropriate for a specific supplement
+    func isAppropriateFor(supplementName: String, category: MicronutrientCategory) -> Bool {
+        let appropriateUnits = DosageUnit.appropriateUnits(for: category, supplementName: supplementName)
+        return appropriateUnits.contains(self)
     }
 }
 
@@ -412,24 +560,24 @@ enum SupplementFrequency: String, Codable, CaseIterable, Hashable {
         case "daily": self = .daily
         case "twice daily", "twice_daily": self = .twiceDaily
         case "weekly": self = .weekly
-        case "monthly": self = .monthly
         case "as needed", "as_needed": self = .asNeeded
+        case "other": self = .other
         default: self = .daily
         }
     }
-    case daily = "daily"
-    case twiceDaily = "twice_daily"
-    case weekly = "weekly"
-    case monthly = "monthly"
-    case asNeeded = "as_needed"
+    case daily = "Daily"
+    case twiceDaily = "Twice Daily"
+    case weekly = "Weekly"
+    case asNeeded = "As Needed"
+    case other = "Other"
     
     var displayName: String {
         switch self {
         case .daily: return "Daily"
         case .twiceDaily: return "Twice Daily"
         case .weekly: return "Weekly"
-        case .monthly: return "Monthly"
         case .asNeeded: return "As Needed"
+        case .other: return "Other"
         }
     }
 }
@@ -631,14 +779,14 @@ struct IBDMicronutrientRequirements: Codable {
         // 2. PROTEIN (Research shows 1.5-2.0 g/kg for IBD vs 0.8 g/kg RDA)
         let baseProtein = weight * 1.5 // g/kg - higher for IBD healing
         
-        // 3. VITAMIN D (AGA 2024: 2000-4000 IU vs RDA 600-800 IU)
+        // 3. VITAMIN D (AGA 2024: 2000-4000 IU vs RDA 600-800 IU) - stored in mcg
         let baseVitaminD: Double
         if age < 18 {
-            baseVitaminD = 2000.0 // IU - pediatric IBD
+            baseVitaminD = 50.0 // mcg (2000 IU) - pediatric IBD
         } else if age > 65 {
-            baseVitaminD = 3000.0 // IU - older adults need more
+            baseVitaminD = 75.0 // mcg (3000 IU) - older adults need more
         } else {
-            baseVitaminD = 2500.0 // IU - adult IBD patients
+            baseVitaminD = 62.5 // mcg (2500 IU) - adult IBD patients
         }
         
         // 4. VITAMIN B12 (Research: 1000-2000 mcg vs RDA 2.4 mcg)
@@ -703,7 +851,7 @@ struct IBDMicronutrientRequirements: Codable {
         // Calculate final requirements
         self.calories = baseCalories * calorieMultiplier
         self.protein = baseProtein * activityMultiplier
-        self.vitaminD = baseVitaminD * activityMultiplier * diseaseMultiplier
+        self.vitaminD = (baseVitaminD * activityMultiplier * diseaseMultiplier) * 40.0 // Convert mcg to IU for storage
         self.vitaminB12 = baseB12 * activityMultiplier * diseaseMultiplier
         self.folate = baseFolate * activityMultiplier
         self.iron = baseIron * activityMultiplier * diseaseMultiplier
