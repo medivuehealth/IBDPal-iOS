@@ -785,9 +785,9 @@ struct HomeView: View {
         )
     }
     
-    // MARK: - Recent Reminders
+    // MARK: - Recent NotificationReminders
     @ViewBuilder
-    private var recentReminders: some View {
+    private var recentNotificationReminders: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("Recent Activity")
                 .font(.headline)
@@ -796,8 +796,8 @@ struct HomeView: View {
                 .padding(.horizontal)
             
             VStack(spacing: 12) {
-                ForEach(getRecentReminders(), id: \.id) { reminder in
-                    ReminderCard(reminder: reminder)
+                ForEach(getRecentNotificationReminders(), id: \.id) { reminder in
+                    NotificationReminderCard(reminder: reminder)
                 }
             }
         }
@@ -1108,7 +1108,34 @@ struct HomeView: View {
         
         for (entryIndex, entry) in entries.enumerated() {
             print("🔍 [HomeView] --- Entry \(entryIndex + 1): \(entry.entry_date) ---")
-            if let meals = entry.meals {
+            print("🔍 [HomeView] Direct fields - Calories: \(entry.calories ?? 0), Protein: \(entry.protein ?? 0), Carbs: \(entry.carbs ?? 0), Fiber: \(entry.fiber ?? 0), Fat: \(entry.fat ?? 0)")
+            print("🔍 [HomeView] Direct fields nil check - Calories: \(entry.calories != nil), Protein: \(entry.protein != nil), Carbs: \(entry.carbs != nil), Fiber: \(entry.fiber != nil), Fat: \(entry.fat != nil)")
+            print("🔍 [HomeView] Has meals array: \(entry.meals != nil), Count: \(entry.meals?.count ?? 0)")
+            if let meals = entry.meals, !meals.isEmpty {
+                print("🔍 [HomeView] First meal stored values - Calories: \(meals[0].calories ?? 0), Protein: \(meals[0].protein ?? 0)")
+            }
+            
+            // First, try to use direct nutrition fields (calculated by server)
+            if let calories = entry.calories, let protein = entry.protein, let carbs = entry.carbs, 
+               let fiber = entry.fiber,
+               calories > 0 || protein > 0 || carbs > 0 || fiber > 0 {
+                print("🔍 [HomeView] Using direct nutrition fields from server:")
+                print("🔍 [HomeView]   Direct values - Calories: \(calories), Protein: \(protein), Carbs: \(carbs), Fiber: \(fiber), Fat: \(entry.fat ?? 0)")
+                
+                totals.totalCalories += Double(calories)
+                totals.totalProtein += Double(protein)
+                totals.totalCarbs += Double(carbs)
+                totals.totalFiber += Double(fiber)
+                totals.totalFat += Double(entry.fat ?? 0)
+                
+                print("🔍 [HomeView]   ✅ Added direct values to totals")
+                print("🔍 [HomeView]   Running totals after this entry:")
+                print("🔍 [HomeView]     Total Calories: \(totals.totalCalories)")
+                print("🔍 [HomeView]     Total Protein: \(totals.totalProtein)")
+                print("🔍 [HomeView]     Total Carbs: \(totals.totalCarbs)")
+                print("🔍 [HomeView]     Total Fiber: \(totals.totalFiber)")
+                print("🔍 [HomeView]     Total Fat: \(totals.totalFat)")
+            } else if let meals = entry.meals {
                 print("🔍 [HomeView] Entry has \(meals.count) meals")
                 for (mealIndex, meal) in meals.enumerated() {
                     print("🔍 [HomeView]   Meal \(mealIndex + 1): \(meal.description)")
@@ -1175,7 +1202,62 @@ struct HomeView: View {
                     print("🔍 [HomeView]     Total Fat: \(totals.totalFat)")
                 }
             } else {
-                print("🔍 [HomeView]   ❌ Entry has no meals")
+                // Final fallback: Calculate from individual meal nutrition fields
+                print("🔍 [HomeView]   No direct fields or meals array, calculating from individual meal fields")
+                
+                // Calculate totals from individual meal nutrition fields
+                print("🔍 [HomeView]   Individual meal nutrition fields:")
+                print("🔍 [HomeView]     Breakfast: \(entry.breakfast_calories ?? 0) cal, \(entry.breakfast_protein ?? 0) protein, \(entry.breakfast_carbs ?? 0) carbs, \(entry.breakfast_fiber ?? 0) fiber, \(entry.breakfast_fat ?? 0) fat")
+                print("🔍 [HomeView]     Lunch: \(entry.lunch_calories ?? 0) cal, \(entry.lunch_protein ?? 0) protein, \(entry.lunch_carbs ?? 0) carbs, \(entry.lunch_fiber ?? 0) fiber, \(entry.lunch_fat ?? 0) fat")
+                print("🔍 [HomeView]     Dinner: \(entry.dinner_calories ?? 0) cal, \(entry.dinner_protein ?? 0) protein, \(entry.dinner_carbs ?? 0) carbs, \(entry.dinner_fiber ?? 0) fiber, \(entry.dinner_fat ?? 0) fat")
+                print("🔍 [HomeView]     Snack: \(entry.snack_calories ?? 0) cal, \(entry.snack_protein ?? 0) protein, \(entry.snack_carbs ?? 0) carbs, \(entry.snack_fiber ?? 0) fiber, \(entry.snack_fat ?? 0) fat")
+                
+                // Break down complex expressions for better compiler performance
+                let breakfastCalories = entry.breakfast_calories ?? 0
+                let lunchCalories = entry.lunch_calories ?? 0
+                let dinnerCalories = entry.dinner_calories ?? 0
+                let snackCalories = entry.snack_calories ?? 0
+                let entryCalories = breakfastCalories + lunchCalories + dinnerCalories + snackCalories
+                
+                let breakfastProtein = entry.breakfast_protein ?? 0
+                let lunchProtein = entry.lunch_protein ?? 0
+                let dinnerProtein = entry.dinner_protein ?? 0
+                let snackProtein = entry.snack_protein ?? 0
+                let entryProtein = breakfastProtein + lunchProtein + dinnerProtein + snackProtein
+                
+                let breakfastCarbs = entry.breakfast_carbs ?? 0
+                let lunchCarbs = entry.lunch_carbs ?? 0
+                let dinnerCarbs = entry.dinner_carbs ?? 0
+                let snackCarbs = entry.snack_carbs ?? 0
+                let entryCarbs = breakfastCarbs + lunchCarbs + dinnerCarbs + snackCarbs
+                
+                let breakfastFiber = entry.breakfast_fiber ?? 0
+                let lunchFiber = entry.lunch_fiber ?? 0
+                let dinnerFiber = entry.dinner_fiber ?? 0
+                let snackFiber = entry.snack_fiber ?? 0
+                let entryFiber = breakfastFiber + lunchFiber + dinnerFiber + snackFiber
+                
+                let breakfastFat = entry.breakfast_fat ?? 0
+                let lunchFat = entry.lunch_fat ?? 0
+                let dinnerFat = entry.dinner_fat ?? 0
+                let snackFat = entry.snack_fat ?? 0
+                let entryFat = breakfastFat + lunchFat + dinnerFat + snackFat
+                
+                print("🔍 [HomeView]   Calculated totals for entry: \(entryCalories) cal, \(entryProtein) protein, \(entryCarbs) carbs, \(entryFiber) fiber, \(entryFat) fat")
+                
+                totals.totalCalories += entryCalories
+                totals.totalProtein += entryProtein
+                totals.totalCarbs += entryCarbs
+                totals.totalFiber += entryFiber
+                totals.totalFat += entryFat
+                
+                print("🔍 [HomeView]   ✅ Added individual meal values to totals")
+                print("🔍 [HomeView]   Running totals after this entry:")
+                print("🔍 [HomeView]     Total Calories: \(totals.totalCalories)")
+                print("🔍 [HomeView]     Total Protein: \(totals.totalProtein)")
+                print("🔍 [HomeView]     Total Carbs: \(totals.totalCarbs)")
+                print("🔍 [HomeView]     Total Fiber: \(totals.totalFiber)")
+                print("🔍 [HomeView]     Total Fat: \(totals.totalFat)")
             }
         }
         
@@ -1346,27 +1428,8 @@ struct HomeView: View {
             unit: "g/week"
         ))
         
-        // Micronutrient trends - show daily averages
-        trends.append(NutritionTrend(
-            nutrient: "Vitamin D",
-            actual: actual.vitaminD / Double(daysCount), // Convert to daily average
-            recommended: recommended.vitaminD / 7.0, // Convert to daily average
-            unit: "IU/day"
-        ))
-        
-        trends.append(NutritionTrend(
-            nutrient: "Iron",
-            actual: actual.iron / Double(daysCount), // Convert to daily average
-            recommended: recommended.iron / 7.0, // Convert to daily average
-            unit: "mg/day"
-        ))
-        
-        trends.append(NutritionTrend(
-            nutrient: "Calcium",
-            actual: actual.calcium / Double(daysCount), // Convert to daily average
-            recommended: recommended.calcium / 7.0, // Convert to daily average
-            unit: "mg/day"
-        ))
+        // Note: Vitamin D, Iron, and Calcium are covered in the Micronutrients section
+        // No need to duplicate them here in Macronutrients
         
         return trends
     }
@@ -1440,9 +1503,9 @@ struct HomeView: View {
         return symptomCount
     }
     
-    private func getRecentReminders() -> [Reminder] {
+    private func getRecentNotificationReminders() -> [NotificationReminder] {
         return [
-            Reminder(
+            NotificationReminder(
                 id: UUID(),
                 title: "Log your meals",
                 message: "Track your nutrition for better IBD management",
@@ -1450,7 +1513,7 @@ struct HomeView: View {
                 priority: .medium,
                 date: Date()
             ),
-            Reminder(
+            NotificationReminder(
                 id: UUID(),
                 title: "Take your medication",
                 message: "Don't forget your daily medication",
@@ -1815,8 +1878,8 @@ struct StatCard: View {
     }
 }
 
-struct ReminderCard: View {
-    let reminder: Reminder
+struct NotificationReminderCard: View {
+    let reminder: NotificationReminder
     
     var body: some View {
         HStack(spacing: 12) {
@@ -2517,16 +2580,16 @@ struct SuggestedFood {
     let color: Color
 }
 
-struct Reminder: Identifiable {
+struct NotificationReminder: Identifiable {
     let id: UUID
     let title: String
     let message: String
-    let type: ReminderType
+    let type: NotificationReminderType
     let priority: ReminderPriority
     let date: Date
 }
 
-enum ReminderType {
+enum NotificationReminderType {
     case warning
     case info
     case success
@@ -2548,7 +2611,7 @@ enum ReminderType {
     }
 }
 
-enum ReminderPriority {
+enum NotificationReminderPriority {
     case high
     case medium
     case low

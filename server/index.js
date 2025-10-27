@@ -12,6 +12,7 @@ const diagnosisRoutes = require('./routes/diagnosis');
 const blogRoutes = require('./routes/blogs');
 const communityRoutes = require('./routes/community');
 const micronutrientRoutes = require('./routes/micronutrient');
+const reminderRoutes = require('./routes/reminders');
 const app = express();
 const PORT = process.env.SERVER_PORT || 3004;
 const NODE_ENV = process.env.NODE_ENV || 'development';
@@ -100,6 +101,7 @@ app.use('/api/diagnosis', diagnosisRoutes);
 app.use('/api/blogs', blogRoutes);
 app.use('/api/community', communityRoutes);
 app.use('/api/micronutrient', micronutrientRoutes);
+app.use('/api/reminders', reminderRoutes);
 // 404 handler for API routes
 app.use('/api/*', (req, res) => {
   res.status(404).json({

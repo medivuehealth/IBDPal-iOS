@@ -80,11 +80,24 @@ const RegisterScreen = ({ navigation, route }) => {
   const validateForm = () => {
     const newErrors = {};
 
-    // Email validation - Required and format check
+    // Email validation - Simplified and robust for App Store compatibility
     if (!formData.email.trim()) {
       newErrors.email = 'Email is required';
-    } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
-      newErrors.email = 'Please enter a valid email address';
+    } else {
+      // Clean the email input thoroughly
+      const cleanEmail = formData.email.trim().replace(/[\u200B-\u200D\uFEFF]/g, '');
+      
+      // Use the most permissive email validation for App Store compatibility
+      const hasAtSymbol = cleanEmail.includes('@');
+      const hasDotAfterAt = cleanEmail.indexOf('@') > 0 && cleanEmail.indexOf('.', cleanEmail.indexOf('@')) > cleanEmail.indexOf('@');
+      const hasTextBeforeAt = cleanEmail.indexOf('@') > 0;
+      const hasTextAfterDot = cleanEmail.lastIndexOf('.') < cleanEmail.length - 1;
+      
+      const isValidEmail = hasAtSymbol && hasDotAfterAt && hasTextBeforeAt && hasTextAfterDot;
+      
+      if (!isValidEmail) {
+        newErrors.email = 'Please enter a valid email address';
+      }
     }
 
     // First Name validation - Required and not just whitespace

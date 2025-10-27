@@ -24,6 +24,8 @@ struct AppConfig {
     // MARK: - Network Configuration
     static let requestTimeout: TimeInterval = 30.0
     static let maxRetries = 3
+    static let rateLimitDelay: TimeInterval = 2.0  // 2 seconds between requests
+    static let maxRequestsPerMinute = 20  // Conservative limit for Railway free tier
     
     // MARK: - Feature Flags
     static let enableLogging = true

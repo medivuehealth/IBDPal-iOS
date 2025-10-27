@@ -63,13 +63,28 @@ async function createJournalEntry(journalData, res) {
         RETURNING entry_id;
     `;
 
+    // Calculate total nutrition from individual meal fields
+    const totalCalories = (journalData.breakfast_calories || 0) + (journalData.lunch_calories || 0) + (journalData.dinner_calories || 0) + (journalData.snack_calories || 0);
+    const totalProtein = (journalData.breakfast_protein || 0) + (journalData.lunch_protein || 0) + (journalData.dinner_protein || 0) + (journalData.snack_protein || 0);
+    const totalCarbs = (journalData.breakfast_carbs || 0) + (journalData.lunch_carbs || 0) + (journalData.dinner_carbs || 0) + (journalData.snack_carbs || 0);
+    const totalFiber = (journalData.breakfast_fiber || 0) + (journalData.lunch_fiber || 0) + (journalData.dinner_fiber || 0) + (journalData.snack_fiber || 0);
+    const totalFat = (journalData.breakfast_fat || 0) + (journalData.lunch_fat || 0) + (journalData.dinner_fat || 0) + (journalData.snack_fat || 0);
+
+    console.log('Server calculating nutrition totals:', {
+        breakfast: { cal: journalData.breakfast_calories, protein: journalData.breakfast_protein },
+        lunch: { cal: journalData.lunch_calories, protein: journalData.lunch_protein },
+        dinner: { cal: journalData.dinner_calories, protein: journalData.dinner_protein },
+        snack: { cal: journalData.snack_calories, protein: journalData.snack_protein },
+        totals: { calories: totalCalories, protein: totalProtein, carbs: totalCarbs, fiber: totalFiber, fat: totalFat }
+    });
+
     const journalValues = [
         journalData.user_id,
         journalData.entry_date,
-        journalData.calories || 0,
-        journalData.protein || 0,
-        journalData.carbs || 0,
-        journalData.fiber || 0,
+        totalCalories,
+        totalProtein,
+        totalCarbs,
+        totalFiber,
         journalData.has_allergens || false,
         journalData.meals_per_day || 0,
         journalData.hydration_level || 0,
@@ -152,12 +167,38 @@ async function updateJournalEntry(entryId, journalData, res) {
     let updateValues = [];
     let paramCount = 1;
 
-            // Only update fields that are provided (not undefined/null)
+            // Calculate total nutrition from individual meal fields if any meal nutrition is provided
+        const hasMealNutrition = journalData.breakfast_calories !== undefined || journalData.lunch_calories !== undefined || 
+                                journalData.dinner_calories !== undefined || journalData.snack_calories !== undefined;
+        
+        let calculatedCalories = journalData.calories;
+        let calculatedProtein = journalData.protein;
+        let calculatedCarbs = journalData.carbs;
+        let calculatedFiber = journalData.fiber;
+        let calculatedFat = journalData.fat;
+        
+        if (hasMealNutrition) {
+            calculatedCalories = (journalData.breakfast_calories || 0) + (journalData.lunch_calories || 0) + (journalData.dinner_calories || 0) + (journalData.snack_calories || 0);
+            calculatedProtein = (journalData.breakfast_protein || 0) + (journalData.lunch_protein || 0) + (journalData.dinner_protein || 0) + (journalData.snack_protein || 0);
+            calculatedCarbs = (journalData.breakfast_carbs || 0) + (journalData.lunch_carbs || 0) + (journalData.dinner_carbs || 0) + (journalData.snack_carbs || 0);
+            calculatedFiber = (journalData.breakfast_fiber || 0) + (journalData.lunch_fiber || 0) + (journalData.dinner_fiber || 0) + (journalData.snack_fiber || 0);
+            calculatedFat = (journalData.breakfast_fat || 0) + (journalData.lunch_fat || 0) + (journalData.dinner_fat || 0) + (journalData.snack_fat || 0);
+            
+            console.log('Server updating nutrition totals:', {
+                breakfast: { cal: journalData.breakfast_calories, protein: journalData.breakfast_protein },
+                lunch: { cal: journalData.lunch_calories, protein: journalData.lunch_protein },
+                dinner: { cal: journalData.dinner_calories, protein: journalData.dinner_protein },
+                snack: { cal: journalData.snack_calories, protein: journalData.snack_protein },
+                totals: { calories: calculatedCalories, protein: calculatedProtein, carbs: calculatedCarbs, fiber: calculatedFiber, fat: calculatedFat }
+            });
+        }
+
+        // Only update fields that are provided (not undefined/null)
         const fieldsToUpdate = {
-            'calories': journalData.calories,
-            'protein': journalData.protein,
-            'carbs': journalData.carbs,
-            'fiber': journalData.fiber,
+            'calories': calculatedCalories,
+            'protein': calculatedProtein,
+            'carbs': calculatedCarbs,
+            'fiber': calculatedFiber,
             'has_allergens': journalData.has_allergens,
             'meals_per_day': journalData.meals_per_day,
             'hydration_level': journalData.hydration_level,
@@ -320,13 +361,39 @@ router.put('/entries/:entryId', async (req, res) => {
         let updateValues = [];
         let paramCount = 1;
 
+        // Calculate total nutrition from individual meal fields if any meal nutrition is provided
+        const hasMealNutrition = journalData.breakfast_calories !== undefined || journalData.lunch_calories !== undefined || 
+                                journalData.dinner_calories !== undefined || journalData.snack_calories !== undefined;
+        
+        let calculatedCalories = journalData.calories;
+        let calculatedProtein = journalData.protein;
+        let calculatedCarbs = journalData.carbs;
+        let calculatedFiber = journalData.fiber;
+        let calculatedFat = journalData.fat;
+        
+        if (hasMealNutrition) {
+            calculatedCalories = (journalData.breakfast_calories || 0) + (journalData.lunch_calories || 0) + (journalData.dinner_calories || 0) + (journalData.snack_calories || 0);
+            calculatedProtein = (journalData.breakfast_protein || 0) + (journalData.lunch_protein || 0) + (journalData.dinner_protein || 0) + (journalData.snack_protein || 0);
+            calculatedCarbs = (journalData.breakfast_carbs || 0) + (journalData.lunch_carbs || 0) + (journalData.dinner_carbs || 0) + (journalData.snack_carbs || 0);
+            calculatedFiber = (journalData.breakfast_fiber || 0) + (journalData.lunch_fiber || 0) + (journalData.dinner_fiber || 0) + (journalData.snack_fiber || 0);
+            calculatedFat = (journalData.breakfast_fat || 0) + (journalData.lunch_fat || 0) + (journalData.dinner_fat || 0) + (journalData.snack_fat || 0);
+            
+            console.log('Server PUT updating nutrition totals:', {
+                breakfast: { cal: journalData.breakfast_calories, protein: journalData.breakfast_protein },
+                lunch: { cal: journalData.lunch_calories, protein: journalData.lunch_protein },
+                dinner: { cal: journalData.dinner_calories, protein: journalData.dinner_protein },
+                snack: { cal: journalData.snack_calories, protein: journalData.snack_protein },
+                totals: { calories: calculatedCalories, protein: calculatedProtein, carbs: calculatedCarbs, fiber: calculatedFiber, fat: calculatedFat }
+            });
+        }
+
         // Only update fields that are provided (not undefined/null)
         const fieldsToUpdate = {
             'entry_date': journalData.entry_date,
-            'calories': journalData.calories,
-            'protein': journalData.protein,
-            'carbs': journalData.carbs,
-            'fiber': journalData.fiber,
+            'calories': calculatedCalories,
+            'protein': calculatedProtein,
+            'carbs': calculatedCarbs,
+            'fiber': calculatedFiber,
             'has_allergens': journalData.has_allergens,
             'meals_per_day': journalData.meals_per_day,
             'hydration_level': journalData.hydration_level,

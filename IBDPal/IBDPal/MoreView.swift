@@ -55,7 +55,7 @@ struct MoreView: View {
                         MoreRow(icon: "person.fill", title: "Profile", subtitle: "Edit your profile")
                     }
                     
-                    NavigationLink(destination: RemindersView(userData: userData)) {
+                    NavigationLink(destination: MoreRemindersView(userData: userData)) {
                         MoreRow(icon: "bell.fill", title: "Reminders", subtitle: "Schedule and manage reminders")
                     }
                     
@@ -479,18 +479,16 @@ struct ProfileView: View {
     }
     
     private func loadUserData() {
-        guard let userData = userData else { return }
         
         // Parse name into first and last name
-        let nameComponents = userData.name?.components(separatedBy: " ") ?? []
+        let nameComponents = userData?.name?.components(separatedBy: " ") ?? []
         firstName = nameComponents.first ?? ""
         lastName = nameComponents.count > 1 ? nameComponents.dropFirst().joined(separator: " ") : ""
-        email = userData.email ?? ""
-        phoneNumber = userData.phoneNumber ?? ""
+        email = userData?.email ?? ""
+        phoneNumber = userData?.phoneNumber ?? ""
     }
     
     private func updateProfile() {
-        guard let userData = userData else { return }
         
         isLoading = true
         
@@ -517,7 +515,7 @@ struct ProfileView: View {
         var request = URLRequest(url: url)
         request.httpMethod = "PUT"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("Bearer \(userData.token)", forHTTPHeaderField: "Authorization")
+        request.setValue("Bearer \(userData?.token ?? "")", forHTTPHeaderField: "Authorization")
         
         do {
             request.httpBody = try JSONSerialization.data(withJSONObject: requestData)
@@ -548,7 +546,6 @@ struct ProfileView: View {
     }
     
     private func changePassword() {
-        guard let userData = userData else { return }
         
         isLoading = true
         
@@ -585,7 +582,7 @@ struct ProfileView: View {
         var request = URLRequest(url: url)
         request.httpMethod = "PUT"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("Bearer \(userData.token)", forHTTPHeaderField: "Authorization")
+        request.setValue("Bearer \(userData?.token ?? "")", forHTTPHeaderField: "Authorization")
         
         do {
             request.httpBody = try JSONSerialization.data(withJSONObject: requestData)
@@ -1713,10 +1710,10 @@ struct ResponseTimeCard: View {
 }
 
 // MARK: - Reminders View
-struct RemindersView: View {
+struct MoreRemindersView: View {
     let userData: UserData?
     
-    @State private var reminders: [UserReminder] = []
+    @State private var reminders: [Reminder] = []
     @State private var isLoading = false
     @State private var showingAddReminder = false
     @State private var showingErrorAlert = false
@@ -1762,7 +1759,7 @@ struct RemindersView: View {
                 } else {
                     List {
                         ForEach(reminders) { reminder in
-                            ReminderRow(reminder: reminder, userData: userData) {
+                            MoreReminderRow(reminder: reminder, userData: userData) {
                                 loadReminders()
                             }
                         }
@@ -1783,7 +1780,7 @@ struct RemindersView: View {
                 loadReminders()
             }
             .sheet(isPresented: $showingAddReminder) {
-                AddReminderView(userData: userData) {
+                MoreAddReminderView(userData: userData) {
                     loadReminders()
                 }
             }
@@ -1796,7 +1793,6 @@ struct RemindersView: View {
     }
     
     private func loadReminders() {
-        guard let userData = userData else { return }
         
         isLoading = true
         
@@ -1806,8 +1802,11 @@ struct RemindersView: View {
             return
         }
         
+        print("🔍 [MoreRemindersView] Loading reminders from: \(url)")
+        print("🔍 [MoreRemindersView] Using token: \(userData?.token ?? "nil")")
+        
         var request = URLRequest(url: url)
-        request.setValue("Bearer \(userData.token)", forHTTPHeaderField: "Authorization")
+        request.setValue("Bearer \(userData?.token ?? "")", forHTTPHeaderField: "Authorization")
         
         NetworkManager.shared.dataTask(with: request) { data, response, error in
             DispatchQueue.main.async {
@@ -1821,14 +1820,21 @@ struct RemindersView: View {
                 if let httpResponse = response as? HTTPURLResponse {
                     if httpResponse.statusCode == 200 {
                         if let data = data {
+                            print("🔍 [MoreRemindersView] Raw response data: \(String(data: data, encoding: .utf8) ?? "nil")")
                             do {
                                 let response = try JSONDecoder().decode(RemindersResponse.self, from: data)
+                                print("🔍 [MoreRemindersView] Parsed response: \(response)")
                                 self.reminders = response.reminders
                             } catch {
+                                print("❌ [MoreRemindersView] Decoding error: \(error)")
+                                if let decodingError = error as? DecodingError {
+                                    print("❌ [MoreRemindersView] Decoding error details: \(decodingError)")
+                                }
                                 showError("Failed to parse reminders data")
                             }
                         }
                     } else {
+                        print("❌ [MoreRemindersView] HTTP error: \(httpResponse.statusCode)")
                         showError("Failed to load reminders")
                     }
                 }
@@ -1837,19 +1843,18 @@ struct RemindersView: View {
     }
     
     private func deleteReminder(at offsets: IndexSet) {
-        guard let userData = userData else { return }
         
         for index in offsets {
             let reminder = reminders[index]
             
-            guard let url = URL(string: "\(apiBaseURL)/reminders/\(reminder.reminder_id)") else {
+            guard let url = URL(string: "\(apiBaseURL)/reminders/\(reminder.id.uuidString)") else {
                 showError("Invalid URL")
                 return
             }
             
             var request = URLRequest(url: url)
             request.httpMethod = "DELETE"
-            request.setValue("Bearer \(userData.token)", forHTTPHeaderField: "Authorization")
+            request.setValue("Bearer \(userData?.token ?? "")", forHTTPHeaderField: "Authorization")
             
             NetworkManager.shared.dataTask(with: request) { data, response, error in
                 DispatchQueue.main.async {
@@ -1877,8 +1882,8 @@ struct RemindersView: View {
 }
 
 // MARK: - Reminder Row Component
-struct ReminderRow: View {
-    let reminder: UserReminder
+struct MoreReminderRow: View {
+    let reminder: Reminder
     let userData: UserData?
     let onUpdate: () -> Void
     
@@ -1896,11 +1901,11 @@ struct ReminderRow: View {
                         .font(.headline)
                         .fontWeight(.semibold)
                     
-                    Text(formatTime(reminder.reminder_time))
+                    Text(formatTime(reminder.time))
                         .font(.subheadline)
                         .foregroundColor(.gray)
                     
-                    Text(formatFrequency(reminder.frequency, reminder.days_of_week))
+                    Text(formatFrequency(reminder.repeatDays))
                         .font(.caption)
                         .foregroundColor(.gray)
                 }
@@ -1909,29 +1914,40 @@ struct ReminderRow: View {
                 
                 VStack(alignment: .trailing, spacing: 4) {
                     Button(action: toggleReminder) {
-                        Image(systemName: reminder.is_active ? "bell.fill" : "bell.slash")
-                            .foregroundColor(reminder.is_active ? .green : .gray)
+                        Image(systemName: reminder.isEnabled ? "bell.fill" : "bell.slash")
+                            .foregroundColor(reminder.isEnabled ? .green : .gray)
                     }
                     
-                    Button(action: { showingEditReminder = true }) {
-                        Image(systemName: "pencil")
-                            .foregroundColor(.blue)
+                    HStack(spacing: 16) {
+                        Button(action: { 
+                            print("🔍 [MoreReminderRow] Edit button tapped for reminder: \(reminder.title)")
+                            showingEditReminder = true 
+                        }) {
+                            Image(systemName: "pencil")
+                                .foregroundColor(.blue)
+                                .frame(width: 24, height: 24)
+                                .padding(8)
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                        
+                        Button(action: deleteReminder) {
+                            Image(systemName: "trash")
+                                .foregroundColor(.red)
+                                .frame(width: 24, height: 24)
+                                .padding(8)
+                        }
+                        .buttonStyle(PlainButtonStyle())
                     }
                 }
             }
             
-            if let notes = reminder.notes, !notes.isEmpty {
-                Text(notes)
-                    .font(.caption)
-                    .foregroundColor(.gray)
-                    .padding(.top, 4)
-            }
+            // Notes field not available in new Reminder model
         }
         .padding(.vertical, 4)
         .sheet(isPresented: $showingEditReminder) {
-            EditReminderView(reminder: reminder) {
+            EditReminderView(reminder: reminder, token: userData?.token ?? "", onSave: {
                 onUpdate()
-            }
+            })
         }
         .alert("Error", isPresented: $showingErrorAlert) {
             Button("OK") { }
@@ -1941,16 +1957,15 @@ struct ReminderRow: View {
     }
     
     private func toggleReminder() {
-        guard let userData = reminder.userData else { return }
-        
-        guard let url = URL(string: "\(apiBaseURL)/reminders/\(reminder.reminder_id)/toggle") else {
+        print("🔍 [MoreReminderRow] Toggle reminder called for ID: \(reminder.id.uuidString)")
+        guard let url = URL(string: "\(apiBaseURL)/reminders/\(reminder.id.uuidString)/toggle") else {
             showError("Invalid URL")
             return
         }
         
         var request = URLRequest(url: url)
         request.httpMethod = "PATCH"
-        request.setValue("Bearer \(userData.token)", forHTTPHeaderField: "Authorization")
+        request.setValue("Bearer \(userData?.token ?? "")", forHTTPHeaderField: "Authorization")
         
         NetworkManager.shared.dataTask(with: request) { data, response, error in
             DispatchQueue.main.async {
@@ -1970,35 +1985,20 @@ struct ReminderRow: View {
         }.resume()
     }
     
-    private func formatTime(_ time: String) -> String {
+    private func formatTime(_ time: Date) -> String {
         let formatter = DateFormatter()
-        formatter.dateFormat = "HH:mm"
-        
-        if let date = formatter.date(from: time) {
-            formatter.dateFormat = "h:mm a"
-            return formatter.string(from: date)
-        }
-        
-        return time
+        formatter.dateFormat = "h:mm a"
+        return formatter.string(from: time)
     }
     
-    private func formatFrequency(_ frequency: String, _ daysOfWeek: [Int]?) -> String {
-        switch frequency {
-        case "daily":
-            return "Daily"
-        case "weekly":
-            if let days = daysOfWeek, !days.isEmpty {
-                let dayNames = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
-                let selectedDays = days.map { dayNames[$0 - 1] }.joined(separator: ", ")
-                return "Weekly (\(selectedDays))"
-            }
-            return "Weekly"
-        case "monthly":
-            return "Monthly"
-        case "once":
+    private func formatFrequency(_ repeatDays: [Weekday]) -> String {
+        if repeatDays.isEmpty {
             return "Once"
-        default:
-            return frequency
+        } else if repeatDays.count == 7 {
+            return "Daily"
+        } else {
+            let dayNames = repeatDays.map { $0.displayName }.joined(separator: ", ")
+            return "Weekly (\(dayNames))"
         }
     }
     
@@ -2006,10 +2006,39 @@ struct ReminderRow: View {
         errorMessage = message
         showingErrorAlert = true
     }
+    
+    private func deleteReminder() {
+        print("🔍 [MoreReminderRow] Delete reminder called for ID: \(reminder.id.uuidString)")
+        guard let url = URL(string: "\(apiBaseURL)/reminders/\(reminder.id.uuidString)") else {
+            showError("Invalid URL")
+            return
+        }
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "DELETE"
+        request.setValue("Bearer \(userData?.token ?? "")", forHTTPHeaderField: "Authorization")
+        
+        NetworkManager.shared.dataTask(with: request) { data, response, error in
+            DispatchQueue.main.async {
+                if let error = error {
+                    showError(error.localizedDescription)
+                    return
+                }
+                
+                if let httpResponse = response as? HTTPURLResponse {
+                    if httpResponse.statusCode == 200 {
+                        onUpdate()
+                    } else {
+                        showError("Failed to delete reminder")
+                    }
+                }
+            }
+        }.resume()
+    }
 }
 
 // MARK: - Add Reminder View
-struct AddReminderView: View {
+struct MoreAddReminderView: View {
     let userData: UserData?
     let onSave: () -> Void
     
@@ -2098,7 +2127,6 @@ struct AddReminderView: View {
     }
     
     private func saveReminder() {
-        guard let userData = userData else { return }
         
         // Validate weekly frequency
         if frequency == "weekly" && selectedDays.isEmpty {
@@ -2108,17 +2136,23 @@ struct AddReminderView: View {
         
         isLoading = true
         
-        let timeFormatter = DateFormatter()
-        timeFormatter.dateFormat = "HH:mm"
-        let timeString = timeFormatter.string(from: reminderTime)
+        // Convert time to ISO8601 format for server
+        let isoFormatter = ISO8601DateFormatter()
+        let timeDate = Calendar.current.date(bySettingHour: Calendar.current.component(.hour, from: reminderTime), minute: Calendar.current.component(.minute, from: reminderTime), second: 0, of: Date()) ?? Date()
+        let isoTimeString = isoFormatter.string(from: timeDate)
+        
+        // Convert selected days to weekday strings
+        let weekdayStrings = selectedDays.map { day in
+            let weekdays = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
+            return weekdays[day - 1]
+        }
         
         let requestData: [String: Any] = [
             "title": title,
-            "notes": notes.isEmpty ? nil : notes,
-            "reminder_time": timeString,
-            "frequency": frequency,
-            "days_of_week": frequency == "weekly" ? Array(selectedDays).sorted() : nil,
-            "notification_method": notificationMethod
+            "type": "medication", // Default type, could be made configurable
+            "time": isoTimeString,
+            "isEnabled": true,
+            "repeatDays": weekdayStrings
         ]
         
         guard let url = URL(string: "\(apiBaseURL)/reminders") else {
@@ -2130,7 +2164,7 @@ struct AddReminderView: View {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("Bearer \(userData.token)", forHTTPHeaderField: "Authorization")
+        request.setValue("Bearer \(userData?.token ?? "")", forHTTPHeaderField: "Authorization")
         
         do {
             request.httpBody = try JSONSerialization.data(withJSONObject: requestData)
@@ -2169,7 +2203,8 @@ struct AddReminderView: View {
 
 // MARK: - Edit Reminder View
 struct EditReminderView: View {
-    let reminder: UserReminder
+    let reminder: Reminder
+    let token: String
     let onSave: () -> Void
     
     @Environment(\.dismiss) private var dismiss
@@ -2186,20 +2221,22 @@ struct EditReminderView: View {
     
     private let apiBaseURL = AppConfig.apiBaseURL
     
-    init(reminder: UserReminder, onSave: @escaping () -> Void) {
+    init(reminder: Reminder, token: String, onSave: @escaping () -> Void) {
         self.reminder = reminder
+        self.token = token
         self.onSave = onSave
         
         let timeFormatter = DateFormatter()
         timeFormatter.dateFormat = "HH:mm"
-        let date = timeFormatter.date(from: reminder.reminder_time) ?? Date()
+        let date = timeFormatter.string(from: reminder.time)
+        let parsedDate = timeFormatter.date(from: date) ?? Date()
         
         _title = State(initialValue: reminder.title)
-        _notes = State(initialValue: reminder.notes ?? "")
-        _reminderTime = State(initialValue: date)
-        _frequency = State(initialValue: reminder.frequency)
-        _selectedDays = State(initialValue: Set(reminder.days_of_week ?? []))
-        _notificationMethod = State(initialValue: reminder.notification_method)
+        _notes = State(initialValue: "") // New model doesn't have notes field
+        _reminderTime = State(initialValue: parsedDate)
+        _frequency = State(initialValue: "daily") // Default frequency
+        _selectedDays = State(initialValue: Set(reminder.repeatDays.map { $0.rawValue.hashValue }))
+        _notificationMethod = State(initialValue: "push") // Default notification method
     }
     
     var body: some View {
@@ -2273,7 +2310,6 @@ struct EditReminderView: View {
     }
     
     private func saveReminder() {
-        guard let userData = reminder.userData else { return }
         
         // Validate weekly frequency
         if frequency == "weekly" && selectedDays.isEmpty {
@@ -2283,29 +2319,39 @@ struct EditReminderView: View {
         
         isLoading = true
         
-        let timeFormatter = DateFormatter()
-        timeFormatter.dateFormat = "HH:mm"
-        let timeString = timeFormatter.string(from: reminderTime)
+        // Convert time to ISO8601 format for server
+        let isoFormatter = ISO8601DateFormatter()
+        let timeDate = Calendar.current.date(bySettingHour: Calendar.current.component(.hour, from: reminderTime), minute: Calendar.current.component(.minute, from: reminderTime), second: 0, of: Date()) ?? Date()
+        let isoTimeString = isoFormatter.string(from: timeDate)
+        
+        // Convert selected days to weekday strings
+        let weekdayStrings = selectedDays.map { day in
+            let weekdays = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
+            return weekdays[day - 1]
+        }
         
         let requestData: [String: Any] = [
             "title": title,
-            "notes": notes.isEmpty ? nil : notes,
-            "reminder_time": timeString,
-            "frequency": frequency,
-            "days_of_week": frequency == "weekly" ? Array(selectedDays).sorted() : nil,
-            "notification_method": notificationMethod
+            "type": "medication", // Default type, could be made configurable
+            "time": isoTimeString,
+            "isEnabled": true,
+            "repeatDays": weekdayStrings
         ]
         
-        guard let url = URL(string: "\(apiBaseURL)/reminders/\(reminder.reminder_id)") else {
+        guard let url = URL(string: "\(apiBaseURL)/reminders/\(reminder.id.uuidString)") else {
             showError("Invalid URL")
             isLoading = false
             return
         }
         
+        print("🔍 [EditReminderView] Updating reminder with ID: \(reminder.id.uuidString)")
+        print("🔍 [EditReminderView] URL: \(url)")
+        print("🔍 [EditReminderView] Request data: \(requestData)")
+        
         var request = URLRequest(url: url)
         request.httpMethod = "PUT"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("Bearer \(userData.token)", forHTTPHeaderField: "Authorization")
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         
         do {
             request.httpBody = try JSONSerialization.data(withJSONObject: requestData)
@@ -2320,11 +2366,17 @@ struct EditReminderView: View {
                 isLoading = false
                 
                 if let error = error {
+                    print("❌ [EditReminderView] Network error: \(error)")
                     showError(error.localizedDescription)
                     return
                 }
                 
                 if let httpResponse = response as? HTTPURLResponse {
+                    print("🔍 [EditReminderView] HTTP status: \(httpResponse.statusCode)")
+                    if let data = data {
+                        print("🔍 [EditReminderView] Response data: \(String(data: data, encoding: .utf8) ?? "nil")")
+                    }
+                    
                     if httpResponse.statusCode == 200 {
                         onSave()
                         dismiss()
@@ -2343,26 +2395,7 @@ struct EditReminderView: View {
 }
 
 // MARK: - Data Models
-struct UserReminder: Codable, Identifiable {
-    let reminder_id: String
-    let user_id: String
-    let title: String
-    let notes: String?
-    let reminder_time: String
-    let frequency: String
-    let days_of_week: [Int]?
-    let is_active: Bool
-    let notification_method: String
-    let created_at: String
-    let updated_at: String
-    
-    var id: String { reminder_id }
-    var userData: UserData? { nil } // This will be set when needed
-}
-
-struct RemindersResponse: Codable {
-    let reminders: [UserReminder]
-}
+// Note: Using Reminder and RemindersResponse from ReminderTypes.swift
 
 // MARK: - Feedback View
 struct FeedbackView: View {
@@ -2677,16 +2710,28 @@ struct FeedbackView: View {
         
         isLoading = true
         
-        let feedbackData: [String: Any] = [
+        var feedbackData: [String: Any] = [
             "nutrition_features_rating": nutritionFeaturesRating,
             "nutrition_helpful_managing_symptoms": nutritionHelpfulManagingSymptoms,
-            "nutrition_helpful_managing_symptoms_notes": nutritionHelpfulManagingSymptomsNotes.isEmpty ? nil : nutritionHelpfulManagingSymptomsNotes,
             "flareup_monitoring_helpful": flareupMonitoringHelpful,
-            "flareup_monitoring_helpful_notes": flareupMonitoringHelpfulNotes.isEmpty ? nil : flareupMonitoringHelpfulNotes,
-            "app_recommendations": appRecommendations.isEmpty ? nil : appRecommendations,
-            "overall_rating": overallRating,
-            "overall_rating_notes": overallRatingNotes.isEmpty ? nil : overallRatingNotes
+            "overall_rating": overallRating
         ]
+        
+        if !nutritionHelpfulManagingSymptomsNotes.isEmpty {
+            feedbackData["nutrition_helpful_managing_symptoms_notes"] = nutritionHelpfulManagingSymptomsNotes
+        }
+        
+        if !flareupMonitoringHelpfulNotes.isEmpty {
+            feedbackData["flareup_monitoring_helpful_notes"] = flareupMonitoringHelpfulNotes
+        }
+        
+        if !appRecommendations.isEmpty {
+            feedbackData["app_recommendations"] = appRecommendations
+        }
+        
+        if !overallRatingNotes.isEmpty {
+            feedbackData["overall_rating_notes"] = overallRatingNotes
+        }
         
         guard let url = URL(string: "\(apiBaseURL)/feedback") else {
             errorMessage = "Invalid URL"

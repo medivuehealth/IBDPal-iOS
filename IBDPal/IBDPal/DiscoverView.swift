@@ -45,7 +45,7 @@ struct DiscoverView: View {
                         ProgressView("Loading your trends...")
                             .frame(maxWidth: .infinity, minHeight: 200)
                     } else if let error = errorMessage {
-                        ErrorView(message: error) {
+                        DiscoverErrorView(message: error) {
                             loadTrendsData()
                         }
                     } else if let data = trendsData {
@@ -99,37 +99,41 @@ struct DiscoverView: View {
         
         print("📊 [DiscoverView] Loading trends for user: \(userData.email)")
         
-        // Calculate date range based on timeframe
-        let calendar = Calendar.current
-        let endDate = Date()
-        let startDate: Date
-        
-        switch selectedTimeframe {
-        case .week:
-            startDate = calendar.date(byAdding: .day, value: -7, to: endDate) ?? endDate
-        case .month:
-            startDate = calendar.date(byAdding: .day, value: -30, to: endDate) ?? endDate
-        case .threeMonths:
-            startDate = calendar.date(byAdding: .day, value: -90, to: endDate) ?? endDate
-        }
-        
-        let dateFormatter = DateFormatter()
-        dateFormatter.dateFormat = "yyyy-MM-dd"
-        let startDateString = dateFormatter.string(from: startDate)
-        let endDateString = dateFormatter.string(from: endDate)
-        
-        // Fetch journal entries from the database
-        fetchJournalEntries(userData: userData, startDate: startDateString, endDate: endDateString) { result in
-            DispatchQueue.main.async {
-                self.isLoading = false
-                
-                switch result {
-                case .success(let entries):
-                    // Process real data from database
-                    self.trendsData = self.processRealData(entries: entries, timeframe: self.selectedTimeframe)
-                case .failure(let error):
-                    self.errorMessage = error.localizedDescription
-                    print("❌ [DiscoverView] Error loading trends: \(error)")
+        // Throttle the request to prevent rate limiting
+        RequestThrottler.shared.throttleRequest {
+            
+            // Calculate date range based on timeframe
+            let calendar = Calendar.current
+            let endDate = Date()
+            let startDate: Date
+            
+            switch selectedTimeframe {
+            case .week:
+                startDate = calendar.date(byAdding: .day, value: -7, to: endDate) ?? endDate
+            case .month:
+                startDate = calendar.date(byAdding: .day, value: -30, to: endDate) ?? endDate
+            case .threeMonths:
+                startDate = calendar.date(byAdding: .day, value: -90, to: endDate) ?? endDate
+            }
+            
+            let dateFormatter = DateFormatter()
+            dateFormatter.dateFormat = "yyyy-MM-dd"
+            let startDateString = dateFormatter.string(from: startDate)
+            let endDateString = dateFormatter.string(from: endDate)
+            
+            // Fetch journal entries from the database
+            fetchJournalEntries(userData: userData, startDate: startDateString, endDate: endDateString) { result in
+                DispatchQueue.main.async {
+                    isLoading = false
+                    
+                    switch result {
+                    case .success(let entries):
+                        // Process real data from database
+                        trendsData = processRealData(entries: entries, timeframe: selectedTimeframe)
+                    case .failure(let error):
+                        errorMessage = error.localizedDescription
+                        print("❌ [DiscoverView] Error loading trends: \(error)")
+                    }
                 }
             }
         }
@@ -183,10 +187,16 @@ struct DiscoverView: View {
             if let httpResponse = response as? HTTPURLResponse {
                 print("🔧 [DiscoverView] HTTP Status: \(httpResponse.statusCode)")
                 
-                // Handle rate limiting
+                // Handle rate limiting and server errors
                 if httpResponse.statusCode == 429 {
                     print("⚠️ [DiscoverView] Rate limit exceeded (429), using mock data")
                     // Use mock data when rate limited
+                    let mockEntries = self.createMockJournalEntries()
+                    completion(.success(mockEntries))
+                    return
+                } else if httpResponse.statusCode >= 500 {
+                    print("⚠️ [DiscoverView] Server error (\(httpResponse.statusCode)), using mock data")
+                    // Use mock data when server is down
                     let mockEntries = self.createMockJournalEntries()
                     completion(.success(mockEntries))
                     return
@@ -326,20 +336,51 @@ struct DiscoverView: View {
                     notes: "Feeling better today",
                     created_at: dateString,
                     updated_at: dateString,
-                    // New required parameters
+                    // Direct nutrition fields
+                    calories: Double.random(in: 1200...1800),
+                    protein: Double.random(in: 60...100),
+                    carbs: Double.random(in: 100...200),
+                    fiber: Double.random(in: 20...40),
+                    fat: Double.random(in: 40...80),
+                    // Individual meal nutrition fields
+                    breakfast_calories: Double.random(in: 300...500),
+                    breakfast_protein: Double.random(in: 10...20),
+                    breakfast_carbs: Double.random(in: 40...60),
+                    breakfast_fiber: Double.random(in: 5...10),
+                    breakfast_fat: Double.random(in: 5...15),
+                    lunch_calories: Double.random(in: 400...600),
+                    lunch_protein: Double.random(in: 25...35),
+                    lunch_carbs: Double.random(in: 20...40),
+                    lunch_fiber: Double.random(in: 8...15),
+                    lunch_fat: Double.random(in: 10...20),
+                    dinner_calories: Double.random(in: 500...700),
+                    dinner_protein: Double.random(in: 30...40),
+                    dinner_carbs: Double.random(in: 30...50),
+                    dinner_fiber: Double.random(in: 6...12),
+                    dinner_fat: Double.random(in: 15...25),
+                    snack_calories: Double.random(in: 100...300),
+                    snack_protein: Double.random(in: 5...15),
+                    snack_carbs: Double.random(in: 10...30),
+                    snack_fiber: Double.random(in: 2...8),
+                    snack_fat: Double.random(in: 5...15),
+                    // Medication fields
                     medication_taken: Bool.random(),
                     medication_type: Bool.random() ? "biologic" : "None",
                     dosage_level: Bool.random() ? "40" : "0",
                     last_taken_date: Bool.random() ? dateString : nil,
+                    // Supplement fields
                     supplements_taken: Bool.random(),
                     supplements_count: Int.random(in: 0...3),
                     supplement_details: nil,
+                    // Sleep fields
                     sleep_hours: Int.random(in: 6...9),
                     sleep_quality: Int.random(in: 3...5),
                     sleep_notes: Bool.random() ? "Slept well" : nil,
+                    // Stress fields
                     stress_level: Int.random(in: 1...5),
                     stress_source: Bool.random() ? "Work" : nil,
                     coping_strategies: Bool.random() ? "Meditation" : nil,
+                    // Additional fields
                     fatigue_level: Int.random(in: 2...5),
                     mood_level: Int.random(in: 3...5),
                     menstruation: "not_applicable"
@@ -368,17 +409,62 @@ struct DiscoverView: View {
     
     private func processNutritionData(entries: [JournalEntry]) -> [NutritionTrendPoint] {
         return entries.compactMap { entry in
-            guard let meals = entry.meals else { return nil }
+            // Try direct nutrition fields first, then calculate from individual meals
+            var totalCalories = Int(entry.calories ?? 0)
+            var totalProtein = Int(entry.protein ?? 0)
+            var totalFiber = Int(entry.fiber ?? 0)
             
-            // Calculate total nutrition from all meals
-            let totalCalories = meals.reduce(0) { $0 + ($1.calories ?? 0) }
-            let totalProtein = meals.reduce(0) { $0 + ($1.protein ?? 0) }
-            let totalFiber = meals.reduce(0) { $0 + ($1.fiber ?? 0) }
+            // If direct fields are 0, calculate from individual meal fields
+            if totalCalories == 0 && totalProtein == 0 && totalFiber == 0 {
+                print("📊 [DiscoverView] Direct fields are 0, checking individual meal fields:")
+                print("📊 [DiscoverView]   Breakfast: \(entry.breakfast_calories ?? 0) cal, \(entry.breakfast_protein ?? 0) protein")
+                print("📊 [DiscoverView]   Lunch: \(entry.lunch_calories ?? 0) cal, \(entry.lunch_protein ?? 0) protein")
+                print("📊 [DiscoverView]   Dinner: \(entry.dinner_calories ?? 0) cal, \(entry.dinner_protein ?? 0) protein")
+                print("📊 [DiscoverView]   Snack: \(entry.snack_calories ?? 0) cal, \(entry.snack_protein ?? 0) protein")
+                
+                let breakfastCalories = entry.breakfast_calories ?? 0
+                let lunchCalories = entry.lunch_calories ?? 0
+                let dinnerCalories = entry.dinner_calories ?? 0
+                let snackCalories = entry.snack_calories ?? 0
+                totalCalories = Int(breakfastCalories + lunchCalories + dinnerCalories + snackCalories)
+                
+                let breakfastProtein = entry.breakfast_protein ?? 0
+                let lunchProtein = entry.lunch_protein ?? 0
+                let dinnerProtein = entry.dinner_protein ?? 0
+                let snackProtein = entry.snack_protein ?? 0
+                totalProtein = Int(breakfastProtein + lunchProtein + dinnerProtein + snackProtein)
+                
+                let breakfastFiber = entry.breakfast_fiber ?? 0
+                let lunchFiber = entry.lunch_fiber ?? 0
+                let dinnerFiber = entry.dinner_fiber ?? 0
+                let snackFiber = entry.snack_fiber ?? 0
+                totalFiber = Int(breakfastFiber + lunchFiber + dinnerFiber + snackFiber)
+                
+                print("📊 [DiscoverView] Calculated from individual meals: Calories=\(totalCalories), Protein=\(totalProtein), Fiber=\(totalFiber)")
+            } else {
+                print("📊 [DiscoverView] Using direct fields: Calories=\(totalCalories), Protein=\(totalProtein), Fiber=\(totalFiber)")
+            }
             
-            // Calculate hydration from water_intake and other_fluids (convert to ml)
-            let waterIntake = entry.waterIntakeDouble  // in liters
-            let otherFluids = entry.otherFluidsDouble  // in liters
-            let totalHydration = Int((waterIntake + otherFluids) * 1000)  // Convert to ml
+            // Calculate hydration from water_intake and other_fluids
+            let waterIntake = entry.waterIntakeDouble
+            let otherFluids = entry.otherFluidsDouble
+            
+            // Check if values are already in ml (large values) or liters (small values)
+            let totalHydration: Int
+            if waterIntake > 100 || otherFluids > 100 {
+                // Values are already in ml
+                totalHydration = Int(waterIntake + otherFluids)
+            } else {
+                // Values are in liters, convert to ml
+                totalHydration = Int((waterIntake + otherFluids) * 1000)
+            }
+            
+            print("🔍 [DiscoverView] Hydration calculation for \(entry.entry_date):")
+            print("🔍 [DiscoverView]   water_intake: '\(entry.water_intake ?? "nil")' -> \(waterIntake) L")
+            print("🔍 [DiscoverView]   other_fluids: '\(entry.other_fluids ?? "nil")' -> \(otherFluids) L")
+            print("🔍 [DiscoverView]   totalHydration: \(totalHydration) ml")
+            
+            print("📊 [DiscoverView] Processing entry \(entry.entry_date): Calories=\(totalCalories), Protein=\(totalProtein), Fiber=\(totalFiber)")
             
             return NutritionTrendPoint(
                 date: entry.entry_date,
@@ -392,15 +478,15 @@ struct DiscoverView: View {
     
     private func processSymptomData(entries: [JournalEntry]) -> [SymptomTrendPoint] {
         return entries.compactMap { entry in
-            guard let symptoms = entry.symptoms else { return nil }
+            // Use direct symptom fields from journal entry
+            let pain = entry.pain_severity ?? 0
+            let stress = entry.stress_level ?? 0
+            let fatigue = entry.fatigue_level ?? 0
             
-            // Calculate average symptom levels
-            let pain = symptoms.first { $0.type == "pain" }?.severity ?? 0
-            let stress = symptoms.first { $0.type == "stress" }?.severity ?? 0
-            let fatigue = symptoms.first { $0.type == "fatigue" }?.severity ?? 0
+            // Calculate flare risk based on available data
+            let flareRisk = calculateFlareRiskFromEntry(entry: entry)
             
-            // Calculate flare risk based on symptoms
-            let flareRisk = calculateFlareRisk(symptoms: symptoms)
+            print("📊 [DiscoverView] Processing symptoms for \(entry.entry_date): Pain=\(pain), Stress=\(stress), Fatigue=\(fatigue)")
             
             return SymptomTrendPoint(
                 date: entry.entry_date,
@@ -463,18 +549,54 @@ struct DiscoverView: View {
         return min(70, max(10, riskScore * 2))
     }
     
+    private func calculateFlareRiskFromEntry(entry: JournalEntry) -> Int {
+        // Calculate flare risk based on journal entry data
+        let pain = entry.pain_severity ?? 0
+        let stress = entry.stress_level ?? 0
+        let fatigue = entry.fatigue_level ?? 0
+        let bloodPresent = entry.blood_present ?? false
+        let urgency = entry.urgency_level ?? 0
+        
+        // Weighted calculation
+        var riskScore = 0
+        riskScore += pain * 2  // Pain is heavily weighted
+        riskScore += stress
+        riskScore += fatigue
+        riskScore += bloodPresent ? 20 : 0  // Blood presence is critical
+        riskScore += urgency * 2  // Urgency is important
+        
+        // Convert to percentage (0-100)
+        let maxPossibleScore = 50  // Maximum possible score
+        let percentage = min(100, max(0, (riskScore * 100) / maxPossibleScore))
+        
+        return Int(percentage)
+    }
+    
     private func calculateNutritionScore(for entry: JournalEntry) -> Int {
-        guard let meals = entry.meals, !meals.isEmpty else { return 0 }
+        // Try direct nutrition fields first, then calculate from individual meals
+        var totalCalories = Int(entry.calories ?? 0)
+        var totalProtein = Int(entry.protein ?? 0)
+        var totalFiber = Int(entry.fiber ?? 0)
         
-        var totalCalories = 0.0
-        var totalProtein = 0.0
-        var totalFiber = 0.0
-        
-        // Calculate nutrition from meals
-        for meal in meals {
-            totalCalories += Double(meal.calories ?? 0)
-            totalProtein += Double(meal.protein ?? 0)
-            totalFiber += Double(meal.fiber ?? 0)
+        // If direct fields are 0, calculate from individual meal fields
+        if totalCalories == 0 && totalProtein == 0 && totalFiber == 0 {
+            let breakfastCalories = entry.breakfast_calories ?? 0
+            let lunchCalories = entry.lunch_calories ?? 0
+            let dinnerCalories = entry.dinner_calories ?? 0
+            let snackCalories = entry.snack_calories ?? 0
+            totalCalories = Int(breakfastCalories + lunchCalories + dinnerCalories + snackCalories)
+            
+            let breakfastProtein = entry.breakfast_protein ?? 0
+            let lunchProtein = entry.lunch_protein ?? 0
+            let dinnerProtein = entry.dinner_protein ?? 0
+            let snackProtein = entry.snack_protein ?? 0
+            totalProtein = Int(breakfastProtein + lunchProtein + dinnerProtein + snackProtein)
+            
+            let breakfastFiber = entry.breakfast_fiber ?? 0
+            let lunchFiber = entry.lunch_fiber ?? 0
+            let dinnerFiber = entry.dinner_fiber ?? 0
+            let snackFiber = entry.snack_fiber ?? 0
+            totalFiber = Int(breakfastFiber + lunchFiber + dinnerFiber + snackFiber)
         }
         
         // Use the same calculation logic as HomeView for consistency
@@ -926,12 +1048,13 @@ struct NutritionTabsView: View {
                     timeframe: timeframe
                 )
             case .hydration:
+                let hydrationTarget = IBDTargets().hydrationTarget
                 NutritionChartView(
                     data: data,
                     type: .hydration,
                     title: "Daily Hydration",
                     color: .cyan,
-                    target: IBDTargets().hydrationTarget,
+                    target: hydrationTarget,
                     unit: "ml",
                     timeframe: timeframe
                 )
@@ -989,6 +1112,9 @@ struct NutritionChartView: View {
                 .font(.subheadline)
                 .fontWeight(.semibold)
                 .foregroundColor(.ibdPrimaryText)
+                .onAppear {
+                    print("🔍 [NutritionChartView] Chart target: \(target) for \(title)")
+                }
             
             Chart {
                 ForEach(data) { point in
@@ -1001,17 +1127,17 @@ struct NutritionChartView: View {
                     .symbolSize(48) // Larger size for better visibility
                 }
                 
-                // Target line - show daily target (since charts show day-by-day data)
-                ForEach(data) { point in
-                    LineMark(
-                        x: .value("Date", point.date),
-                        y: .value("Target", target) // Daily target
+                // Target line - show daily target as a horizontal line
+                if target > 0 {
+                    RuleMark(
+                        y: .value("Target", Double(target))
                     )
                     .foregroundStyle(.red)
                     .lineStyle(StrokeStyle(lineWidth: 2, dash: [8, 4]))
                 }
             }
             .frame(height: 180)
+            .chartYScale(domain: calculateYScaleDomain())
             .chartYAxis {
                 AxisMarks(position: .leading)
             }
@@ -1072,15 +1198,52 @@ struct NutritionChartView: View {
     }
     
     private func getValue(for point: NutritionTrendPoint) -> Int {
+        let value: Int
         switch type {
         case .calories:
-            return point.calories
+            value = point.calories
         case .protein:
-            return point.protein
+            value = point.protein
         case .fiber:
-            return point.fiber
+            value = point.fiber
         case .hydration:
-            return point.hydration
+            value = point.hydration
+        }
+        
+        print("🔍 [NutritionChartView] \(title) - Date: \(point.date), Value: \(value)")
+        return value
+    }
+    
+    private func calculateYScaleDomain() -> ClosedRange<Double> {
+        let maxDataValue = data.map { Double(getValue(for: $0)) }.max() ?? 0
+        let targetValue = Double(target)
+        let maxValue = max(maxDataValue, targetValue)
+        
+        // Add some padding (20% of max value or minimum padding based on chart type)
+        let padding = max(maxValue * 0.2, getMinimumPadding())
+        let upperBound = maxValue + padding
+        
+        print("🔍 [NutritionChartView] \(title) - Max data: \(maxDataValue), Target: \(targetValue), Max value: \(maxValue), Padding: \(padding), Upper bound: \(upperBound)")
+        
+        // Ensure minimum scale for hydration chart
+        if type == .hydration && upperBound < 1000 {
+            print("🔍 [NutritionChartView] Hydration chart - forcing minimum scale of 0-3000")
+            return 0...3000
+        }
+        
+        return 0...upperBound
+    }
+    
+    private func getMinimumPadding() -> Double {
+        switch type {
+        case .calories:
+            return 200  // 200 calorie padding
+        case .protein:
+            return 20   // 20g protein padding
+        case .fiber:
+            return 10   // 10g fiber padding
+        case .hydration:
+            return 500  // 500ml hydration padding
         }
     }
     
@@ -1486,7 +1649,7 @@ struct HealthMetricsView: View {
                 }
             } else {
                 // Debug info when no warnings
-                Text("Debug: \(selectedTimeframe) - No warnings - Bowel Freq: \(String(format: "%.1f", averageBowelFrequency))/day (Target: \(String(format: "%.1f", targets.bowelFrequencyTarget))) | Pain: \(String(format: "%.1f", averagePain))/10 (Target: \(String(format: "%.1f", targets.painTarget)))")
+                Text("Debug: \(selectedTimeframe.rawValue) - No warnings - Bowel Freq: \(String(format: "%.1f", averageBowelFrequency))/day (Target: \(String(format: "%.1f", targets.bowelFrequencyTarget))) | Pain: \(String(format: "%.1f", averagePain))/10 (Target: \(String(format: "%.1f", targets.painTarget)))")
                     .font(.caption)
                     .foregroundColor(.gray)
                     .padding(.horizontal)
@@ -1961,7 +2124,7 @@ struct SeverityBadge: View {
     }
 }
 
-struct ErrorView: View {
+struct DiscoverErrorView: View {
     let message: String
     let retryAction: () -> Void
     
@@ -2192,7 +2355,6 @@ struct PersonalizedIBDTargets {
     
     // Calculate personalized targets based on user profile using DRI as baseline
     static func calculate(for userProfile: MicronutrientProfile) -> PersonalizedIBDTargets {
-        let weight = userProfile.weight
         let age = userProfile.age
         let diseaseActivity = userProfile.diseaseActivity
         let gender = userProfile.gender

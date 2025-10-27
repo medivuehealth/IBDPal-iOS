@@ -147,3 +147,4 @@ The issue was specifically in the **LoginView.swift** email validation. The solu
 This focused fix should resolve the App Store review login issue while maintaining security and functionality for all users.
 
 
+

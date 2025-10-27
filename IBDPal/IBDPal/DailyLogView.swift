@@ -766,8 +766,7 @@ struct EntryFormView: View {
                 // Parse supplement details if available
                 if let supplementDetails = entry["supplement_details"] as? [[String: Any]] {
                     self.supplementsData.supplementDetails = supplementDetails.compactMap { detail in
-                        guard let supplementId = detail["supplement_id"] as? String,
-                              let supplementName = detail["supplement_name"] as? String,
+                        guard let supplementName = detail["supplement_name"] as? String,
                               let category = detail["category"] as? String,
                               let dosage = detail["dosage"] as? String,
                               let unit = detail["unit"] as? String,
@@ -780,7 +779,7 @@ struct EntryFormView: View {
                         let timeTaken = formatter.date(from: timeTakenString) ?? Date()
                         
                         return DailySupplementIntake(
-                            supplementId: supplementId,
+                            supplementId: detail["supplement_id"] as? String ?? "",
                             supplementName: supplementName,
                             category: category,
                             dosage: dosage,

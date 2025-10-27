@@ -1,19 +1,13 @@
 // Environment Configuration
 const ENV = process.env.NODE_ENV || 'development';
 
-// API Configuration
+// API Configuration - Use consistent endpoint for all environments
 const getApiBaseUrl = () => {
-  console.log('Config: Environment:', ENV);
-  console.log('Config: process.env.API_BASE_URL:', process.env.API_BASE_URL);
-  
-  if (ENV === 'production') {
-    const url = process.env.API_BASE_URL || 'https://ibdpal-server-production.up.railway.app/api';
-    console.log('Config: Production URL:', url);
-    return url;
-  }
-  // Use Railway URL for both development and production
+  // Always use the same endpoint for both development and production
+  // This ensures App Store builds use the same API as development builds
   const url = 'https://ibdpal-server-production.up.railway.app/api';
-  console.log('Config: Development URL:', url);
+  console.log('Config: API URL:', url);
+  console.log('Config: Environment:', ENV);
   return url;
 };
 

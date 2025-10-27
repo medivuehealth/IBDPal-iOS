@@ -69,6 +69,38 @@ struct JournalEntry: Codable {
     let created_at: String
     let updated_at: String
     
+    // Direct nutrition fields (from database)
+    let calories: Double?
+    let protein: Double?
+    let carbs: Double?
+    let fiber: Double?
+    let fat: Double?
+    
+    // Individual meal nutrition fields
+    let breakfast_calories: Double?
+    let breakfast_protein: Double?
+    let breakfast_carbs: Double?
+    let breakfast_fiber: Double?
+    let breakfast_fat: Double?
+    
+    let lunch_calories: Double?
+    let lunch_protein: Double?
+    let lunch_carbs: Double?
+    let lunch_fiber: Double?
+    let lunch_fat: Double?
+    
+    let dinner_calories: Double?
+    let dinner_protein: Double?
+    let dinner_carbs: Double?
+    let dinner_fiber: Double?
+    let dinner_fat: Double?
+    
+    let snack_calories: Double?
+    let snack_protein: Double?
+    let snack_carbs: Double?
+    let snack_fiber: Double?
+    let snack_fat: Double?
+    
     // Medication fields
     let medication_taken: Bool?
     let medication_type: String?
@@ -106,7 +138,7 @@ struct JournalEntry: Codable {
 }
 
 struct SupplementDetail: Codable {
-    let supplement_id: String
+    let supplement_id: String?
     let supplement_name: String
     let dosage: String
     let unit: String

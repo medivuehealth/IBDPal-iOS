@@ -248,7 +248,7 @@ struct IBDNutritionAnalysisView: View {
                     name: "Omega-3",
                     status: analysis.ibdSpecificNutrients.omega3.status,
                     value: analysis.ibdSpecificNutrients.omega3.currentIntake / 1000.0, // Convert mg to g
-                    target: analysis.ibdSpecificNutrients.omega3.requiredIntake / 1000.0, // Convert mg to g
+                    target: analysis.ibdSpecificNutrients.omega3.requiredIntake, // Already in g
                     unit: "g"
                 )
             }

@@ -67,20 +67,51 @@ class FlarePredictionTest {
             notes: "Test entry",
             created_at: "2024-01-15T10:00:00Z",
             updated_at: "2024-01-15T10:00:00Z",
-            // New required parameters
+            // Direct nutrition fields
+            calories: 1500.0,
+            protein: 75.0,
+            carbs: 150.0,
+            fiber: 25.0,
+            fat: 60.0,
+            // Individual meal nutrition fields
+            breakfast_calories: 400.0,
+            breakfast_protein: 15.0,
+            breakfast_carbs: 50.0,
+            breakfast_fiber: 8.0,
+            breakfast_fat: 15.0,
+            lunch_calories: 500.0,
+            lunch_protein: 30.0,
+            lunch_carbs: 40.0,
+            lunch_fiber: 10.0,
+            lunch_fat: 20.0,
+            dinner_calories: 600.0,
+            dinner_protein: 30.0,
+            dinner_carbs: 60.0,
+            dinner_fiber: 7.0,
+            dinner_fat: 25.0,
+            snack_calories: 0.0,
+            snack_protein: 0.0,
+            snack_carbs: 0.0,
+            snack_fiber: 0.0,
+            snack_fat: 0.0,
+            // Medication fields
             medication_taken: false,
             medication_type: "None",
             dosage_level: "0",
             last_taken_date: nil,
+            // Supplement fields
             supplements_taken: false,
             supplements_count: 0,
             supplement_details: nil,
+            // Sleep fields
             sleep_hours: 8,
             sleep_quality: 4,
             sleep_notes: nil,
+            // Stress fields
             stress_level: 2,
             stress_source: nil,
             coping_strategies: nil,
+            // Additional fields
             fatigue_level: 3,
             mood_level: 4,
             menstruation: "not_applicable"
