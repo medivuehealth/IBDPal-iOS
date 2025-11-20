@@ -7,6 +7,7 @@ struct RegisterView: View {
     @Environment(\.dismiss) private var dismiss
     
     @State private var email = ""
+    @State private var phoneNumber = ""
     @State private var password = ""
     @State private var confirmPassword = ""
     @State private var firstName = ""
@@ -15,6 +16,7 @@ struct RegisterView: View {
     @State private var showPassword = false
     @State private var showConfirmPassword = false
     @State private var emailError = ""
+    @State private var phoneNumberError = ""
     @State private var passwordError = ""
     @State private var confirmPasswordError = ""
     @State private var firstNameError = ""
@@ -26,8 +28,10 @@ struct RegisterView: View {
     @State private var showTermsAndConditions = false
     @State private var showPrivacyPolicy = false
     @State private var showEmailVerification = false
+    @State private var showPhoneVerification = false
     @State private var pendingUserData: [String: Any] = [:]
     @State private var verificationEmail = ""
+    @State private var verificationPhoneNumber = ""
     
     private let apiBaseURL = AppConfig.apiBaseURL
     
@@ -77,6 +81,7 @@ struct RegisterView: View {
             firstNameField
             lastNameField
             emailField
+            phoneNumberField
             passwordField
             confirmPasswordField
             termsAndConditionsSection
@@ -139,6 +144,27 @@ struct RegisterView: View {
             
             if !emailError.isEmpty {
                 Text(emailError)
+                    .font(.caption)
+                    .foregroundColor(Color(red: 0.8, green: 0.2, blue: 0.2))
+            }
+        }
+    }
+    
+    private var phoneNumberField: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Text("Phone Number")
+                .font(.headline)
+                .foregroundColor(Color(red: 0.1, green: 0.1, blue: 0.1))
+            
+            TextField("Enter your phone number", text: $phoneNumber)
+                .textFieldStyle(RoundedBorderTextFieldStyle())
+                .keyboardType(.phonePad)
+                .autocapitalization(.none)
+                .autocorrectionDisabled()
+                .disabled(isLoading)
+            
+            if !phoneNumberError.isEmpty {
+                Text(phoneNumberError)
                     .font(.caption)
                     .foregroundColor(Color(red: 0.8, green: 0.2, blue: 0.2))
             }
@@ -295,6 +321,20 @@ struct RegisterView: View {
                 }
             )
         }
+        .sheet(isPresented: $showPhoneVerification) {
+            PhoneVerificationView(
+                phoneNumber: verificationPhoneNumber,
+                pendingUserData: pendingUserData,
+                onVerificationSuccess: { userData in
+                    self.userData = userData
+                    self.isAuthenticated = true
+                    self.showPhoneVerification = false
+                },
+                onVerificationFailure: { error in
+                    self.showError("Verification Failed", error)
+                }
+            )
+        }
     }
     
     private var loginLink: some View {
@@ -310,6 +350,7 @@ struct RegisterView: View {
         firstNameError = ""
         lastNameError = ""
         emailError = ""
+        phoneNumberError = ""
         passwordError = ""
         confirmPasswordError = ""
         
@@ -340,6 +381,15 @@ struct RegisterView: View {
             isValid = false
         }
         
+        // Phone Number validation
+        if phoneNumber.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            phoneNumberError = "Phone number is required"
+            isValid = false
+        } else if !isValidPhoneNumber(phoneNumber) {
+            phoneNumberError = "Please enter a valid phone number"
+            isValid = false
+        }
+        
         // Password validation
         if password.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             passwordError = "Password is required"
@@ -359,6 +409,12 @@ struct RegisterView: View {
         }
         
         return isValid
+    }
+    
+    private func isValidPhoneNumber(_ phone: String) -> Bool {
+        // Basic phone number validation - accepts various formats
+        let cleaned = phone.replacingOccurrences(of: "[^0-9+]", with: "", options: .regularExpression)
+        return cleaned.count >= 10 && cleaned.count <= 20
     }
     
     private func isValidEmail(_ email: String) -> Bool {
@@ -388,6 +444,7 @@ struct RegisterView: View {
         let registerData: [String: Any] = [
             "username": email.trimmingCharacters(in: .whitespacesAndNewlines), // Use email as username
             "email": email.trimmingCharacters(in: .whitespacesAndNewlines),
+            "phoneNumber": phoneNumber.trimmingCharacters(in: .whitespacesAndNewlines),
             "password": password,
             "confirmPassword": confirmPassword,
             "firstName": firstName,
@@ -437,13 +494,13 @@ struct RegisterView: View {
                             print("Full JSON response: \(json)")
                             
                             if httpResponse.statusCode == 201 || httpResponse.statusCode == 200 {
-                                // Check if email verification is required
+                                // Check if verification is required (now using SMS/phone)
                                 if let requiresVerification = json["requiresVerification"] as? Bool, requiresVerification {
-                                    // Store pending user data and show verification screen
+                                    // Store pending user data and show phone verification screen
                                     self.pendingUserData = registerData
-                                    self.verificationEmail = email.trimmingCharacters(in: .whitespacesAndNewlines)
-                                    self.showEmailVerification = true
-                                    print("📧 [RegisterView] Email verification required for: \(email)")
+                                    self.verificationPhoneNumber = phoneNumber.trimmingCharacters(in: .whitespacesAndNewlines)
+                                    self.showPhoneVerification = true
+                                    print("📱 [RegisterView] Phone verification required for: \(phoneNumber)")
                                 } else {
                                     // Direct registration success - handle both registration and login response formats
                                     if let token = json["token"] as? String,
@@ -1120,8 +1177,7 @@ struct EmailVerificationView: View {
         
         let verificationData: [String: Any] = [
             "email": email,
-            "verificationCode": verificationCode,
-            "userData": pendingUserData
+            "verificationCode": verificationCode
         ]
         
         do {
@@ -1328,6 +1384,288 @@ struct VerificationCodeDigitField: View {
                 }
             }
         }
+    }
+}
+
+// MARK: - Phone Verification View
+struct PhoneVerificationView: View {
+    let phoneNumber: String
+    let pendingUserData: [String: Any]
+    let onVerificationSuccess: (UserData) -> Void
+    let onVerificationFailure: (String) -> Void
+    
+    @Environment(\.dismiss) private var dismiss
+    @State private var verificationCode = ""
+    @State private var isLoading = false
+    @State private var isResending = false
+    @State private var showErrorAlert = false
+    @State private var errorMessage = ""
+    @State private var countdownSeconds = 60
+    @State private var canResend = false
+    
+    private let apiBaseURL = AppConfig.apiBaseURL
+    
+    var body: some View {
+        NavigationView {
+            VStack(spacing: 30) {
+                // Header
+                VStack(spacing: 16) {
+                    Image(systemName: "phone.fill")
+                        .font(.system(size: 60))
+                        .foregroundColor(Color(red: 0.6, green: 0.2, blue: 0.8))
+                    
+                    Text("Verify Your Phone")
+                        .font(.title)
+                        .fontWeight(.bold)
+                        .foregroundColor(Color(red: 0.1, green: 0.1, blue: 0.1))
+                    
+                    Text("We've sent a verification code to")
+                        .font(.subheadline)
+                        .foregroundColor(Color(red: 0.4, green: 0.4, blue: 0.4))
+                    
+                    Text(phoneNumber)
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                        .foregroundColor(Color(red: 0.1, green: 0.1, blue: 0.1))
+                }
+                
+                // Verification Code Input
+                VStack(spacing: 16) {
+                    Text("Enter the 6-digit verification code")
+                        .font(.headline)
+                        .foregroundColor(Color(red: 0.1, green: 0.1, blue: 0.1))
+                    
+                    HStack(spacing: 12) {
+                        ForEach(0..<6, id: \.self) { index in
+                            VerificationCodeDigitField(
+                                index: index,
+                                code: $verificationCode
+                            )
+                        }
+                    }
+                }
+                
+                // Verify Button
+                Button(action: handleVerification) {
+                    HStack {
+                        if isLoading {
+                            ProgressView()
+                                .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                .scaleEffect(0.8)
+                        }
+                        Text(isLoading ? "Verifying..." : "Verify Phone")
+                            .fontWeight(.semibold)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .background(Color(red: 0.6, green: 0.2, blue: 0.8))
+                    .foregroundColor(.white)
+                    .cornerRadius(10)
+                }
+                .disabled(isLoading || verificationCode.count != 6)
+                
+                // Resend Code Section
+                VStack(spacing: 12) {
+                    if canResend {
+                        Button(action: handleResendCode) {
+                            HStack {
+                                if isResending {
+                                    ProgressView()
+                                        .progressViewStyle(CircularProgressViewStyle(tint: Color(red: 0.6, green: 0.2, blue: 0.8)))
+                                        .scaleEffect(0.8)
+                                }
+                                Text(isResending ? "Sending..." : "Resend Code")
+                                    .fontWeight(.medium)
+                            }
+                        }
+                        .foregroundColor(Color(red: 0.6, green: 0.2, blue: 0.8))
+                        .disabled(isResending)
+                    } else {
+                        Text("Resend code in \(countdownSeconds) seconds")
+                            .font(.subheadline)
+                            .foregroundColor(Color(red: 0.4, green: 0.4, blue: 0.4))
+                    }
+                }
+                
+                Spacer()
+            }
+            .padding(.horizontal, 30)
+            .padding(.top, 50)
+            .background(Color(red: 0.98, green: 0.98, blue: 0.98))
+            .navigationTitle("Phone Verification")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                    .foregroundColor(Color(red: 0.6, green: 0.2, blue: 0.8))
+                }
+            }
+            .alert("Verification Failed", isPresented: $showErrorAlert) {
+                Button("OK") { }
+            } message: {
+                Text(errorMessage)
+            }
+            .onAppear {
+                startCountdown()
+            }
+        }
+    }
+    
+    private func handleVerification() {
+        guard verificationCode.count == 6 else { return }
+        
+        isLoading = true
+        
+        guard let url = URL(string: "\(apiBaseURL)/auth/verify-phone") else {
+            showError("Invalid URL")
+            return
+        }
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        
+        let verificationData: [String: Any] = [
+            "phoneNumber": phoneNumber,
+            "verificationCode": verificationCode
+        ]
+        
+        do {
+            request.httpBody = try JSONSerialization.data(withJSONObject: verificationData)
+        } catch {
+            showError("Failed to prepare verification request")
+            return
+        }
+        
+        NetworkManager.shared.dataTask(with: request) { data, response, error in
+            DispatchQueue.main.async {
+                isLoading = false
+                
+                if let error = error {
+                    showError("Network error: \(error.localizedDescription)")
+                    return
+                }
+                
+                guard let data = data else {
+                    showError("No data received from server")
+                    return
+                }
+                
+                do {
+                    if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                        if let httpResponse = response as? HTTPURLResponse {
+                            if httpResponse.statusCode == 200 {
+                                // Verification successful
+                                if let token = json["token"] as? String,
+                                   let user = json["user"] as? [String: Any],
+                                   let userEmail = user["email"] as? String {
+                                    
+                                    let userId = user["username"] as? String ?? user["id"] as? String ?? userEmail
+                                    let firstName = user["firstName"] as? String ?? ""
+                                    let lastName = user["lastName"] as? String ?? ""
+                                    let displayName = "\(firstName) \(lastName)".trimmingCharacters(in: .whitespaces)
+                                    let phoneNumber = user["phoneNumber"] as? String
+                                    
+                                    let userData = UserData(
+                                        id: userId,
+                                        email: userEmail,
+                                        name: displayName,
+                                        phoneNumber: phoneNumber,
+                                        token: token
+                                    )
+                                    
+                                    onVerificationSuccess(userData)
+                                } else {
+                                    showError("Invalid response format from server")
+                                }
+                            } else {
+                                let errorMessage = json["message"] as? String ?? json["error"] as? String ?? "Verification failed"
+                                showError(errorMessage)
+                            }
+                        }
+                    }
+                } catch {
+                    showError("Failed to parse server response")
+                }
+            }
+        }.resume()
+    }
+    
+    private func handleResendCode() {
+        isResending = true
+        
+        guard let url = URL(string: "\(apiBaseURL)/auth/resend-verification") else {
+            showError("Invalid URL")
+            return
+        }
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        
+        let resendData: [String: Any] = [
+            "phoneNumber": phoneNumber
+        ]
+        
+        do {
+            request.httpBody = try JSONSerialization.data(withJSONObject: resendData)
+        } catch {
+            showError("Failed to prepare resend request")
+            return
+        }
+        
+        NetworkManager.shared.dataTask(with: request) { data, response, error in
+            DispatchQueue.main.async {
+                isResending = false
+                
+                if let error = error {
+                    showError("Network error: \(error.localizedDescription)")
+                    return
+                }
+                
+                guard let data = data else {
+                    showError("No data received from server")
+                    return
+                }
+                
+                do {
+                    if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                        if let httpResponse = response as? HTTPURLResponse {
+                            if httpResponse.statusCode == 200 {
+                                // Resend successful
+                                startCountdown()
+                            } else {
+                                let errorMessage = json["message"] as? String ?? json["error"] as? String ?? "Failed to resend code"
+                                showError(errorMessage)
+                            }
+                        }
+                    }
+                } catch {
+                    showError("Failed to parse server response")
+                }
+            }
+        }.resume()
+    }
+    
+    private func startCountdown() {
+        canResend = false
+        countdownSeconds = 60
+        
+        Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { timer in
+            if countdownSeconds > 0 {
+                countdownSeconds -= 1
+            } else {
+                canResend = true
+                timer.invalidate()
+            }
+        }
+    }
+    
+    private func showError(_ message: String) {
+        errorMessage = message
+        showErrorAlert = true
     }
 }
 
