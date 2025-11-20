@@ -10,7 +10,7 @@ struct IBDNutritionAnalysisView: View {
     @State private var isLoading = false
     @State private var errorMessage: String?
     @State private var userProfile: MicronutrientProfile?
-    @Environment(\.dismiss) private var dismiss
+    @State private var showingSummary = false
     
     let userData: UserData?
     let journalEntries: [JournalEntry]
@@ -18,10 +18,9 @@ struct IBDNutritionAnalysisView: View {
     private let apiBaseURL = AppConfig.apiBaseURL
     
     var body: some View {
-        NavigationView {
-            ScrollView {
-                VStack(spacing: 24) {
-                    if isLoading {
+        ScrollView {
+            VStack(spacing: 24) {
+                if isLoading {
                         VStack(spacing: 16) {
                             ProgressView()
                                 .scaleEffect(1.2)
@@ -76,42 +75,62 @@ struct IBDNutritionAnalysisView: View {
                 .padding(.horizontal, 16)
                 .padding(.vertical, 8)
             }
-            .navigationTitle("Micronutrient Analysis")
-            .navigationBarTitleDisplayMode(.large)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    NavigationLink(destination: HealthCitationsView()) {
-                        HStack(spacing: 4) {
-                            Image(systemName: "book.closed")
-                            Text("Sources")
-                        }
-                        .font(.caption)
-                        .foregroundColor(.blue)
-                    }
-                }
-                
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Close") {
-                        dismiss()
-                    }
-                    .fontWeight(.medium)
-                }
-            }
             .task {
                 await loadAnalysis()
             }
-        }
     }
     
     // Break up the analysis content to fix type-checking error
     @ViewBuilder
     private func analysisContent(_ analysis: IBDMicronutrientAnalysis) -> some View {
         VStack(spacing: 24) {
+            // Button to view 7-day summary at the top
+            Button(action: {
+                showingSummary = true
+            }) {
+                HStack(spacing: 12) {
+                    // Icon bar on the side
+                    RoundedRectangle(cornerRadius: 4)
+                        .fill(Color.blue)
+                        .frame(width: 4)
+                    
+                    Image(systemName: "chart.bar.doc.horizontal")
+                        .font(.title3)
+                        .foregroundColor(.blue)
+                    
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("View 7-Day Summary")
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                            .foregroundColor(.primary)
+                        
+                        Text("Daily averages and food portion sizes")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    
+                    Spacer()
+                    
+                    Image(systemName: "chevron.right")
+                        .font(.caption)
+                        .foregroundColor(.blue)
+                }
+                .padding()
+                .background(Color.blue.opacity(0.1))
+                .cornerRadius(12)
+            }
+            
             overallStatusSection(analysis)
             summaryMetricsSection(analysis)
             ibdSpecificNutrientsSection(analysis)
             recommendationsSection(analysis)
             foodMicronutrientsSection()
+        }
+        .sheet(isPresented: $showingSummary) {
+            MicronutrientSummaryView(
+                userData: userData,
+                journalEntries: journalEntries
+            )
         }
     }
     
@@ -125,7 +144,7 @@ struct IBDNutritionAnalysisView: View {
                     .foregroundColor(.blue)
                 
                 Text("Overall Status (Last 7 Days)")
-                    .font(.title2)
+                    .font(.headline)
                     .fontWeight(.bold)
                     .foregroundColor(.primary)
                 
@@ -188,7 +207,7 @@ struct IBDNutritionAnalysisView: View {
                 
                 VStack(alignment: .leading, spacing: 4) {
                     Text("IBD-Specific Nutrients")
-                        .font(.title2)
+                        .font(.headline)
                         .fontWeight(.bold)
                         .foregroundColor(.primary)
                     
@@ -271,7 +290,7 @@ struct IBDNutritionAnalysisView: View {
                     .foregroundColor(.green)
                 
                 Text("Food Micronutrients")
-                    .font(.title2)
+                    .font(.headline)
                     .fontWeight(.bold)
                     .foregroundColor(.primary)
                 
@@ -353,7 +372,7 @@ struct IBDNutritionAnalysisView: View {
                     .foregroundColor(.orange)
                 
                 Text("Recommendations")
-                    .font(.title2)
+                    .font(.headline)
                     .fontWeight(.bold)
                     .foregroundColor(.primary)
                 
@@ -917,7 +936,7 @@ struct IBDNutrientCard: View {
     let unit: String
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Text(name)
                     .font(.subheadline)
@@ -931,18 +950,20 @@ struct IBDNutrientCard: View {
                     .foregroundColor(statusColor(status))
             }
             
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 8) {
                 HStack {
                     Text("\(String(format: "%.1f", value)) \(unit)")
                         .font(.caption)
                         .fontWeight(.medium)
                         .foregroundColor(.primary)
+                        .lineLimit(1)
                     
                     Spacer()
                     
                     Text("of \(String(format: "%.1f", target)) \(unit)")
                         .font(.caption2)
                         .foregroundColor(.secondary)
+                        .lineLimit(1)
                 }
                 
                 // Progress bar
@@ -953,7 +974,7 @@ struct IBDNutrientCard: View {
                     .scaleEffect(y: 1.5)
             }
         }
-        .padding(12)
+        .padding(16)
         .background(
             RoundedRectangle(cornerRadius: 8)
                 .fill(statusColor(status).opacity(0.1))

@@ -216,5 +216,46 @@ struct CitationCard: View {
     HealthCitationsView()
 }
 
+// MARK: - Medical Disclaimer Banner Component
+struct MedicalDisclaimerBanner: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                Image(systemName: "stethoscope")
+                    .foregroundColor(.red)
+                    .font(.title3)
+                
+                Text("Important: Consult Your Doctor")
+                    .font(.headline)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.red)
+            }
+            
+            Text("This app provides educational information only. Always consult with your healthcare provider before making medical decisions or changes to your diet or treatment plan.")
+                .font(.caption)
+                .foregroundColor(.primary)
+            
+            HStack {
+                NavigationLink(destination: HealthCitationsView()) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "book.closed.fill")
+                        Text("View Sources & Citations")
+                    }
+                    .font(.caption)
+                    .foregroundColor(.blue)
+                    .underline()
+                }
+            }
+        }
+        .padding()
+        .background(Color.red.opacity(0.1))
+        .cornerRadius(12)
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(Color.red.opacity(0.3), lineWidth: 1)
+        )
+    }
+}
+
 
 

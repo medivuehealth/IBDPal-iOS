@@ -19,14 +19,17 @@ struct FlarePredictionView: View {
     
     var body: some View {
         VStack(spacing: 20) {
+            // Medical Disclaimer Banner
+            MedicalDisclaimerBanner()
+            
             // Header
             HStack {
                 VStack(alignment: .leading) {
-                    Text("Flare Prediction")
+                    Text("Symptom Trend Analysis")
                         .font(.title2)
                         .fontWeight(.bold)
                     
-                    Text("AI-powered risk assessment")
+                    Text("Pattern recognition from your journal entries")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
@@ -46,7 +49,7 @@ struct FlarePredictionView: View {
                     ProgressView()
                         .scaleEffect(1.2)
                     
-                    Text("Analyzing your data...")
+                    Text("Analyzing symptom patterns...")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                 }
@@ -79,10 +82,10 @@ struct FlarePredictionView: View {
                         .font(.system(size: 50))
                         .foregroundColor(.secondary)
                     
-                    Text("No prediction available")
+                    Text("No pattern analysis available")
                         .font(.headline)
                     
-                    Text("Add more journal entries to get personalized flare predictions")
+                    Text("Add more journal entries to analyze symptom patterns and trends")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                         .multilineTextAlignment(.center)
@@ -126,7 +129,7 @@ struct RiskLevelCard: View {
         VStack(spacing: 12) {
             HStack {
                 VStack(alignment: .leading) {
-                    Text("Current Risk Level")
+                    Text("Pattern Match Level")
                         .font(.headline)
                         .fontWeight(.semibold)
                     
@@ -139,7 +142,7 @@ struct RiskLevelCard: View {
                 Spacer()
                 
                 VStack(alignment: .trailing) {
-                    Text("Probability")
+                    Text("Pattern Match")
                         .font(.caption)
                         .foregroundColor(.secondary)
                     
@@ -161,11 +164,8 @@ struct RiskLevelCard: View {
                 
                 Spacer()
                 
-                if let predictedOnset = prediction.predictedOnset {
-                    Text("Predicted: \(predictedOnset, style: .relative)")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
+                // Removed "Predicted Onset" to avoid regulatory issues
+                // Pattern analysis only, no predictions
             }
         }
         .padding()

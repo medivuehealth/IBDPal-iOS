@@ -794,10 +794,10 @@ struct EntryFormView: View {
                     case .stress:
             // Populate stress data
             DispatchQueue.main.async {
-                self.stressData.stressLevel = entry["stress_level"] as? Int ?? 3
+                self.stressData.stressLevel = entry["stress_level"] as? Int ?? 0
                 self.stressData.stressSource = ""  // Always empty for user to fill
                 self.stressData.copingStrategies = ""  // Always empty for user to fill
-                self.stressData.mood = entry["mood_level"] as? Int ?? 3
+                self.stressData.mood = entry["mood_level"] as? Int ?? 0
                 self.stressData.notes = ""  // Always empty for user to fill
             }
             
@@ -1608,55 +1608,58 @@ struct MedicationFormData {
 }
 
 struct StressFormData {
-    var stressLevel: Int = 3
+    var stressLevel: Int = 0
     var stressSource = ""
     var copingStrategies = ""
-    var mood: Int = 3
+    var mood: Int = 0
     var notes = ""
     
-    // Validate stress level (1-5 constraint)
+    // Validate stress level (0-5 constraint, 0 means not set)
     var validatedStressLevel: Int {
-        return max(1, min(5, stressLevel))
+        return max(0, min(5, stressLevel))
     }
     
-    // Validate mood level (1-5 constraint)
+    // Validate mood level (0-5 constraint, 0 means not set)
     var validatedMoodLevel: Int {
-        return max(1, min(5, mood))
+        return max(0, min(5, mood))
     }
     
     // Get mood emoji based on level
     var moodEmoji: String {
         switch validatedMoodLevel {
+        case 0: return "➖"  // Not Set
         case 1: return "😢"  // Desperate
         case 2: return "😔"  // Sad
         case 3: return "😐"  // Neutral
         case 4: return "😊"  // Happy
         case 5: return "😄"  // Very Happy
-        default: return "😐"
+        default: return "➖"
         }
     }
     
     // Get mood description based on level
     var moodDescription: String {
         switch validatedMoodLevel {
+        case 0: return "Not Set"
         case 1: return "Desperate"
         case 2: return "Sad"
         case 3: return "Neutral"
         case 4: return "Happy"
         case 5: return "Very Happy"
-        default: return "Neutral"
+        default: return "Not Set"
         }
     }
     
     // Get stress description based on level
     var stressDescription: String {
         switch validatedStressLevel {
+        case 0: return "Not Set"
         case 1: return "Very Low"
         case 2: return "Low"
         case 3: return "Moderate"
         case 4: return "High"
         case 5: return "Very High"
-        default: return "Moderate"
+        default: return "Not Set"
         }
     }
     
@@ -2810,14 +2813,14 @@ struct StressFormView: View {
                         Slider(value: Binding(
                             get: { Double(data.stressLevel) },
                             set: { data.stressLevel = Int($0) }
-                        ), in: 1...5, step: 1)
+                        ), in: 0...5, step: 1)
                         .padding(.horizontal, 12)
                         .padding(.vertical, 8)
                         .background(Color(.systemGray6))
                         .cornerRadius(10)
                         
                         HStack {
-                            Text("1")
+                            Text("0")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                             Spacer()
@@ -2871,14 +2874,14 @@ struct StressFormView: View {
                         Slider(value: Binding(
                             get: { Double(data.mood) },
                             set: { data.mood = Int($0) }
-                        ), in: 1...5, step: 1)
+                        ), in: 0...5, step: 1)
                         .padding(.horizontal, 12)
                         .padding(.vertical, 8)
                         .background(Color(.systemGray6))
                         .cornerRadius(10)
                         
                         HStack {
-                            Text("1")
+                            Text("0")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                             Spacer()

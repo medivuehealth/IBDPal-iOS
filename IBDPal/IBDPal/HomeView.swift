@@ -10,11 +10,12 @@ struct HomeView: View {
     @State private var journalEntries: [JournalEntry] = []
     @State private var nutritionAnalysis = NutritionAnalysis()
     @State private var loadingNutrition = false
-    @State private var showingMicronutrientAnalysis = false
+    @State private var showingMicronutrientSummary = false
     @State private var userProfile: MicronutrientProfile?
     @State private var selectedTab = 0 // 0 for Overview, 1 for Micronutrients, 2 for Macronutrients
     @State private var showingNutritionScoreInfo = false
-    @State private var showingFlareRiskInfo = false
+    @State private var showingPatternScoreInfo = false
+    @State private var showingSymptomsInfo = false
     
     let userData: UserData?
     @ObservedObject var dataRefreshManager: DataRefreshManager
@@ -67,21 +68,11 @@ struct HomeView: View {
             .sheet(isPresented: $showingNutritionScoreInfo) {
                 NutritionScoreInfoView()
             }
-            .sheet(isPresented: $showingFlareRiskInfo) {
-                FlareRiskInfoView()
+            .sheet(isPresented: $showingPatternScoreInfo) {
+                PatternScoreInfoView()
             }
-            .sheet(isPresented: $showingMicronutrientAnalysis) {
-                IBDNutritionAnalysisView(
-                    userData: userData,
-                    journalEntries: journalEntries
-                )
-                .onAppear {
-                    print("🔍 [HomeView DEBUG] IBDNutritionAnalysisView sheet opened with \(journalEntries.count) journal entries")
-                }
-                .onDisappear {
-                    // Refresh data when micronutrient analysis is closed
-                    dataRefreshManager.refreshData()
-                }
+            .sheet(isPresented: $showingSymptomsInfo) {
+                SymptomsInfoView(symptoms: getTodaysSymptoms())
             }
         }
     }
@@ -198,6 +189,9 @@ struct HomeView: View {
                 
                 // Daily Log Status - Completed and Pending Activities
                 dailyLogStatusCard
+                
+                // Medical Disclaimer Banner at bottom
+                MedicalDisclaimerBanner()
             }
         }
         .padding(.horizontal)
@@ -207,14 +201,24 @@ struct HomeView: View {
     @ViewBuilder
     private var micronutrientsContent: some View {
         VStack(spacing: 20) {
-            // Micronutrient Analysis Card
-            MicronutrientAnalysisCard(userData: userData, journalEntries: journalEntries) {
-                showingMicronutrientAnalysis = true
-            }
+            // Show detailed analysis as main page
+            IBDNutritionAnalysisView(
+                userData: userData,
+                journalEntries: journalEntries
+            )
             .accessibilityLabel("Micronutrient analysis for IBD patients")
-            .accessibilityHint("Double tap to view detailed micronutrient breakdown and recommendations")
+            .accessibilityHint("View detailed micronutrient breakdown and recommendations")
+            
+            // Medical Disclaimer Banner at bottom (only here, not duplicated in IBDNutritionAnalysisView)
+            MedicalDisclaimerBanner()
         }
         .padding(.horizontal)
+        .sheet(isPresented: $showingMicronutrientSummary) {
+            MicronutrientSummaryView(
+                userData: userData,
+                journalEntries: journalEntries
+            )
+        }
     }
     
     // MARK: - Daily Log Status Card
@@ -510,33 +514,33 @@ struct HomeView: View {
                (entry.other_fluids != nil && Double(entry.other_fluids ?? "0") ?? 0 > 0)
     }
     
-    // MARK: - Flare Risk Calculation
+    // MARK: - Pattern Score Calculation
     
-    private func getFlareRiskLevel() -> String {
-        let riskScore = calculateFlareRiskScore()
+    private func getPatternScoreLevel() -> String {
+        let patternScore = calculatePatternScore()
         
-        if riskScore >= 70 {
+        if patternScore >= 70 {
             return "High"
-        } else if riskScore >= 40 {
+        } else if patternScore >= 40 {
             return "Medium"
         } else {
             return "Low"
         }
     }
     
-    private func getFlareRiskColor() -> Color {
-        let riskScore = calculateFlareRiskScore()
+    private func getPatternScoreColor() -> Color {
+        let patternScore = calculatePatternScore()
         
-        if riskScore >= 70 {
+        if patternScore >= 70 {
             return .red
-        } else if riskScore >= 40 {
+        } else if patternScore >= 40 {
             return .orange
         } else {
             return .green
         }
     }
     
-    private func calculateFlareRiskScore() -> Int {
+    private func calculatePatternScore() -> Int {
         guard !journalEntries.isEmpty else { return 0 }
         
         var totalScore = 0
@@ -641,13 +645,16 @@ struct HomeView: View {
                 
                 // IBDPal Recommendations
                 DieticianRecommendationsCard(analysis: nutritionAnalysis, userProfile: userProfile)
-                    .accessibilityLabel("IBDPal recommendations")
-                    .accessibilityHint("Professional dietary recommendations for IBD management")
                 
                 // Nutrition Insights Tab
                 NutritionInsightsCard(analysis: nutritionAnalysis)
                     .accessibilityLabel("Nutrition insights")
                     .accessibilityHint("Detailed nutrition analysis and health insights")
+                
+                // Medical Disclaimer Banner at bottom
+                MedicalDisclaimerBanner()
+                    .accessibilityLabel("Medical disclaimer")
+                    .accessibilityHint("Important medical information and disclaimer")
             }
         }
         .padding(.horizontal)
@@ -735,18 +742,18 @@ struct HomeView: View {
                     }
                 }
                 
-                // Flare Risk with info button
+                // Pattern Score with info button
                 VStack(spacing: 8) {
                     StatCard(
-                        title: "Flare Risk",
-                        value: getFlareRiskLevel(),
-                        subtitle: "Risk",
-                        icon: "heart.fill",
-                        color: getFlareRiskColor()
+                        title: "Pattern Score",
+                        value: getPatternScoreLevel(),
+                        subtitle: "Trend",
+                        icon: "chart.line.uptrend.xyaxis",
+                        color: getPatternScoreColor()
                     )
                     
                     Button(action: {
-                        showingFlareRiskInfo = true
+                        showingPatternScoreInfo = true
                     }) {
                         HStack(spacing: 4) {
                             Image(systemName: "info.circle")
@@ -767,14 +774,30 @@ struct HomeView: View {
                     color: .blue
                 )
                 
-                // Symptoms
-                StatCard(
-                    title: "Symptoms",
-                    value: "\(getTodaysSymptomCount())",
-                    subtitle: "reported",
-                    icon: "exclamationmark.triangle.fill",
-                    color: getTodaysSymptomCount() == 0 ? .green : .orange
-                )
+                // Symptoms with info button
+                VStack(spacing: 8) {
+                    StatCard(
+                        title: "Symptoms",
+                        value: "\(getTodaysSymptomCount())",
+                        subtitle: "reported",
+                        icon: "exclamationmark.triangle.fill",
+                        color: getTodaysSymptomCount() == 0 ? .green : .orange
+                    )
+                    
+                    if getTodaysSymptomCount() > 0 {
+                        Button(action: {
+                            showingSymptomsInfo = true
+                        }) {
+                            HStack(spacing: 4) {
+                                Image(systemName: "info.circle")
+                                    .font(.caption)
+                                Text("View symptoms")
+                                    .font(.caption)
+                            }
+                            .foregroundColor(.blue)
+                        }
+                    }
+                }
             }
         }
         .padding(20)
@@ -1470,6 +1493,10 @@ struct HomeView: View {
     }
     
     private func getTodaysSymptomCount() -> Int {
+        return getTodaysSymptoms().count
+    }
+    
+    private func getTodaysSymptoms() -> [Symptom] {
         let today = Calendar.current.startOfDay(for: Date())
         print("🔍 [HomeView] Today's date for symptoms: \(today)")
         print("🔍 [HomeView] Total journal entries for symptoms: \(journalEntries.count)")
@@ -1496,11 +1523,105 @@ struct HomeView: View {
             return isToday
         }
         
-        let symptomCount = todaysEntries.flatMap { $0.symptoms ?? [] }.count
+        // Get all symptoms from today's entries
+        var allSymptoms = todaysEntries.flatMap { $0.symptoms ?? [] }
         
-        print("🔍 [HomeView] Today's symptom count: \(symptomCount) from \(todaysEntries.count) entries")
+        // Create Symptom objects from bowel health fields that are logged
+        // Match the same thresholds as Warning Indicators in Trends screen
+        let painWarningThreshold = 5.0  // Same as Trends: painWarningThreshold (5.0/10)
+        let urgencyWarningThreshold = 6.0  // Same as Trends: urgencyWarningThreshold (6.0/10)
         
-        return symptomCount
+        for entry in todaysEntries {
+            // Blood present - show if present (matches Trends: hasBloodPresent)
+            if let bloodPresent = entry.blood_present, bloodPresent {
+                let bloodSymptom = Symptom(
+                    symptom_id: UUID().uuidString,
+                    type: "blood_present",
+                    severity: 5, // High severity for blood
+                    notes: "Blood in stool"
+                )
+                allSymptoms.append(bloodSymptom)
+            }
+            
+            // Mucus present - show if present (matches Trends: hasMucusPresent)
+            if let mucusPresent = entry.mucus_present, mucusPresent {
+                let mucusSymptom = Symptom(
+                    symptom_id: UUID().uuidString,
+                    type: "mucus_present",
+                    severity: 3, // Moderate severity for mucus
+                    notes: "Mucus in stool"
+                )
+                allSymptoms.append(mucusSymptom)
+            }
+            
+            // Pain severity - only show if > 5 (matches Trends: averagePain > painWarningThreshold)
+            // Pain is on 0-10 scale, convert to 1-5 scale for symptom display
+            if let painSeverity = entry.pain_severity, Double(painSeverity) > painWarningThreshold {
+                // Convert from 0-10 scale to 1-5 scale: (value/10)*4 + 1, then round
+                // 0-2 → 1, 3-4 → 2, 5-6 → 3, 7-8 → 4, 9-10 → 5
+                let normalizedValue = (Double(painSeverity) / 10.0) * 4.0 + 1.0
+                let normalizedSeverity = max(1, min(5, Int(round(normalizedValue))))
+                let painSymptom = Symptom(
+                    symptom_id: UUID().uuidString,
+                    type: "abdominal_pain",
+                    severity: normalizedSeverity,
+                    notes: entry.pain_location ?? "Abdominal pain"
+                )
+                allSymptoms.append(painSymptom)
+            }
+            
+            // Urgency level - only show if > 6 (matches Trends: averageUrgencyLevel > urgencyWarningThreshold)
+            // Urgency is on 0-10 scale, convert to 1-5 scale for symptom display
+            if let urgencyLevel = entry.urgency_level, Double(urgencyLevel) > urgencyWarningThreshold {
+                // Convert from 0-10 scale to 1-5 scale: (value/10)*4 + 1, then round
+                // 0-2 → 1, 3-4 → 2, 5-6 → 3, 7-8 → 4, 9-10 → 5
+                let normalizedValue = (Double(urgencyLevel) / 10.0) * 4.0 + 1.0
+                let normalizedSeverity = max(1, min(5, Int(round(normalizedValue))))
+                let urgencySymptom = Symptom(
+                    symptom_id: UUID().uuidString,
+                    type: "urgency",
+                    severity: normalizedSeverity,
+                    notes: "Bowel urgency"
+                )
+                allSymptoms.append(urgencySymptom)
+            }
+        }
+        
+        // Filter to only include bowel health symptoms (exclude stress and fatigue)
+        // Bowel health symptoms include: pain, blood, mucus, urgency, bloating, diarrhea, constipation, etc.
+        let bowelHealthSymptomTypes = [
+            "pain", "abdominal_pain", "abdominal pain",
+            "blood", "blood_present",
+            "mucus", "mucus_present",
+            "urgency", "urgency_level",
+            "bloating", "bloat",
+            "diarrhea", "diarrhoea",
+            "constipation",
+            "nausea",
+            "cramping", "cramps"
+        ]
+        
+        let bowelHealthSymptoms = allSymptoms.filter { symptom in
+            let symptomType = symptom.type.lowercased()
+            
+            // Exclude stress and fatigue explicitly
+            let isNotStressOrFatigue = symptomType != "stress" && symptomType != "fatigue"
+            
+            // Only include bowel health symptom types
+            let isBowelHealth = bowelHealthSymptomTypes.contains { type in
+                symptomType.contains(type.lowercased())
+            }
+            
+            // Only show symptoms with severity > 0 (actually logged by user)
+            let hasSeverity = symptom.severity > 0
+            
+            return isBowelHealth && isNotStressOrFatigue && hasSeverity
+        }
+        
+        print("🔍 [HomeView] Today's symptoms: \(allSymptoms.count) total, \(bowelHealthSymptoms.count) bowel health symptoms from \(todaysEntries.count) entries")
+        print("🔍 [HomeView] Filtered symptoms: \(bowelHealthSymptoms.map { $0.type })")
+        
+        return bowelHealthSymptoms
     }
     
     private func getRecentNotificationReminders() -> [NotificationReminder] {
@@ -1671,38 +1792,45 @@ struct HomeView: View {
             return 0
         }
         
-        var score = 100
-        
-        print("🔍 [HomeView] Calculating nutrition score - starting with 100")
+        print("🔍 [HomeView] Calculating normalized nutrition score using statistical methods")
         print("🔍 [HomeView] Analysis values - Protein: \(analysis.avgProtein), Fiber: \(analysis.avgFiber), Calories: \(analysis.avgCalories)")
-        print("🔍 [HomeView] Deficiencies count: \(analysis.deficiencies.count)")
         
-        // Deduct points for deficiencies
-        for deficiency in analysis.deficiencies {
-            print("🔍 [HomeView] Deficiency: \(deficiency.nutrient), Severity: \(deficiency.severity)")
-            switch deficiency.severity {
-            case .mild:
-                score -= 10
-            case .moderate:
-                score -= 20
-            case .severe:
-                score -= 30
-            case .critical:
-                score -= 40
-            }
+        // Get user profile for target calculations
+        guard let userProfile = userProfile else {
+            // Fallback to default targets if profile not available
+            return NutritionScoreCalculator.shared.calculateScore(
+                macronutrients: [
+                    ("Calories", analysis.avgCalories, 2000.0),
+                    ("Protein", analysis.avgProtein, 60.0),
+                    ("Fiber", analysis.avgFiber, 25.0)
+                ],
+                micronutrients: analysis.micronutrients,
+                userProfile: nil
+            )
         }
         
-        // Bonus for good nutrition
-        if analysis.avgProtein >= 60 && analysis.avgFiber >= 20 && analysis.avgCalories >= 1500 {
-            print("🔍 [HomeView] Adding bonus for good nutrition")
-            score += 10
-        }
+        // Calculate personalized targets
+        let targets = PersonalizedIBDTargets.calculate(for: userProfile)
         
-        let finalScore = max(0, min(100, score))
-        print("🔍 [HomeView] Final nutrition score: \(finalScore)")
+        // Normalize macronutrients (actual/target ratio, capped at 1.0)
+        let macroNutrients: [(String, Double, Double)] = [
+            ("Calories", analysis.avgCalories, Double(targets.calorieTarget)),
+            ("Protein", analysis.avgProtein, Double(targets.proteinTarget)),
+            ("Fiber", analysis.avgFiber, Double(targets.fiberTarget))
+        ]
+        
+        // Calculate normalized score using shared statistical methods
+        let finalScore = NutritionScoreCalculator.shared.calculateScore(
+            macronutrients: macroNutrients,
+            micronutrients: analysis.micronutrients,
+            userProfile: userProfile
+        )
+        
+        print("🔍 [HomeView] Final normalized nutrition score: \(finalScore)")
         
         return finalScore
     }
+    
     
     private func generateFoodPatterns() -> [NutritionFoodPattern] {
         print("🔍 [HomeView] Generating food patterns from \(journalEntries.count) journal entries")
@@ -2885,68 +3013,80 @@ struct NutritionScoreInfoView: View {
                             .fontWeight(.semibold)
                             .foregroundColor(.primary)
                         
+                        Text("Your nutrition score uses a normalized statistical method that evaluates both macronutrients and micronutrients. The calculation compares your actual intake to personalized targets based on your age, gender, weight, and IBD status.")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .padding(.bottom, 8)
+                        
                         VStack(alignment: .leading, spacing: 12) {
                             InfoRow(
-                                icon: "100.circle.fill",
-                                iconColor: .green,
-                                title: "Starting Score",
-                                description: "Every day starts with a perfect score of 100 points"
-                            )
-                            
-                            InfoRow(
-                                icon: "minus.circle.fill",
-                                iconColor: .red,
-                                title: "Points Deducted",
-                                description: "Points are subtracted when you're missing important nutrients"
-                            )
-                            
-                            InfoRow(
-                                icon: "plus.circle.fill",
+                                icon: "chart.bar.fill",
                                 iconColor: .blue,
-                                title: "Bonus Points",
-                                description: "Extra points are added when you meet all nutrition goals"
+                                title: "Normalized Ratios",
+                                description: "Each nutrient is normalized by comparing your actual intake to your personalized target (actual ÷ target)"
+                            )
+                            
+                            InfoRow(
+                                icon: "function",
+                                iconColor: .purple,
+                                title: "Statistical Functions",
+                                description: "Sigmoid functions are used to score macronutrients, giving better scores for values close to your target"
+                            )
+                            
+                            InfoRow(
+                                icon: "scalemass.fill",
+                                iconColor: .orange,
+                                title: "Weighted Averages",
+                                description: "Macronutrients (60% weight) and micronutrients (40% weight) are combined using weighted statistical means"
+                            )
+                            
+                            InfoRow(
+                                icon: "chart.line.uptrend.xyaxis",
+                                iconColor: .green,
+                                title: "Composite Score",
+                                description: "Final score combines arithmetic mean (70%) and harmonic mean (30%) for balanced evaluation"
                             )
                         }
                     }
                     
                     // Scoring details
                     VStack(alignment: .leading, spacing: 16) {
-                        Text("Scoring Details")
+                        Text("What's Included")
                             .font(.headline)
                             .fontWeight(.semibold)
                             .foregroundColor(.primary)
                         
                         VStack(alignment: .leading, spacing: 12) {
                             ScoringDetail(
-                                nutrient: "Protein",
-                                good: "60g+ daily",
-                                points: "No deduction",
-                                poor: "Less than 50g",
-                                deduction: "-20 points"
+                                nutrient: "Macronutrients (60% weight)",
+                                good: "Calories, Protein, Fiber",
+                                points: "Normalized to 0-1 scale",
+                                poor: "Compared to personalized targets",
+                                deduction: "Uses sigmoid function"
                             )
                             
                             ScoringDetail(
-                                nutrient: "Fiber",
-                                good: "25g+ daily",
-                                points: "No deduction",
-                                poor: "Less than 20g",
-                                deduction: "-20 points"
+                                nutrient: "Micronutrients (40% weight)",
+                                good: "Vitamin D, B12, Iron, Calcium, Zinc, Omega-3",
+                                points: "Status-based scoring",
+                                poor: "Optimal = 100%, Deficient = 20%",
+                                deduction: "Weighted by importance"
                             )
                             
                             ScoringDetail(
-                                nutrient: "Calories",
-                                good: "1800+ daily",
-                                points: "No deduction",
-                                poor: "Less than 1500",
-                                deduction: "-20 points"
+                                nutrient: "Statistical Methods",
+                                good: "Arithmetic Mean (70%)",
+                                points: "Primary calculation",
+                                poor: "Harmonic Mean (30%)",
+                                deduction: "Penalizes deficiencies"
                             )
                             
                             ScoringDetail(
-                                nutrient: "Bonus",
-                                good: "All goals met",
-                                points: "+10 points",
-                                poor: "Missing goals",
-                                deduction: "No bonus"
+                                nutrient: "Personalization",
+                                good: "Based on your profile",
+                                points: "Age, gender, weight, IBD status",
+                                poor: "Targets adjust for disease activity",
+                                deduction: "IBD-specific requirements"
                             )
                         }
                     }
@@ -2993,10 +3133,11 @@ struct NutritionScoreInfoView: View {
                             .foregroundColor(.primary)
                         
                         VStack(alignment: .leading, spacing: 8) {
-                            TipItem(text: "Include lean proteins like chicken, fish, or beans in each meal")
-                            TipItem(text: "Add fiber-rich foods like oats, quinoa, and vegetables")
-                            TipItem(text: "Eat regular meals to meet your calorie needs")
-                            TipItem(text: "Consider IBD-friendly foods that are easier to digest")
+                            TipItem(text: "Meet your macronutrient targets: Include lean proteins, fiber-rich foods, and adequate calories")
+                            TipItem(text: "Focus on IBD-specific micronutrients: Vitamin D, B12, Iron, Calcium, Zinc, and Omega-3")
+                            TipItem(text: "Eat regular, balanced meals to consistently meet your personalized nutrition targets")
+                            TipItem(text: "Consider IBD-friendly foods that are easier to digest and better absorbed")
+                            TipItem(text: "Your targets adjust based on disease activity - more nutrients may be needed during flares")
                         }
                     }
                 }
@@ -3127,8 +3268,179 @@ struct TipItem: View {
     }
 }
 
-// MARK: - Flare Risk Info View
-struct FlareRiskInfoView: View {
+// MARK: - Symptoms Info View
+struct SymptomsInfoView: View {
+    let symptoms: [Symptom]
+    @Environment(\.dismiss) private var dismiss
+    
+    var body: some View {
+        NavigationView {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 24) {
+                    // Header
+                    VStack(alignment: .leading, spacing: 12) {
+                        HStack {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .font(.title)
+                                .foregroundColor(.orange)
+                            
+                            Text("Today's Symptoms")
+                                .font(.title)
+                                .fontWeight(.bold)
+                                .foregroundColor(.primary)
+                        }
+                        
+                        Text("Symptoms reported today (\(symptoms.count))")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                    }
+                    
+                    if symptoms.isEmpty {
+                        VStack(spacing: 16) {
+                            Image(systemName: "checkmark.circle.fill")
+                                .font(.system(size: 48))
+                                .foregroundColor(.green)
+                            
+                            Text("No Symptoms Reported")
+                                .font(.title3)
+                                .fontWeight(.semibold)
+                                .foregroundColor(.primary)
+                            
+                            Text("Great! No symptoms were logged for today.")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                                .multilineTextAlignment(.center)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(40)
+                    } else {
+                        // Symptoms list
+                        VStack(alignment: .leading, spacing: 16) {
+                            Text("Reported Symptoms")
+                                .font(.headline)
+                                .fontWeight(.semibold)
+                                .foregroundColor(.primary)
+                            
+                            ForEach(Array(symptoms.enumerated()), id: \.offset) { index, symptom in
+                                SymptomRow(symptom: symptom)
+                            }
+                        }
+                    }
+                }
+                .padding(20)
+            }
+            .navigationTitle("Symptoms")
+            .navigationBarTitleDisplayMode(.inline)
+            .navigationBarItems(trailing: Button("Done") {
+                dismiss()
+            })
+        }
+    }
+}
+
+struct SymptomRow: View {
+    let symptom: Symptom
+    
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: symptomIcon(symptom.type))
+                .font(.title3)
+                .foregroundColor(severityColor(symptom.severity))
+                .frame(width: 24)
+            
+            VStack(alignment: .leading, spacing: 4) {
+                Text(formatSymptomType(symptom.type))
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.primary)
+                
+                HStack {
+                    Text("Severity: \(symptom.severity)/5")
+                        .font(.caption)
+                        .foregroundColor(severityColor(symptom.severity))
+                    
+                    if let notes = symptom.notes, !notes.isEmpty {
+                        Text("•")
+                            .foregroundColor(.secondary)
+                        Text(notes)
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .lineLimit(2)
+                    }
+                }
+            }
+            
+            Spacer()
+        }
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(severityColor(symptom.severity).opacity(0.1))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke(severityColor(symptom.severity).opacity(0.3), lineWidth: 1)
+                )
+        )
+    }
+    
+    private func symptomIcon(_ type: String) -> String {
+        switch type.lowercased() {
+        case "pain", "abdominal_pain", "abdominal pain":
+            return "waveform.path.ecg"
+        case "blood", "blood_present":
+            return "drop.fill"
+        case "mucus", "mucus_present":
+            return "drop.triangle.fill"
+        case "urgency", "urgency_level":
+            return "bolt.fill"
+        case "fatigue":
+            return "moon.zzz.fill"
+        case "stress":
+            return "brain.head.profile"
+        case "bloating", "bloat":
+            return "wind"
+        case "nausea":
+            return "drop.fill"
+        case "diarrhea", "diarrhoea":
+            return "arrow.down.circle.fill"
+        case "constipation":
+            return "arrow.up.circle.fill"
+        default:
+            return "exclamationmark.circle.fill"
+        }
+    }
+    
+    private func severityColor(_ severity: Int) -> Color {
+        switch severity {
+        case 0...2:
+            return .green
+        case 3...5:
+            return .orange
+        case 6...8:
+            return .red
+        default:
+            return .purple
+        }
+    }
+    
+    private func formatSymptomType(_ type: String) -> String {
+        switch type.lowercased() {
+        case "blood_present":
+            return "Blood in Stool"
+        case "mucus_present":
+            return "Mucus in Stool"
+        case "abdominal_pain":
+            return "Abdominal Pain"
+        case "urgency", "urgency_level":
+            return "Bowel Urgency"
+        default:
+            return type.capitalized
+        }
+    }
+}
+
+// MARK: - Pattern Score Info View
+struct PatternScoreInfoView: View {
     @Environment(\.dismiss) private var dismiss
     
     var body: some View {
@@ -3142,26 +3454,51 @@ struct FlareRiskInfoView: View {
                                 .font(.title)
                                 .foregroundColor(.red)
                             
-                            Text("Flare Risk Assessment")
+                            Text("Symptom Pattern Awareness")
                                 .font(.title)
                                 .fontWeight(.bold)
                                 .foregroundColor(.primary)
                         }
                         
-                        Text("Your personalized flare risk assessment based on IBD symptoms and warning signs from the last 7 days.")
+                        Text("This educational tool analyzes patterns in your symptom journal entries from the last 7 days. It is not a medical diagnosis or prediction. Always consult your healthcare provider for medical advice.")
                             .font(.subheadline)
                             .foregroundColor(.secondary)
+                        
+                        // Medical Disclaimer
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack {
+                                Image(systemName: "exclamationmark.triangle.fill")
+                                    .foregroundColor(.red)
+                                Text("Important: This is not a medical diagnosis")
+                                    .font(.caption)
+                                    .fontWeight(.semibold)
+                                    .foregroundColor(.red)
+                            }
+                            
+                            Text("This tool identifies patterns in your logged symptoms for educational awareness only. It does not predict, diagnose, or treat medical conditions. Always consult your healthcare provider before making medical decisions.")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                        .padding()
+                        .background(Color.red.opacity(0.1))
+                        .cornerRadius(8)
+                        .padding(.top, 8)
                     }
                     
                     // How it works section
                     VStack(alignment: .leading, spacing: 16) {
-                        Text("How Your Risk is Calculated")
+                        Text("How Pattern Analysis Works")
                             .font(.headline)
                             .fontWeight(.semibold)
                             .foregroundColor(.primary)
                         
+                        Text("This educational tool analyzes patterns in your logged symptoms. It does not predict medical outcomes or provide diagnoses.")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .padding(.bottom, 8)
+                        
                         VStack(alignment: .leading, spacing: 12) {
-                            FlareRiskInfoRow(
+                            PatternScoreInfoRow(
                                 icon: "drop.fill",
                                 iconColor: .red,
                                 title: "Blood Present",
@@ -3169,7 +3506,7 @@ struct FlareRiskInfoView: View {
                                 points: "40 points"
                             )
                             
-                            FlareRiskInfoRow(
+                            PatternScoreInfoRow(
                                 icon: "exclamationmark.triangle.fill",
                                 iconColor: .orange,
                                 title: "High Pain Severity",
@@ -3177,7 +3514,7 @@ struct FlareRiskInfoView: View {
                                 points: "30 points"
                             )
                             
-                            FlareRiskInfoRow(
+                            PatternScoreInfoRow(
                                 icon: "arrow.up.circle.fill",
                                 iconColor: .orange,
                                 title: "High Urgency",
@@ -3185,7 +3522,7 @@ struct FlareRiskInfoView: View {
                                 points: "25 points"
                             )
                             
-                            FlareRiskInfoRow(
+                            PatternScoreInfoRow(
                                 icon: "brain.head.profile",
                                 iconColor: .blue,
                                 title: "Stress & Fatigue",
@@ -3193,7 +3530,7 @@ struct FlareRiskInfoView: View {
                                 points: "20 points"
                             )
                             
-                            FlareRiskInfoRow(
+                            PatternScoreInfoRow(
                                 icon: "moon.zzz.fill",
                                 iconColor: .purple,
                                 title: "Poor Sleep",
@@ -3211,7 +3548,7 @@ struct FlareRiskInfoView: View {
                             .foregroundColor(.primary)
                         
                         VStack(alignment: .leading, spacing: 12) {
-                            FlareRiskLevelView(
+                            PatternScoreLevelView(
                                 level: "High Risk",
                                 color: .red,
                                 range: "70-100 points",
@@ -3219,7 +3556,7 @@ struct FlareRiskInfoView: View {
                                 action: "Contact your doctor"
                             )
                             
-                            FlareRiskLevelView(
+                            PatternScoreLevelView(
                                 level: "Medium Risk",
                                 color: .orange,
                                 range: "40-69 points",
@@ -3227,7 +3564,7 @@ struct FlareRiskInfoView: View {
                                 action: "Monitor symptoms"
                             )
                             
-                            FlareRiskLevelView(
+                            PatternScoreLevelView(
                                 level: "Low Risk",
                                 color: .green,
                                 range: "0-39 points",
@@ -3262,18 +3599,18 @@ struct FlareRiskInfoView: View {
                             .foregroundColor(.primary)
                         
                         VStack(alignment: .leading, spacing: 8) {
-                            FlareRiskTipItem(text: "Track symptoms daily in your journal")
-                            FlareRiskTipItem(text: "Follow your prescribed medication schedule")
-                            FlareRiskTipItem(text: "Maintain a balanced, IBD-friendly diet")
-                            FlareRiskTipItem(text: "Practice stress management techniques")
-                            FlareRiskTipItem(text: "Get adequate sleep and rest")
-                            FlareRiskTipItem(text: "Stay hydrated and avoid trigger foods")
+                            PatternScoreTipItem(text: "Track symptoms daily in your journal")
+                            PatternScoreTipItem(text: "Follow your prescribed medication schedule")
+                            PatternScoreTipItem(text: "Maintain a balanced, IBD-friendly diet")
+                            PatternScoreTipItem(text: "Practice stress management techniques")
+                            PatternScoreTipItem(text: "Get adequate sleep and rest")
+                            PatternScoreTipItem(text: "Stay hydrated and avoid trigger foods")
                         }
                     }
                 }
                 .padding(20)
             }
-            .navigationTitle("Flare Risk")
+            .navigationTitle("Symptom Pattern Awareness")
             .navigationBarTitleDisplayMode(.inline)
             .navigationBarItems(trailing: Button("Done") {
                 dismiss()
@@ -3282,9 +3619,9 @@ struct FlareRiskInfoView: View {
     }
 }
 
-// MARK: - Supporting Views for Flare Risk Info
+// MARK: - Supporting Views for Pattern Score Info
 
-struct FlareRiskInfoRow: View {
+struct PatternScoreInfoRow: View {
     let icon: String
     let iconColor: Color
     let title: String
@@ -3321,7 +3658,7 @@ struct FlareRiskInfoRow: View {
     }
 }
 
-struct FlareRiskLevelView: View {
+struct PatternScoreLevelView: View {
     let level: String
     let color: Color
     let range: String
@@ -3383,7 +3720,7 @@ struct WarningSignItem: View {
     }
 }
 
-struct FlareRiskTipItem: View {
+struct PatternScoreTipItem: View {
     let text: String
     
     var body: some View {

@@ -84,3 +84,7 @@ console.log('Make sure your DATABASE_URL is set in config.env\n');
 
 runRemindersMigration();
 
+
+
+
+

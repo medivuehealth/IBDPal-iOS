@@ -66,6 +66,10 @@ struct MoreView: View {
                 
                 // Support Section
                 Section("Support") {
+                    NavigationLink(destination: HealthCitationsView()) {
+                        MoreRow(icon: "book.closed.fill", title: "Health Information Sources", subtitle: "View medical citations and sources for all health information")
+                    }
+                    
                     NavigationLink(destination: HelpFAQView()) {
                         MoreRow(icon: "questionmark.circle.fill", title: "Help & FAQ", subtitle: "Get help and answers")
                     }

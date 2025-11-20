@@ -24,6 +24,10 @@ struct MicronutrientProfileView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 24) {
+                // Medical Disclaimer Banner
+                MedicalDisclaimerBanner()
+                    .padding(.horizontal)
+                
                 // Header
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Nutrition Profile")
@@ -35,6 +39,19 @@ struct MicronutrientProfileView: View {
                         .font(.subheadline)
                         .foregroundColor(.ibdSecondaryText)
                         .lineSpacing(4)
+                    
+                    // Citations Link
+                    HStack {
+                        Image(systemName: "book.closed.fill")
+                            .foregroundColor(.blue)
+                        NavigationLink(destination: HealthCitationsView()) {
+                            Text("View Health Information Sources & Citations")
+                                .font(.caption)
+                                .foregroundColor(.blue)
+                                .underline()
+                        }
+                    }
+                    .padding(.top, 4)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal)

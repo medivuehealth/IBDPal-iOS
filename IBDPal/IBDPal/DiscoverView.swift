@@ -13,10 +13,19 @@ struct DiscoverView: View {
     // Evidence-based target service
     @StateObject private var evidenceBasedTargetService = EvidenceBasedTargetCalculator.shared
     
+    // Micronutrient calculation services
+    @StateObject private var micronutrientCalculator = IBDMicronutrientCalculator.shared
+    @StateObject private var deficiencyAnalyzer = IBDDeficiencyAnalyzer.shared
+    @State private var micronutrientAnalysis: IBDMicronutrientAnalysis?
+    
     var body: some View {
         NavigationView {
             ScrollView {
                 VStack(spacing: 20) {
+                    // Medical Disclaimer Banner
+                    MedicalDisclaimerBanner()
+                        .padding(.horizontal)
+                    
                     // Header
                     VStack(alignment: .leading, spacing: 8) {
                         Text("My Trends")
@@ -60,7 +69,7 @@ struct DiscoverView: View {
                         )
                         
                                     // Health Metrics Section
-            HealthMetricsView(data: data.healthMetrics, selectedTimeframe: selectedTimeframe, evidenceBasedTargetService: evidenceBasedTargetService)
+            HealthMetricsView(data: data.healthMetrics, nutritionData: data.nutrition, micronutrientAnalysis: micronutrientAnalysis, selectedTimeframe: selectedTimeframe, evidenceBasedTargetService: evidenceBasedTargetService)
                         
                         // Insights
                         InsightsView(insights: data.insights)
@@ -130,6 +139,10 @@ struct DiscoverView: View {
                     case .success(let entries):
                         // Process real data from database
                         trendsData = processRealData(entries: entries, timeframe: selectedTimeframe)
+                        // Calculate micronutrient analysis for nutrition score
+                        Task {
+                            await calculateMicronutrientAnalysis(entries: entries)
+                        }
                     case .failure(let error):
                         errorMessage = error.localizedDescription
                         print("❌ [DiscoverView] Error loading trends: \(error)")
@@ -535,6 +548,52 @@ struct DiscoverView: View {
                 painLocation: entry.pain_location, // Add pain location
                 urgencyLevel: urgencyLevel
             )
+        }
+    }
+    
+    private func calculateMicronutrientAnalysis(entries: [JournalEntry]) async {
+        guard let userData = userData else { return }
+        
+        // Create a default profile for micronutrient calculation
+        let defaultProfile = MicronutrientProfile(
+            userId: userData.id,
+            age: 30,
+            weight: 70.0,
+            height: nil,
+            gender: "Unknown",
+            diseaseActivity: .remission,
+            diseaseType: "IBD",
+            medications: [],
+            labResults: [],
+            supplements: []
+        )
+        
+        // Calculate daily micronutrient intake
+        let dailyIntake = micronutrientCalculator.calculateDailyMicronutrientIntake(
+            from: entries,
+            userProfile: defaultProfile
+        )
+        
+        // Calculate requirements
+        let requirements = IBDMicronutrientRequirements(
+            age: defaultProfile.age,
+            gender: defaultProfile.gender ?? "Unknown",
+            weight: defaultProfile.weight,
+            height: defaultProfile.height,
+            diseaseActivity: defaultProfile.diseaseActivity,
+            medications: defaultProfile.medications,
+            diseaseType: defaultProfile.diseaseType ?? "IBD"
+        )
+        
+        // Analyze micronutrient status
+        let analysis = deficiencyAnalyzer.analyzeMicronutrientStatus(
+            dailyIntake.totalIntake,
+            requirements,
+            defaultProfile.labResults
+        )
+        
+        DispatchQueue.main.async {
+            self.micronutrientAnalysis = analysis
         }
     }
     
@@ -1506,6 +1565,8 @@ extension SimpleSymptomChart {
 
 struct HealthMetricsView: View {
     let data: [HealthMetricPoint]
+    let nutritionData: [NutritionTrendPoint]
+    let micronutrientAnalysis: IBDMicronutrientAnalysis?
     let selectedTimeframe: TimeFrame
     @ObservedObject var evidenceBasedTargetService: EvidenceBasedTargetCalculator
     
@@ -1538,30 +1599,18 @@ struct HealthMetricsView: View {
                 .fontWeight(.semibold)
                 .foregroundColor(.ibdPrimaryText)
             
-            // Medication Adherence Bar Chart - Smart chart that shows warning when needed
-            if averageMedicationAdherence < medicationAdherenceWarningThreshold {
-                // Show as warning chart
-                WarningBarChartView(
-                    title: "Medication Adherence",
-                    value: averageMedicationAdherence,
-                    threshold: medicationAdherenceWarningThreshold,
-                    unit: "%",
-                    icon: "exclamationmark.triangle.fill"
-                )
-            } else {
-                // Show as normal chart
-                HorizontalBarChartView(
-                    title: "Medication Adherence",
-                    target: targets.medicationAdherenceTarget,
-                    actual: averageMedicationAdherence,
-                    unit: "%",
-                    targetColor: .blue,
-                    actualColor: .green,
-                    icon: "pills.fill"
-                )
-            }
+            // Nutrition Score Trend Bar Chart - First
+            HorizontalBarChartView(
+                title: "Nutrition Score",
+                target: 80.0, // Target nutrition score
+                actual: averageNutritionScore,
+                unit: "/100",
+                targetColor: .blue,
+                actualColor: nutritionScoreColor,
+                icon: "chart.line.uptrend.xyaxis"
+            )
             
-            // Bowel Frequency Bar Chart - Smart chart that shows warning when needed
+            // Bowel Frequency Bar Chart - Second - Smart chart that shows warning when needed
             if averageBowelFrequency > bowelFrequencyWarningThreshold {
                 // Show as warning chart
                 WarningBarChartView(
@@ -1584,16 +1633,28 @@ struct HealthMetricsView: View {
                 )
             }
             
-            // Nutrition Score Trend Bar Chart
-            HorizontalBarChartView(
-                title: "Nutrition Score",
-                target: 80.0, // Target nutrition score
-                actual: averageNutritionScore,
-                unit: "/100",
-                targetColor: .blue,
-                actualColor: nutritionScoreColor,
-                icon: "chart.line.uptrend.xyaxis"
-            )
+            // Medication Adherence Bar Chart - Third - Smart chart that shows warning when needed
+            if averageMedicationAdherence < medicationAdherenceWarningThreshold {
+                // Show as warning chart
+                WarningBarChartView(
+                    title: "Medication Adherence",
+                    value: averageMedicationAdherence,
+                    threshold: medicationAdherenceWarningThreshold,
+                    unit: "%",
+                    icon: "exclamationmark.triangle.fill"
+                )
+            } else {
+                // Show as normal chart
+                HorizontalBarChartView(
+                    title: "Medication Adherence",
+                    target: targets.medicationAdherenceTarget,
+                    actual: averageMedicationAdherence,
+                    unit: "%",
+                    targetColor: .blue,
+                    actualColor: .green,
+                    icon: "pills.fill"
+                )
+            }
             
             // Warning Indicators Section
             if hasWarningIndicators {
@@ -1717,9 +1778,63 @@ struct HealthMetricsView: View {
     
     private var averageNutritionScore: Double {
         guard !filteredData.isEmpty else { return 0 }
+        
+        // Calculate from the nutrition trend data which has the actual values
+        let filteredNutritionPoints = nutritionData.filter { point in
+            // Filter by the same timeframe as health metrics
+            let pointDate = Date.fromISOString(point.date)
+            let calendar = Calendar.current
+            let endDate = Date()
+            let startDate: Date
+            
+            switch selectedTimeframe {
+            case .week:
+                startDate = calendar.date(byAdding: .day, value: -7, to: endDate) ?? endDate
+            case .month:
+                startDate = calendar.date(byAdding: .day, value: -30, to: endDate) ?? endDate
+            case .threeMonths:
+                startDate = calendar.date(byAdding: .day, value: -90, to: endDate) ?? endDate
+            }
+            
+            return pointDate >= startDate && pointDate <= endDate
+        }
+        
+        if !filteredNutritionPoints.isEmpty {
+            // Calculate averages from nutrition data
+            let totalCalories = Double(filteredNutritionPoints.map { $0.calories }.reduce(0, +)) / Double(filteredNutritionPoints.count)
+            let totalProtein = Double(filteredNutritionPoints.map { $0.protein }.reduce(0, +)) / Double(filteredNutritionPoints.count)
+            let totalFiber = Double(filteredNutritionPoints.map { $0.fiber }.reduce(0, +)) / Double(filteredNutritionPoints.count)
+            
+            // Use normalized statistical calculation (same as HomeView)
+            let macroNutrients: [(String, Double, Double)] = [
+                ("Calories", totalCalories, 2000.0), // Default targets
+                ("Protein", totalProtein, 60.0),
+                ("Fiber", totalFiber, 25.0)
+            ]
+            
+            let micronutrients = micronutrientAnalysis?.ibdSpecificNutrients ?? IBDSpecificNutrients(
+                vitaminD: NutrientStatus(currentIntake: 0, requiredIntake: 0, status: .deficient, absorptionRate: 0.5, ibdFactors: []),
+                vitaminB12: NutrientStatus(currentIntake: 0, requiredIntake: 0, status: .deficient, absorptionRate: 0.5, ibdFactors: []),
+                iron: NutrientStatus(currentIntake: 0, requiredIntake: 0, status: .deficient, absorptionRate: 0.5, ibdFactors: []),
+                calcium: NutrientStatus(currentIntake: 0, requiredIntake: 0, status: .deficient, absorptionRate: 0.5, ibdFactors: []),
+                zinc: NutrientStatus(currentIntake: 0, requiredIntake: 0, status: .deficient, absorptionRate: 0.5, ibdFactors: []),
+                omega3: NutrientStatus(currentIntake: 0, requiredIntake: 0, status: .deficient, absorptionRate: 0.5, ibdFactors: []),
+                glutamine: NutrientStatus(currentIntake: 0, requiredIntake: 0, status: .deficient, absorptionRate: 0.5, ibdFactors: []),
+                probiotics: NutrientStatus(currentIntake: 0, requiredIntake: 0, status: .deficient, absorptionRate: 0.5, ibdFactors: [])
+            )
+            
+            return Double(NutritionScoreCalculator.shared.calculateScore(
+                macronutrients: macroNutrients,
+                micronutrients: micronutrients,
+                userProfile: nil
+            ))
+        }
+        
+        // Fallback to averaging per-entry scores if nutrition data not available
         let totalScore = filteredData.map { $0.nutritionScore }.reduce(0, +)
         return Double(totalScore) / Double(filteredData.count)
     }
+    
     
     private var nutritionScoreColor: Color {
         let score = averageNutritionScore
