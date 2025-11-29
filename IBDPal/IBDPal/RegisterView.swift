@@ -325,6 +325,9 @@ struct RegisterView: View {
             PhoneVerificationView(
                 phoneNumber: verificationPhoneNumber,
                 pendingUserData: pendingUserData,
+                codeStillValid: pendingUserData["codeStillValid"] as? Bool ?? false,
+                isResend: pendingUserData["isResend"] as? Bool ?? false,
+                timeRemainingMinutes: pendingUserData["timeRemainingMinutes"] as? Int,
                 onVerificationSuccess: { userData in
                     self.userData = userData
                     self.isAuthenticated = true
@@ -499,8 +502,28 @@ struct RegisterView: View {
                                     // Store pending user data and show phone verification screen
                                     self.pendingUserData = registerData
                                     self.verificationPhoneNumber = phoneNumber.trimmingCharacters(in: .whitespacesAndNewlines)
+                                    
+                                    // Check if code is still valid or was resent
+                                    let codeStillValid = json["codeStillValid"] as? Bool ?? false
+                                    let isResend = json["isResend"] as? Bool ?? false
+                                    let timeRemainingMinutes = json["timeRemainingMinutes"] as? Int
+                                    
+                                    // Store these flags for the verification view
+                                    self.pendingUserData["codeStillValid"] = codeStillValid
+                                    self.pendingUserData["isResend"] = isResend
+                                    if let timeRemaining = timeRemainingMinutes {
+                                        self.pendingUserData["timeRemainingMinutes"] = timeRemaining
+                                    }
+                                    
                                     self.showPhoneVerification = true
-                                    print("📱 [RegisterView] Phone verification required for: \(phoneNumber)")
+                                    
+                                    if codeStillValid {
+                                        print("📱 [RegisterView] Existing verification code is still valid for: \(phoneNumber)")
+                                    } else if isResend {
+                                        print("📱 [RegisterView] New verification code sent to: \(phoneNumber)")
+                                    } else {
+                                        print("📱 [RegisterView] Phone verification required for: \(phoneNumber)")
+                                    }
                                 } else {
                                     // Direct registration success - handle both registration and login response formats
                                     if let token = json["token"] as? String,
@@ -1038,6 +1061,7 @@ struct EmailVerificationView: View {
     
     @Environment(\.dismiss) private var dismiss
     @State private var verificationCode = ""
+    @FocusState private var focusedField: Int?
     @State private var isLoading = false
     @State private var isResending = false
     @State private var showErrorAlert = false
@@ -1081,15 +1105,14 @@ struct EmailVerificationView: View {
                         ForEach(0..<6, id: \.self) { index in
                             VerificationCodeDigitField(
                                 index: index,
-                                code: $verificationCode
+                                code: $verificationCode,
+                                focusedField: $focusedField
                             )
-                            .onChange(of: verificationCode) { newCode in
-                                // Auto-advance to next field when a digit is entered
-                                if newCode.count > index && index < 5 {
-                                    // Focus will automatically move to next field
-                                }
-                            }
                         }
+                    }
+                    .onAppear {
+                        // Focus first field when view appears
+                        focusedField = 0
                     }
                 }
                 
@@ -1321,69 +1344,112 @@ struct EmailVerificationView: View {
 struct VerificationCodeDigitField: View {
     let index: Int
     @Binding var code: String
-    @FocusState private var isFocused: Bool
+    @FocusState.Binding var focusedField: Int?
+    
+    @State private var text: String = ""
     
     var body: some View {
-        TextField("", text: Binding(
-            get: {
-                if index < code.count {
-                    return String(code[code.index(code.startIndex, offsetBy: index)])
+        TextField("", text: $text)
+            .textFieldStyle(RoundedBorderTextFieldStyle())
+            .frame(width: 45, height: 55)
+            .multilineTextAlignment(.center)
+            .font(.title2)
+            .fontWeight(.bold)
+            .keyboardType(.numberPad)
+            .focused($focusedField, equals: index)
+            .textContentType(index == 0 ? .oneTimeCode : nil)
+            .onChange(of: text) { oldValue, newValue in
+                // Handle SMS autofill - all 6 digits at once
+                if newValue.count == 6 && newValue.allSatisfy({ $0.isNumber }) {
+                    code = newValue
+                    // Update all fields
+                    text = String(newValue[newValue.index(newValue.startIndex, offsetBy: index)])
+                    focusedField = nil
+                    return
                 }
-                return ""
-            },
-            set: { newValue in
-                // Only allow single digit
-                if newValue.count <= 1 {
-                    if newValue.isEmpty {
-                        // Handle backspace
-                        if code.count > index {
-                            code.remove(at: code.index(code.startIndex, offsetBy: index))
+                
+                // Get only numbers from input
+                let numbersOnly = newValue.filter { $0.isNumber }
+                
+                // Check if text was deleted (backspace)
+                if newValue.isEmpty && !oldValue.isEmpty {
+                    // Handle backspace/delete - clear current field and move to previous
+                    if index < code.count {
+                        var updatedCode = code
+                        let charIndex = updatedCode.index(updatedCode.startIndex, offsetBy: index)
+                        updatedCode.remove(at: charIndex)
+                        code = updatedCode
+                    }
+                    text = ""
+                    
+                    // Move to previous field on backspace
+                    if index > 0 {
+                        DispatchQueue.main.async {
+                            focusedField = index - 1
                         }
-                        // Move to previous field on backspace
-                        if index > 0 && newValue.isEmpty {
-                            // Focus will be handled by parent view
-                        }
-                    } else {
-                        // Handle digit input
-                        let digit = newValue.first!
-                        if digit.isNumber {
-                            if index < code.count {
-                                code.remove(at: code.index(code.startIndex, offsetBy: index))
-                                code.insert(digit, at: code.index(code.startIndex, offsetBy: index))
-                            } else {
-                                code.append(digit)
-                            }
-                            
-                            // Auto-advance to next field if not the last field
-                            if index < 5 && code.count > index + 1 {
-                                // Focus will be handled by parent view
-                            }
-                        }
+                    }
+                    return
+                }
+                
+                if numbersOnly.isEmpty {
+                    // No numbers in input - keep text empty
+                    text = ""
+                    return
+                }
+                
+                // Handle digit input - take the last digit entered
+                let digitChar = numbersOnly.last!
+                
+                // Update code at this position
+                var updatedCode = code
+                
+                if index < updatedCode.count {
+                    // Replace existing digit
+                    let charIndex = updatedCode.index(updatedCode.startIndex, offsetBy: index)
+                    updatedCode.replaceSubrange(charIndex...charIndex, with: String(digitChar))
+                } else {
+                    // Append new digit
+                    updatedCode.append(digitChar)
+                }
+                
+                // Limit to 6 digits
+                if updatedCode.count > 6 {
+                    updatedCode = String(updatedCode.prefix(6))
+                }
+                
+                code = updatedCode
+                text = String(digitChar)
+                
+                // Auto-advance to next field
+                if index < 5 {
+                    DispatchQueue.main.async {
+                        focusedField = index + 1
+                    }
+                } else {
+                    DispatchQueue.main.async {
+                        focusedField = nil
                     }
                 }
             }
-        ))
-        .textFieldStyle(RoundedBorderTextFieldStyle())
-        .frame(width: 45, height: 55)
-        .multilineTextAlignment(.center)
-        .font(.title2)
-        .fontWeight(.bold)
-        .keyboardType(.numberPad)
-        .focused($isFocused)
-        .onReceive(Just(code)) { _ in
-            if code.count > 6 {
-                code = String(code.prefix(6))
-            }
-        }
-        .onChange(of: code) { newCode in
-            // Auto-advance logic
-            if newCode.count > index && index < 5 {
-                // Move focus to next field
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                    // This will be handled by the parent view
+            .onChange(of: code) { oldValue, newValue in
+                // Sync text with code when code changes externally
+                if index < newValue.count {
+                    let charIndex = newValue.index(newValue.startIndex, offsetBy: index)
+                    let digit = String(newValue[charIndex])
+                    if text != digit {
+                        text = digit
+                    }
+                } else if !text.isEmpty {
+                    text = ""
                 }
             }
-        }
+            .onAppear {
+                // Initialize text from code
+                if index < code.count {
+                    let charIndex = code.index(code.startIndex, offsetBy: index)
+                    text = String(code[charIndex])
+                }
+            }
     }
 }
 
@@ -1391,11 +1457,15 @@ struct VerificationCodeDigitField: View {
 struct PhoneVerificationView: View {
     let phoneNumber: String
     let pendingUserData: [String: Any]
+    let codeStillValid: Bool
+    let isResend: Bool
+    let timeRemainingMinutes: Int?
     let onVerificationSuccess: (UserData) -> Void
     let onVerificationFailure: (String) -> Void
     
     @Environment(\.dismiss) private var dismiss
     @State private var verificationCode = ""
+    @FocusState private var focusedField: Int?
     @State private var isLoading = false
     @State private var isResending = false
     @State private var showErrorAlert = false
@@ -1404,6 +1474,29 @@ struct PhoneVerificationView: View {
     @State private var canResend = false
     
     private let apiBaseURL = AppConfig.apiBaseURL
+    
+    private var headerMessage: String {
+        if codeStillValid {
+            return "Enter the verification code sent to"
+        } else if isResend {
+            return "We've sent a new verification code to"
+        } else {
+            return "We've sent a verification code to"
+        }
+    }
+    
+    private var timeRemainingText: String? {
+        guard let minutes = timeRemainingMinutes else { return nil }
+        if minutes > 60 {
+            let hours = minutes / 60
+            let remainingMinutes = minutes % 60
+            if remainingMinutes > 0 {
+                return "Code expires in \(hours)h \(remainingMinutes)m"
+            }
+            return "Code expires in \(hours)h"
+        }
+        return "Code expires in \(minutes)m"
+    }
     
     var body: some View {
         NavigationView {
@@ -1419,7 +1512,7 @@ struct PhoneVerificationView: View {
                         .fontWeight(.bold)
                         .foregroundColor(Color(red: 0.1, green: 0.1, blue: 0.1))
                     
-                    Text("We've sent a verification code to")
+                    Text(headerMessage)
                         .font(.subheadline)
                         .foregroundColor(Color(red: 0.4, green: 0.4, blue: 0.4))
                     
@@ -1427,6 +1520,13 @@ struct PhoneVerificationView: View {
                         .font(.subheadline)
                         .fontWeight(.semibold)
                         .foregroundColor(Color(red: 0.1, green: 0.1, blue: 0.1))
+                    
+                    if let timeText = timeRemainingText {
+                        Text(timeText)
+                            .font(.caption)
+                            .foregroundColor(Color(red: 0.6, green: 0.2, blue: 0.8))
+                            .padding(.top, 4)
+                    }
                 }
                 
                 // Verification Code Input
@@ -1439,9 +1539,14 @@ struct PhoneVerificationView: View {
                         ForEach(0..<6, id: \.self) { index in
                             VerificationCodeDigitField(
                                 index: index,
-                                code: $verificationCode
+                                code: $verificationCode,
+                                focusedField: $focusedField
                             )
                         }
+                    }
+                    .onAppear {
+                        // Focus first field when view appears
+                        focusedField = 0
                     }
                 }
                 
