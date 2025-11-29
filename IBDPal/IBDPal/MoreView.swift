@@ -211,7 +211,8 @@ struct MoreView: View {
         print("🗑️ [MoreView] Starting account deletion process...")
         
         // Call server delete account endpoint
-        guard let url = URL(string: "\(apiBaseURL)/api/users/account") else {
+        // Note: apiBaseURL already includes /api, so we just append /users/account
+        guard let url = URL(string: "\(apiBaseURL)/users/account") else {
             print("❌ [MoreView] Invalid delete account URL")
             isDeletingAccount = false
             return
@@ -510,7 +511,7 @@ struct ProfileView: View {
             "phone_number": phoneNumber
         ]
         
-        guard let url = URL(string: "\(apiBaseURL)/api/users/profile") else {
+        guard let url = URL(string: "\(apiBaseURL)/users/profile") else {
             showError("Network Error", "Invalid URL")
             isLoading = false
             return
@@ -577,7 +578,7 @@ struct ProfileView: View {
             "new_password": newPassword
         ]
         
-        guard let url = URL(string: "\(apiBaseURL)/api/users/password") else {
+        guard let url = URL(string: "\(apiBaseURL)/users/password") else {
             showError("Network Error", "Invalid URL")
             isLoading = false
             return

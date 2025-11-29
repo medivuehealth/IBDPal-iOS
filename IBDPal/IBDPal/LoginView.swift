@@ -337,6 +337,8 @@ struct ForgotPasswordView: View {
     @State private var isResending = false
     @State private var showErrorAlert = false
     @State private var errorMessage = ""
+    @State private var showInfoAlert = false
+    @State private var infoMessage = ""
     @State private var showPassword = false
     @State private var showConfirmPassword = false
     @State private var step: ForgotPasswordStep = .requestCode
@@ -425,14 +427,7 @@ struct ForgotPasswordView: View {
                                     .font(.headline)
                                     .foregroundColor(Color(red: 0.1, green: 0.1, blue: 0.1))
                                 
-                                HStack(spacing: 12) {
-                                    ForEach(0..<6, id: \.self) { index in
-                                        VerificationCodeDigitField(
-                                            index: index,
-                                            code: $resetCode
-                                        )
-                                    }
-                                }
+                                VerificationCodeInputView(code: $resetCode, length: 6)
                             }
                             
                             // New Password
@@ -550,6 +545,11 @@ struct ForgotPasswordView: View {
             } message: {
                 Text(errorMessage)
             }
+            .alert("Account Not Found", isPresented: $showInfoAlert) {
+                Button("OK") { }
+            } message: {
+                Text(infoMessage)
+            }
             .onAppear {
                 if step == .resetPassword {
                     startCountdown()
@@ -605,9 +605,19 @@ struct ForgotPasswordView: View {
                     if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] {
                         if let httpResponse = response as? HTTPURLResponse {
                             if httpResponse.statusCode == 200 {
-                                // Success - move to next step
-                                step = .resetPassword
-                                startCountdown()
+                                // Check if SMS was actually sent by looking for phoneNumber in response
+                                // Server only includes phoneNumber if SMS was successfully sent
+                                if let _ = json["phoneNumber"] as? String {
+                                    // SMS was sent - move to next step
+                                    step = .resetPassword
+                                    startCountdown()
+                                } else {
+                                    // No phoneNumber in response means SMS wasn't sent
+                                    // This could be inactive account or user not found
+                                    // Show a helpful message and suggest signing up
+                                    infoMessage = "We couldn't send a reset code to this phone number. The account may not exist or may have been deactivated. If you'd like to create a new account, please sign up."
+                                    showInfoAlert = true
+                                }
                             } else {
                                 let errorMessage = json["message"] as? String ?? json["error"] as? String ?? "Failed to send reset code"
                                 showError(errorMessage)

@@ -120,3 +120,5 @@ class NutritionScoreCalculator: ObservableObject {
 
 
 
+
+

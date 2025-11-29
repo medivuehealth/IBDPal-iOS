@@ -559,8 +559,25 @@ struct RegisterView: View {
                                     }
                                 }
                             } else {
-                                // Error
-                                let errorMessage = json["message"] as? String ?? json["error"] as? String ?? "Registration failed"
+                                // Error - check for validation details
+                                var errorMessage = json["message"] as? String ?? json["error"] as? String ?? "Registration failed"
+                                
+                                // Parse validation details if present
+                                if let details = json["details"] as? [[String: Any]], !details.isEmpty {
+                                    var validationMessages: [String] = []
+                                    
+                                    for detail in details {
+                                        if let msg = detail["msg"] as? String {
+                                            validationMessages.append(msg)
+                                        }
+                                    }
+                                    
+                                    if !validationMessages.isEmpty {
+                                        // Combine all validation messages
+                                        errorMessage = validationMessages.joined(separator: "\n")
+                                    }
+                                }
+                                
                                 showError(errorMessage)
                             }
                         }
@@ -1061,7 +1078,6 @@ struct EmailVerificationView: View {
     
     @Environment(\.dismiss) private var dismiss
     @State private var verificationCode = ""
-    @FocusState private var focusedField: Int?
     @State private var isLoading = false
     @State private var isResending = false
     @State private var showErrorAlert = false
@@ -1101,19 +1117,7 @@ struct EmailVerificationView: View {
                         .font(.headline)
                         .foregroundColor(Color(red: 0.1, green: 0.1, blue: 0.1))
                     
-                    HStack(spacing: 12) {
-                        ForEach(0..<6, id: \.self) { index in
-                            VerificationCodeDigitField(
-                                index: index,
-                                code: $verificationCode,
-                                focusedField: $focusedField
-                            )
-                        }
-                    }
-                    .onAppear {
-                        // Focus first field when view appears
-                        focusedField = 0
-                    }
+                    VerificationCodeInputView(code: $verificationCode, length: 6)
                 }
                 
                 // Verify Button
@@ -1340,116 +1344,76 @@ struct EmailVerificationView: View {
     }
 }
 
-// MARK: - Verification Code Digit Field
-struct VerificationCodeDigitField: View {
-    let index: Int
+// MARK: - Verification Code Input View
+// Standard implementation using a single hidden text field for input
+// and separate display boxes for each digit
+struct VerificationCodeInputView: View {
     @Binding var code: String
-    @FocusState.Binding var focusedField: Int?
+    let length: Int
     
-    @State private var text: String = ""
+    @FocusState private var isFocused: Bool
+    @State private var hiddenTextFieldText = ""
     
     var body: some View {
-        TextField("", text: $text)
-            .textFieldStyle(RoundedBorderTextFieldStyle())
-            .frame(width: 45, height: 55)
-            .multilineTextAlignment(.center)
-            .font(.title2)
-            .fontWeight(.bold)
-            .keyboardType(.numberPad)
-            .focused($focusedField, equals: index)
-            .textContentType(index == 0 ? .oneTimeCode : nil)
-            .onChange(of: text) { oldValue, newValue in
-                // Handle SMS autofill - all 6 digits at once
-                if newValue.count == 6 && newValue.allSatisfy({ $0.isNumber }) {
-                    code = newValue
-                    // Update all fields
-                    text = String(newValue[newValue.index(newValue.startIndex, offsetBy: index)])
-                    focusedField = nil
-                    return
-                }
-                
-                // Get only numbers from input
-                let numbersOnly = newValue.filter { $0.isNumber }
-                
-                // Check if text was deleted (backspace)
-                if newValue.isEmpty && !oldValue.isEmpty {
-                    // Handle backspace/delete - clear current field and move to previous
-                    if index < code.count {
-                        var updatedCode = code
-                        let charIndex = updatedCode.index(updatedCode.startIndex, offsetBy: index)
-                        updatedCode.remove(at: charIndex)
-                        code = updatedCode
-                    }
-                    text = ""
+        HStack(spacing: 12) {
+            ForEach(0..<length, id: \.self) { index in
+                ZStack {
+                    // Display box
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(Color(.systemGray6))
+                        .frame(width: 45, height: 55)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8)
+                                .stroke(isFocused && index == code.count ? Color(red: 0.6, green: 0.2, blue: 0.8) : Color(.systemGray4), lineWidth: 2)
+                        )
                     
-                    // Move to previous field on backspace
-                    if index > 0 {
-                        DispatchQueue.main.async {
-                            focusedField = index - 1
-                        }
-                    }
-                    return
-                }
-                
-                if numbersOnly.isEmpty {
-                    // No numbers in input - keep text empty
-                    text = ""
-                    return
-                }
-                
-                // Handle digit input - take the last digit entered
-                let digitChar = numbersOnly.last!
-                
-                // Update code at this position
-                var updatedCode = code
-                
-                if index < updatedCode.count {
-                    // Replace existing digit
-                    let charIndex = updatedCode.index(updatedCode.startIndex, offsetBy: index)
-                    updatedCode.replaceSubrange(charIndex...charIndex, with: String(digitChar))
-                } else {
-                    // Append new digit
-                    updatedCode.append(digitChar)
-                }
-                
-                // Limit to 6 digits
-                if updatedCode.count > 6 {
-                    updatedCode = String(updatedCode.prefix(6))
-                }
-                
-                code = updatedCode
-                text = String(digitChar)
-                
-                // Auto-advance to next field
-                if index < 5 {
-                    DispatchQueue.main.async {
-                        focusedField = index + 1
-                    }
-                } else {
-                    DispatchQueue.main.async {
-                        focusedField = nil
-                    }
+                    // Digit display
+                    Text(index < code.count ? String(code[code.index(code.startIndex, offsetBy: index)]) : "")
+                        .font(.system(size: 24, weight: .bold))
+                        .foregroundColor(.primary)
                 }
             }
-            .onChange(of: code) { oldValue, newValue in
-                // Sync text with code when code changes externally
-                if index < newValue.count {
-                    let charIndex = newValue.index(newValue.startIndex, offsetBy: index)
-                    let digit = String(newValue[charIndex])
-                    if text != digit {
-                        text = digit
+            
+            // Hidden text field for input
+            TextField("", text: $hiddenTextFieldText)
+                .keyboardType(.numberPad)
+                .textContentType(.oneTimeCode)
+                .focused($isFocused)
+                .frame(width: 0, height: 0)
+                .opacity(0)
+                .onChange(of: hiddenTextFieldText) { oldValue, newValue in
+                    // Filter to only numbers and limit length
+                    let numbersOnly = newValue.filter { $0.isNumber }
+                    let limited = String(numbersOnly.prefix(length))
+                    
+                    if limited != newValue {
+                        hiddenTextFieldText = limited
+                        return
                     }
-                } else if !text.isEmpty {
-                    text = ""
+                    
+                    // Only update code if it's different to avoid loops
+                    if code != limited {
+                        code = limited
+                    }
                 }
-            }
-            .onAppear {
-                // Initialize text from code
-                if index < code.count {
-                    let charIndex = code.index(code.startIndex, offsetBy: index)
-                    text = String(code[charIndex])
+                .onChange(of: code) { oldValue, newValue in
+                    // Sync hidden field with code binding only if different
+                    if hiddenTextFieldText != newValue {
+                        hiddenTextFieldText = newValue
+                    }
                 }
-            }
+                .onAppear {
+                    hiddenTextFieldText = code
+                    // Focus the hidden field when view appears
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                        isFocused = true
+                    }
+                }
+        }
+        .onTapGesture {
+            // Focus when tapping anywhere on the code input area
+            isFocused = true
+        }
     }
 }
 
@@ -1465,7 +1429,6 @@ struct PhoneVerificationView: View {
     
     @Environment(\.dismiss) private var dismiss
     @State private var verificationCode = ""
-    @FocusState private var focusedField: Int?
     @State private var isLoading = false
     @State private var isResending = false
     @State private var showErrorAlert = false
@@ -1487,15 +1450,19 @@ struct PhoneVerificationView: View {
     
     private var timeRemainingText: String? {
         guard let minutes = timeRemainingMinutes else { return nil }
-        if minutes > 60 {
-            let hours = minutes / 60
-            let remainingMinutes = minutes % 60
+        // Ensure minutes is a valid positive number
+        let validMinutes = max(0, minutes)
+        guard validMinutes > 0 else { return nil }
+        
+        if validMinutes > 60 {
+            let hours = validMinutes / 60
+            let remainingMinutes = validMinutes % 60
             if remainingMinutes > 0 {
                 return "Code expires in \(hours)h \(remainingMinutes)m"
             }
             return "Code expires in \(hours)h"
         }
-        return "Code expires in \(minutes)m"
+        return "Code expires in \(validMinutes)m"
     }
     
     var body: some View {
@@ -1535,19 +1502,7 @@ struct PhoneVerificationView: View {
                         .font(.headline)
                         .foregroundColor(Color(red: 0.1, green: 0.1, blue: 0.1))
                     
-                    HStack(spacing: 12) {
-                        ForEach(0..<6, id: \.self) { index in
-                            VerificationCodeDigitField(
-                                index: index,
-                                code: $verificationCode,
-                                focusedField: $focusedField
-                            )
-                        }
-                    }
-                    .onAppear {
-                        // Focus first field when view appears
-                        focusedField = 0
-                    }
+                    VerificationCodeInputView(code: $verificationCode, length: 6)
                 }
                 
                 // Verify Button
